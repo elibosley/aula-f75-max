@@ -1,0 +1,8 @@
+{
+  "source": "builddeps/chibios-contrib/os/hal/ports/SN32/LLD/SN32F2xx/SPI/hal_spi_v2_lld.c",
+  "before_sha256": "a0fd3f642b1d50e3b63f64f97039ab1066b1684a0e75df621a5a80d7893c2462",
+  "after_sha256": "32bbb3de920ea16cb75145bcd84e8f8053beff214a41d9c4cec4be06e5879643",
+  "find_hex": "737069702d3e7370692d3e44415441203d20307830303b",
+  "replace_hex": "69662028737069702d3e636f6e6669672d3e736c6176652920737069702d3e7370692d3e44415441203d20307830303b",
+  "patch": "firmware/targets/f75max/patches/spi-master-completion.patch"
+}

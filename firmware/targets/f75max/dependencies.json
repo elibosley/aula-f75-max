@@ -1,0 +1,52 @@
+{
+  "sources": [
+    {
+      "name": "qmk",
+      "repo": "SonixQMK/qmk_firmware",
+      "revision": "c9f3803ff1cb910a713c6202cab357268cf98fa6",
+      "archive_sha256": "bb5f102daec0e601c57415bb5565095940204f9c60ea7608a2f90103b22a0063",
+      "bytes": 14958410
+    },
+    {
+      "name": "chibios",
+      "repo": "qmk/ChibiOS",
+      "revision": "6170ddf92d55be54c89b708d1882eea229edeb2c",
+      "archive_sha256": "9c650ea3c630c9d7a9cd3af8ccbe3b069fa1ae1dbcf58586166d8e3fff28d912",
+      "bytes": 55803131
+    },
+    {
+      "name": "chibios-contrib",
+      "repo": "SonixQMK/ChibiOS-Contrib",
+      "revision": "4b5588b511c0e98b4ae8c3b81357e4468ec9d1cb",
+      "archive_sha256": "696545d86bfc2f3faafa2760a76aa67cf309ebd004f178807b32fca0862acb38",
+      "bytes": 6735883
+    },
+    {
+      "name": "printf",
+      "repo": "qmk/printf",
+      "revision": "c2e3b4e10d281e7f0f694d3ecbd9f320977288cc",
+      "archive_sha256": "2fabf2d86b4118ab52f6f0d2e5fd6b20bb7a1c2f67f56e2d463753d6cd2bda42",
+      "bytes": 173154
+    },
+    {
+      "name": "flasher",
+      "repo": "SonixQMK/SonixFlasherC",
+      "revision": "e6ba5db11f703f89fd29a5bc0e56ed1ae42604c3",
+      "archive_sha256": "b90a69ef7dc945c6e1feec3fd28a08bc411a37c90fa2c8e86c8645608bb41e1d",
+      "bytes": 30967
+    },
+    {
+      "name": "lufa",
+      "repo": "qmk/lufa",
+      "revision": "549b97320d515bfca2f95c145a67bd13be968faa",
+      "archive_sha256": "01a62a2258dc4fe574290ce5ccc3f947d4e101141a228cc927ae28e58a7bec23",
+      "bytes": 5104273
+    }
+  ],
+  "toolchain": {
+    "release": "v15.2.1-1.1",
+    "url": "https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v15.2.1-1.1/xpack-arm-none-eabi-gcc-15.2.1-1.1-darwin-arm64.tar.gz",
+    "sha256": "574082d35e49a2bcbdc355836b2a3ae5e5bb3b9456c9f5e37177db2ab4aad870",
+    "verification": "matches release sha256 asset"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "font": "Inter",
+  "weight": 700,
+  "optical_size": 14,
+  "coverage_bits": 4,
+  "supersampling": 1,
+  "source_sha256": "4989b125924991b90d05b2d16e0e388c48f7d5bb8b30539bbf9c755278d0ccaf",
+  "fonts": {
+    "compact": {
+      "size": 10,
+      "weight": 700,
+      "glyphs": 95,
+      "pixel_bytes": 2301
+    },
+    "small": {
+      "size": 11,
+      "weight": 700,
+      "glyphs": 95,
+      "pixel_bytes": 2436
+    },
+    "large": {
+      "size": 27,
+      "weight": 600,
+      "glyphs": 16,
+      "pixel_bytes": 2344
+    }
+  },
+  "pixel_bytes": 7081,
+  "compiler": "scripts/build_font.py"
+}

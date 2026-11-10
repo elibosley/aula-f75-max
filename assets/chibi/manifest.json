@@ -1,0 +1,33 @@
+{
+  "source_sha256": "af7f4e5f83b5da0665d88eeec67d56a32785c7b32b0e0a9c14fa9f249c3be123",
+  "source": "AI-generated original character sprite atlas",
+  "grid": [
+    3,
+    2
+  ],
+  "frame_size": [
+    64,
+    64
+  ],
+  "frames": [
+    "idle",
+    "blink",
+    "type-left",
+    "type-right",
+    "cheer",
+    "sleep"
+  ],
+  "palette_entries": 16,
+  "pixel_storage_bytes": 12288,
+  "palette_storage_bytes": 32,
+  "native_frame_size": [
+    80,
+    80
+  ],
+  "native_rgb565_storage_bytes": 76800,
+  "native_source": "original atlas at target size; RGB565, no 15-color palette",
+  "native_transparent_color": 0,
+  "native_opaque_black": 1,
+  "transparent_index": 0,
+  "compiler": "scripts/build_pet_assets.py"
+}

@@ -1,0 +1,10 @@
+{
+  "size": 14,
+  "coverage_bits": 4,
+  "sources_sha256": {
+    "apple": "54c23013c9fb17e51cac549bc82c608976d0ce3c2b51bc19e25f0616e0042932",
+    "windows": "cc41a8507e4792bc82079ae968ea86a458e695fddf0561128ccc73dfbbdb0ae7",
+    "android": "f75ef2cbc413b37f3df4abf18675ea5bd8306c4354d492a46be81672e94d81b6"
+  },
+  "compiler": "scripts/build_os_icons.py"
+}

@@ -1,0 +1,52 @@
+--- a/builddeps/chibios-contrib/os/hal/ports/SN32/LLD/SN32F2xx/SysTick/hal_st_lld.h
++++ b/builddeps/chibios-contrib/os/hal/ports/SN32/LLD/SN32F2xx/SysTick/hal_st_lld.h
+@@ -32,6 +32,7 @@
+ /*===========================================================================*/
+ #define SN32_TIM_CT16B0 0
+ #define SN32_TIM_CT16B1 1
++#define SN32_TIM_CT16B4 4
+ 
+ /*===========================================================================*/
+ /* Driver pre-compile time settings.                                         */
+@@ -92,6 +93,16 @@
+ #define SN32_ST_TIM                         SN32_CT16B1
+ #define ST_LLD_NUM_ALARMS                   1
+ 
++#elif SN32_ST_USE_TIMER == SN32_TIM_CT16B4
++#if !defined(SN32_HAS_CT16B4) || !SN32_HAS_CT16B4
++#error "CT16B4 not present in the selected device"
++#endif
++#if defined(SN32_CT16B4_IS_USED)
++#error "ST requires CT16B4 but the timer is already used"
++#endif
++#define SN32_CT16B4_IS_USED
++#define SN32_ST_TIM SN32_CT16B4
++#define ST_LLD_NUM_ALARMS 1
+ #else
+ #error "SN32_ST_USE_TIMER specifies an unsupported timer"
+ #endif
+@@ -199,7 +210,7 @@
+ 
+   /* Save the alarm time in a timer register.  This is needed only to make
+    * st_lld_get_alarm() work. */
+-#if ((defined(SN32F280) || defined(SN32F290)) && SN32_ST_USE_TIMER == SN32_TIM_CT16B0)
++#if ((defined(SN32F280) || defined(SN32F290)) && (SN32_ST_USE_TIMER == SN32_TIM_CT16B0 || SN32_ST_USE_TIMER == SN32_TIM_CT16B4))
+   SN32_ST_TIM->MR[0] = CT16_PWM_UNLOCK(((uint32_t)abstime & SN32_CT16_TC_LIMIT));
+ #else
+   SN32_ST_TIM->MR[0] = ((uint32_t)abstime & SN32_CT16_TC_LIMIT);
+--- a/builddeps/chibios-contrib/os/hal/ports/SN32/LLD/SN32F2xx/SysTick/hal_st_lld.c
++++ b/builddeps/chibios-contrib/os/hal/ports/SN32/LLD/SN32F2xx/SysTick/hal_st_lld.c
+@@ -57,6 +57,13 @@
+ #define ST_RESET_CLOCK()                    sys1ResetCT16B1()
+ #define ST_INIT_CLOCK()                     CT16B1_ResetTimer()
+ 
++#elif SN32_ST_USE_TIMER == SN32_TIM_CT16B4
++#if !SN32_HAS_CT16B4
++#error "CT16B4 not present in the selected device"
++#endif
++#define ST_ENABLE_CLOCK() sys1EnableCT16B4()
++#define ST_RESET_CLOCK() sys1ResetCT16B4()
++#define ST_INIT_CLOCK() CT16B4_ResetTimer()
+ #else
+ #error "SN32_ST_USE_TIMER specifies an unsupported timer"
+ #endif

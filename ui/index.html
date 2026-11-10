@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark"><title>F75 Studio — keyboard interface prototype</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><a class="wordmark" href="#">F75<span>STUDIO</span></a><span class="prototype">Interactive prototype · simulated hardware</span><a href="hardware.html" class="text-button">Your keyboard</a><button id="save" class="primary">Save settings</button></header>
+  <main>
+    <div class="intro"><div><p class="eyebrow">ON THE BOARD</p><h1>A little screen.<br>A much better keyboard.</h1></div><p>Pair devices. Make every key yours.<br>Keep your preferences when you switch computers.</p></div>
+    <nav class="phone-nav" aria-label="Jump to customization"><button data-jump="Pet">Pet</button><button data-jump="Devices">Devices</button><button data-jump="Keys">Keys</button><button data-jump="Lighting">Lighting</button><button data-jump="Power">Power</button><button data-jump="Focus">Focus</button></nav>
+    <div class="workspace">
+      <section class="preview" aria-label="Keyboard simulator">
+        <div class="instrument">
+          <div class="display-side"><div class="screen-bezel"><canvas id="screen" width="128" height="128" role="img" aria-label="Keyboard display"></canvas></div><div class="display-caption">128 × 128 · actual pixel layout <button id="size-toggle" aria-pressed="false">View 1:1</button></div></div>
+          <div class="interaction"><div class="live-label"><span class="status-dot"></span><span id="connection-state">USB cable</span></div><h2 id="current-page">At a glance.</h2><p id="page-description">The wheel changes volume. Press it for your board controls. Hold it to go back.</p>
+            <div class="encoder"><button id="wheel-down" aria-label="Turn wheel counterclockwise">−</button><button id="wheel-press" class="knob" aria-label="Press wheel"><span></span><b>PRESS</b></button><button id="wheel-up" aria-label="Turn wheel clockwise">+</button></div>
+            <button id="back" class="text-button">Back / hold wheel</button>
+            <button id="screen-theme" class="text-button" aria-pressed="false">Light screen</button><label class="field"><span>Menu wheel feel</span><select id="wheel-feel"><option value="1" selected>Direct · 1 tick</option><option value="2">Balanced · 2 ticks</option><option value="3">Deliberate · 3 ticks</option></select></label>
+            <p class="hint">Mouse wheel over the dial also works. Feel resets on restart.</p>
+          </div>
+        </div>
+        <div class="board-heading"><div><h2>The whole board is a control surface.</h2><p>Hold Fn + Space for navigation, device settings, and lighting.</p></div><button id="control" aria-pressed="false">Hold control layer</button></div>
+        <div class="keyboard-scroll" tabindex="0" aria-label="Keyboard preview; scroll horizontally on a phone"><div id="keyboard" role="group" aria-label="80-key keyboard layout"></div></div>
+        <div class="board-footer"><span id="layer-indicator">BASE LAYER</span><span id="key-result" aria-live="polite">Select keys to paint individual colors.</span><button id="function" aria-pressed="false">Preview Fn layer</button></div>
+        <div class="transport"><span id="saved-state">Settings saved in this browser</span><button id="restart">Simulate restart</button><button id="export">Export profile</button><label class="file-label">Import profile<input id="import" type="file" accept="application/json,.json"></label></div>
+        <p id="message" role="status" aria-live="polite"></p>
+      </section>
+      <aside aria-label="Customize keyboard"><nav id="tabs" aria-label="Customization sections"><button data-tab="Pet" aria-selected="true">Pet</button><button data-tab="Devices" aria-selected="false">Devices</button><button data-tab="Keys">Keys</button><button data-tab="Lighting">Lighting</button><button data-tab="Power">Power</button><button data-tab="Focus">Focus</button></nav><div id="inspector"></div></aside>
+    </div>
+    <section class="simulation" aria-label="Simulated hardware inputs"><div><h2>Try the edge cases.</h2><p>These inputs simulate radio and battery events. They do not control your keyboard.</p></div><div class="simulation-inputs"><label>Battery <input id="battery" type="range" min="1" max="100" value="78"><output id="battery-value">78%</output></label><label class="check"><input id="charging" type="checkbox"> USB power</label><button id="host-connect">Simulate host connected</button><button id="idle">Simulate 60s idle</button><button id="wake">Wake board</button><button id="timer-demo">Simulate timer finish</button></div></section>
+  </main>
+  <footer><span>F75 Max · open firmware interface study</span><span id="power-summary">Balanced power</span></footer>
+  <script src="studio.js"></script>
+</body>
+</html>

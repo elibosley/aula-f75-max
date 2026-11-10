@@ -1,0 +1,11 @@
+--- a/os/common/ext/SONiX/SN32F2xx/system_SN32F290.c
++++ b/os/common/ext/SONiX/SN32F2xx/system_SN32F290.c
+@@ -196,7 +196,7 @@
+ 			break;
+ 	}
+ 
+-	switch (SN_SYS0->AHBCP)
++	switch (SN_SYS0->AHBCP_b.AHBPRE)
+ 	{
+ 		case 0:	AHB_prescaler = 1;	break;
+ 		case 1:	AHB_prescaler = 2;	break;

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+raw/
+analysis/
+reference/
+.runtime/
+node_modules/
+ui/studio.js
+
+builddeps/
+qa/
+dist/
+*.dSYM/
+.DS_Store

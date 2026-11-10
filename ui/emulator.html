@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>F75 · ARM emulator</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="emulator.css"></head>
+<body class="arm-emulator">
+<header><a class="wordmark" href="http://127.0.0.1:8787/">F75<span>STUDIO</span></a><span class="prototype">ARM emulator</span></header>
+<main>
+  <div class="intro"><div><p class="eyebrow">COMPILED FIRMWARE</p><h1>The real build.<br>A virtual board.</h1></div><p>Runs the keyboard’s ARM instructions, operating system, and drivers. Inputs stay inside the emulator.</p></div>
+  <section class="instrument" aria-label="Virtual keyboard">
+    <div class="display-side"><div class="screen-bezel"><img id="arm-screen" width="256" height="256" alt="Screen output captured from the emulated keyboard’s SPI display bus"></div><p id="connection" role="status">Starting emulator…</p></div>
+    <div class="interaction"><h2>Take it for a turn.</h2><p>One turn is one physical wheel detent. Each detent moves one menu item immediately.</p>
+      <div class="arm-controls"><button data-action="turn" data-value="-1" aria-label="Turn wheel left">Left</button><button class="primary" data-action="press">Press wheel</button><button data-action="turn" data-value="1" aria-label="Turn wheel right">Right</button></div>
+      <button data-action="back" class="text-button">Hold wheel to go back</button>
+      <p>Try the permanent Caps/Ctrl swap and Mac modifier mapping. Reports below come from the virtual USB endpoint.</p>
+      <div class="arm-controls"><button data-action="tap" data-value="a">Type A</button><button data-action="tap" data-value="caps">Caps</button><button data-action="tap" data-value="ctrl">Physical Ctrl</button><button data-action="tap" data-value="cmd">Mac Command</button></div>
+      <label class="arm-play"><input id="play" type="checkbox" checked> Animate while this page is open</label>
+    </div>
+  </section>
+  <p id="error" role="alert"></p>
+  <section class="arm-evidence" aria-label="Execution evidence"><h2>Inside this run</h2><dl><div><dt>Firmware time</dt><dd id="uptime">—</dd></div><div><dt>Complete frames</dt><dd id="frames">—</dd></div><div><dt>Matrix scans</dt><dd id="scans">—</dd></div></dl><p id="build">Loading build identity…</p><details><summary>Virtual USB reports</summary><pre id="reports">No key reports yet.</pre></details></section>
+  <p class="arm-limits">The CPU and firmware execute for real. Pins, clock readiness, display electronics, and USB bus events are modeled. Wireless, RGB, battery life, and factory ROM execution are not verified here. Emulator time can run slower than wall-clock time.</p>
+  <p><a href="http://127.0.0.1:8787/">Open the interface design preview</a></p>
+</main>
+<script>
+const $=id=>document.getElementById(id); let busy=false,failed=false,pending=[];
+if(matchMedia('(prefers-reduced-motion: reduce)').matches)$('play').checked=false;
+function show(state){$('arm-screen').src='data:image/png;base64,'+state.png;$('connection').textContent='Running · '+state.core;$('uptime').textContent=(state.uptime_ms/1000).toFixed(1)+' s';$('frames').textContent=state.frames.toLocaleString();$('scans').textContent=state.scans.toLocaleString();$('build').textContent='Image SHA-256: '+state.image_sha256;$('reports').textContent=state.reports.length?state.reports.map(r=>'Endpoint '+r.endpoint+'  '+r.data).join('\n'):'No key reports yet.';}
+async function call(action,value){if(busy){if(action!=='tick')pending.push([action,value]);return;}busy=true;if(action!=='tick')document.querySelectorAll('button').forEach(b=>b.disabled=true);try{const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json','X-F75-Action':'1'},body:JSON.stringify({action,value})});const data=await response.json();if(!response.ok)throw Error(data.error||'Emulator request failed');show(data);$('error').textContent='';failed=false;}catch(e){$('error').textContent=e.message+'. Reload the page to reconnect.';failed=true;$('play').checked=false;}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);if(pending.length){const next=pending.shift();call(...next);}}}
+document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>call(b.dataset.action,b.dataset.action==='turn'?Number(b.dataset.value):b.dataset.value)));
+async function loop(){if(!document.hidden&&$('play').checked&&!busy&&!failed)await call('tick');setTimeout(loop,250);}
+fetch('/api/state').then(r=>r.json()).then(show).catch(e=>{$('error').textContent=e.message;failed=true;});loop();
+</script></body></html>
