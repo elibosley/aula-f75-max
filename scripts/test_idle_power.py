@@ -41,12 +41,15 @@ def run(image):
   def key(index,down):
    row,col=divmod(index,6);m.write32(HOST+0x100+row*4,(1<<col) if down else 0)
   # The first press starts in the slower scan phase. It must not be lost.
-  for usage in (0x29,4,0x4c): # first, early and last matrix drive rows
-   for phase in range(8):
-    age();step(phase+1);reports.clear();key(keymap.index(usage),True);step(15)
-    assert bytes([0,0,usage,0,0,0,0,0]) in reports,('Idle missed 15ms key pulse',usage,phase,reports)
-    assert power()[4]==255,'Raw key activity did not restore the active row period'
-    key(keymap.index(usage),False);step(15);assert reports[-1]==bytes(8)
+  # Each compressed companion has different decode work on the wake path.
+  for character in range(4):
+   m.write(m.symbols['state']+115,bytes([character]))
+   for usage in (0x29,4,0x4c): # first, early and last matrix drive rows
+    for phase in range(8):
+     age();step(phase+1);reports.clear();key(keymap.index(usage),True);step(15)
+     assert bytes([0,0,usage,0,0,0,0,0]) in reports,('Idle missed 15ms key pulse',character,usage,phase,reports)
+     assert power()[4]==255,'Raw key activity did not restore the active row period'
+     key(keymap.index(usage),False);step(15);assert reports[-1]==bytes(8)
   # Fn and wheel are activity even without a host typing usage.
   age();key(71,True);step(30);assert power()[0]==0 and power()[4]==255
   key(71,False);step(30)
@@ -58,6 +61,6 @@ def run(image):
   age();assert power()[4]==511;assert m.read32(0x40006000)==0
   key(keymap.index(4),True);step(25);assert power()[4]==255 and m.read32(0x40006000)==0
   key(keymap.index(4),False);step(20);assert m.read32(HOST+8)==0
- return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'idle_row_period_511_active_255':True,'idle_pwm_banks_stopped_mux_detached':True,'dark_color_frames_stop':True,'idle_thread_WFI_reached_and_interrupt_wake_executes':True,'metadata_does_not_wake':True,'real_usb_15ms_pulses':24,'idle_pulse_rows':[0,1,14],'idle_phases_per_key':8,'fn_and_held_wheel_wake':True,'click_after_wake_preserved':True,'diagnostic_suspend_preserved':True,'deep_sleep_or_battery_endurance':'not_claimed'}
+ return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'idle_row_period_511_active_255':True,'idle_pwm_banks_stopped_mux_detached':True,'dark_color_frames_stop':True,'idle_thread_WFI_reached_and_interrupt_wake_executes':True,'metadata_does_not_wake':True,'real_usb_15ms_pulses':96,'companions_covered':4,'idle_pulse_rows':[0,1,14],'idle_phases_per_key':8,'fn_and_held_wheel_wake':True,'click_after_wake_preserved':True,'diagnostic_suspend_preserved':True,'deep_sleep_or_battery_endurance':'not_claimed'}
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--output',type=Path,required=True);a=p.parse_args();r=run(a.image);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

@@ -14,6 +14,14 @@ int main(void){
         assert(guarded[0]==0xa5&&guarded[4801]==0xa5);
         for(unsigned i=0;i<6400;i++)assert(decoded[i]<64);
         assert(!f75_sprite_decode(data,bytes-1,guarded+1,4800,6400));
+        f75_sprite_decoder incremental;
+        assert(f75_sprite_begin(&incremental,data,bytes,guarded+1,4800,6400));
+        for(size_t through=80;through<=6400;through+=80){
+            assert(f75_sprite_step(&incremental,guarded+1,4800,through));
+            assert(incremental.position==through);
+        }
+        for(unsigned i=0;i<6400;i++)decoded[i]=f75_sprite_index(guarded+1,i);
+        assert(f75_crc32(decoded,6400)==f75_companion_checksums[character][frame]);
     }
     assert(!f75_sprite_decode(NULL,1,guarded+1,4800,6400));
     assert(!f75_sprite_decode(guarded,1,NULL,4800,6400));

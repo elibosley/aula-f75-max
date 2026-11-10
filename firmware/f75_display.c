@@ -119,11 +119,12 @@ static void desk_clock(tile *t,const f75_view *v,uint16_t rose){
 }
 static void pet_sprite(tile *t,const f75_view *v,uint16_t accent){
     static uint8_t sprite[4800],cached_frame=255,cached_character=255;
+    static f75_sprite_decoder decoder;
     static bool valid;
     unsigned frame=v->pet_frame<F75_COMPANION_FRAMES?v->pet_frame:0;
     unsigned character=v->pet_character<F75_COMPANION_COUNT?v->pet_character:3;
     if(cached_frame!=frame||cached_character!=character){
-        valid=f75_sprite_decode(f75_companion_streams[character][frame],f75_companion_lengths[character][frame],sprite,sizeof(sprite),6400);
+        valid=f75_sprite_begin(&decoder,f75_companion_streams[character][frame],f75_companion_lengths[character][frame],sprite,sizeof(sprite),6400);
         cached_frame=(uint8_t)frame;cached_character=(uint8_t)character;
     }
     if(!valid)return;
@@ -131,6 +132,9 @@ static void pet_sprite(tile *t,const f75_view *v,uint16_t accent){
     int top=(int)t->y-24-bob,bottom=(int)t->y+t->rows-24-bob;
     if(top<0)top=0;
     if(bottom>80)bottom=80;
+    /* The adapter renders tiles in order. Decode only this tile's prefix so
+     * matrix and USB work run between slices, including the first wake key. */
+    if(bottom>top&&!f75_sprite_step(&decoder,sprite,sizeof(sprite),(size_t)bottom*80)){valid=false;return;}
     for(int y=top;y<bottom;y++){
         uint16_t *out=t->pixels+(24+y+bob-t->y)*128+24;
         for(int x=0;x<80;x++){uint16_t color=f75_companion_palette[character][f75_sprite_index(sprite,(size_t)y*80+x)];if(color)out[x]=color;}

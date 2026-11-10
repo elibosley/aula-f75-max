@@ -14,7 +14,7 @@ Build the packs from the repository root:
 
 The output is in `ui/assets/characters/`. Each character includes twelve PNG frames, a twelve-frame 80×80 RGB565 file, a manifest, and a ZIP with checksums and both original atlases. The compatible `pet_assets.h` contains only the six base poses. RGB565 uses little-endian words. Color zero is transparent, and opaque black uses color one. Previews show the same quantized colors and transparency as the native data.
 
-The firmware bank uses 64 palette entries per character and bounded LZ decoding into a 4800-byte cache. `scripts/build_companion_bank.py` generates the bank from all twelve native-size poses. It does not access USB or external storage. The gallery’s firmware previews use the same palette colors.
+The firmware bank uses 64 palette entries per character and bounded LZ decoding into a 4800-byte cache. Decoding advances only through the current display tile so key scanning and USB reports run between slices, including the first key after idle. `scripts/build_companion_bank.py` generates the bank from all twelve native-size poses. It does not access USB or external storage. The gallery’s firmware previews use the same palette colors.
 
 The gallery is served at `/companions.html` by the existing Studio server. It previews artwork without reading or writing keyboard settings. `ui/companion-motion.js` owns the new preview behavior, and `scripts/test_companion_motion.cjs` tests its sequencing and interruption rules.
 

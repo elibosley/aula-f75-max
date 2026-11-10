@@ -1,6 +1,5 @@
 #include "f75_sprite.h"
-typedef struct { const uint8_t *data;size_t bytes,bit; } bits;
-static bool take(bits *s,unsigned count,unsigned *value){
+static bool take(f75_sprite_decoder *s,unsigned count,unsigned *value){
     if(s->bit>s->bytes*8||count>s->bytes*8-s->bit)return false;
     unsigned result=0;
     for(unsigned i=0;i<count;i++,s->bit++)result|=((s->data[s->bit/8]>>(s->bit%8))&1u)<<i;
@@ -17,23 +16,41 @@ static void store(uint8_t *packed,size_t pixel,unsigned value){
     packed[byte]|=(uint8_t)(value<<shift);
     if(shift>2)packed[byte+1]|=(uint8_t)(value>>(8-shift));
 }
-bool f75_sprite_decode(const uint8_t *source,size_t bytes,uint8_t *out,size_t capacity,size_t pixels){
-    if(!source||!out||!bytes||bytes>6400||!pixels||pixels>6400)return false;
+bool f75_sprite_begin(f75_sprite_decoder *decoder,const uint8_t *source,size_t bytes,uint8_t *out,size_t capacity,size_t pixels){
+    if(!decoder||!source||!out||!bytes||bytes>6400||!pixels||pixels>6400)return false;
     size_t needed=(pixels*6+7)/8;if(capacity<needed)return false;
     for(size_t i=0;i<needed;i++)out[i]=0;
-    bits input={source,bytes,0};size_t position=0;
-    while(position<pixels){
+    *decoder=(f75_sprite_decoder){.data=source,.bytes=bytes,.pixels=pixels};
+    return true;
+}
+bool f75_sprite_step(f75_sprite_decoder *input,uint8_t *out,size_t capacity,size_t through_pixel){
+    if(!input||!out||input->failed||!input->data||!input->pixels||input->pixels>6400||
+       through_pixel>input->pixels||capacity<(input->pixels*6+7)/8)return false;
+    while(input->position<through_pixel){
+        if(input->remaining){
+            store(out,input->position,f75_sprite_index(out,input->position-input->distance));
+            input->position++;input->remaining--;continue;
+        }
         unsigned literal,value,length;
-        if(!take(&input,1,&literal))return false;
-        if(literal){if(!take(&input,6,&value))return false;store(out,position++,value);}
+        if(!take(input,1,&literal))goto malformed;
+        if(literal){if(!take(input,6,&value))goto malformed;store(out,input->position++,value);}
         else {
-            if(!take(&input,11,&value)||!take(&input,5,&length))return false;
+            if(!take(input,11,&value)||!take(input,5,&length))goto malformed;
             size_t distance=value+1;length+=3;
-            if(distance>position||length>pixels-position)return false;
-            for(unsigned i=0;i<length;i++,position++)store(out,position,f75_sprite_index(out,position-distance));
+            if(distance>input->position||length>input->pixels-input->position)goto malformed;
+            input->distance=(unsigned)distance;input->remaining=length;
         }
     }
-    if(input.bytes*8-input.bit>=8)return false;
-    unsigned padding;
-    return take(&input,(unsigned)(input.bytes*8-input.bit),&padding)&&padding==0;
+    if(input->position==input->pixels){
+        if(input->remaining||input->bytes*8-input->bit>=8)goto malformed;
+        unsigned padding;
+        if(!take(input,(unsigned)(input->bytes*8-input->bit),&padding)||padding)goto malformed;
+    }
+    return true;
+malformed:
+    input->failed=true;return false;
+}
+bool f75_sprite_decode(const uint8_t *source,size_t bytes,uint8_t *out,size_t capacity,size_t pixels){
+    f75_sprite_decoder decoder;
+    return f75_sprite_begin(&decoder,source,bytes,out,capacity,pixels)&&f75_sprite_step(&decoder,out,capacity,pixels);
 }
