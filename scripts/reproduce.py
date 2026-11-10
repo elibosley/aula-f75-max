@@ -123,6 +123,7 @@ def main():
                     'custom': 'test_custom_system.py', 'battery': 'test_battery_image.py',
                     'power-scroll': 'test_power_scroll.py', 'idle-power': 'test_idle_power.py',
                     'profiles': 'test_profiles_system.py', 'clock': 'test_clock_system.py',
+                    'storage': 'test_storage_probe.py',
                 }
                 for name, script in scripts.items():
                     print(f'Checking {name} on the exact full_ui image...', flush=True)

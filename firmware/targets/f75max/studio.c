@@ -18,6 +18,7 @@
 #include "os_detection.h"
 #include "power.h"
 #include "usb_main.h"
+#include "storage_probe.h"
 
 /* USB and supplier radio adapter. Only explicit Save writes reserved records. */
 static f75_state state;
@@ -243,6 +244,14 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
     if(!memcmp(data,"F75I",4)) {
         uint8_t response[32]={'F','7','5','J'};memcpy(response+4,data+4,4);
         uint32_t counters[6];f75_panel_bus(counters);memcpy(response+8,counters,sizeof(counters));
+        raw_hid_send(response,sizeof(response));return;
+    }
+    if(!memcmp(data,"F75z",4)) {
+        uint8_t response[32]={'F','7','5','q'};
+        memcpy(response+4,data+4,4);response[9]=data[9];
+        uint32_t address;memcpy(&address,data+10,4);memcpy(response+10,data+10,4);
+        bool reserved=false;for(unsigned i=14;i<32;++i)reserved|=data[i]!=0;
+        response[8]=reserved?1:f75_storage_probe(data[8],address,data[9],response+14);
         raw_hid_send(response,sizeof(response));return;
     }
     if(!memcmp(data,"F75O",4)) {

@@ -20,6 +20,14 @@ A live BT2 typing check exposed a separate problem: the internal connected flag 
 
 The new regression fails on the prior image and passes on the corrected ARM image. Modeled UART replies verify this state handling, not simultaneous Bluetooth links or physical radio recovery. A missing UART acknowledgment still increments the transport error counter. The diagnostics reader also exposes the existing report-queue fault bit separately.
 
+## External-storage probe
+
+The stock display routines also read a separate SPI flash chip through SPI1. A bounded diagnostic probe can read its JEDEC identity or at most 18 bytes at a supplied 24-bit flash offset. The host cannot supply SPI opcodes. The implementation contains only identity (`9F`) and read (`03`) operations, with a transfer deadline and restoration of the peripheral state. Display SPI0 and radio UART2 remain separate.
+
+`scripts/keyboard_storage.py` retrieves these reads into local files. Captures can contain personal display artwork; keep them private. The linked ARM test covers command restrictions, invalid requests, timeout and busy behavior, buffer bounds, and peripheral-state restoration. Synthetic flash responses do not identify the physical chip.
+
+This probe investigates whether the accessible asset storage contains a radio image or updater data. An asset-storage read is not a radio firmware backup, and the probe does not install multipoint support.
+
 ## What the current interface establishes
 
 The recovered application sends `A6 31 D7`, `A6 32 D8`, or `A6 33 D9` to select BT1, BT2, or BT3. Keyboard reports use `A1` plus eight report bytes and a checksum. Neither key reports nor the recovered link events include a connection handle. The adapter tracks one selected slot and one connected flag. Keeping three saved bonds does not establish three live links.
