@@ -1,9 +1,9 @@
 #include "f75_navigation.h"
 static uint8_t clamp(int value){return (uint8_t)(value<0?0:value>100?100:value);}
 static bool modal(const f75_state *s){return s->pairing==F75_PAIR_CONFIRM||s->pairing==F75_PAIR_WAIT;}
-static int row_count(const f75_navigation *n){return n->page==F75_FOCUS?3:n->page==F75_MENU||n->page==F75_DEVICES||n->page==F75_KEYS||n->page==F75_LIGHTING?5:4;}
+static int row_count(const f75_navigation *n){return n->page==F75_MENU?6:n->page==F75_FOCUS?3:n->page==F75_SCREEN||n->page==F75_DEVICES||n->page==F75_KEYS||n->page==F75_LIGHTING?5:4;}
 void f75_navigation_init(f75_navigation *n){n->page=F75_HOME;n->cursor=0;n->volume=42;n->editing=0;n->wheel_divisor=1;n->edit_streak=0;n->wheel_pending=0;n->last_direction=0;n->last_turn=0;}
-void f75_open_page(f75_navigation *n,f75_page page){if((unsigned)page<=F75_FOCUS){n->page=(uint8_t)page;n->cursor=0;n->editing=0;n->edit_streak=0;n->wheel_pending=0;n->last_turn=0;}}
+void f75_open_page(f75_navigation *n,f75_page page){if((unsigned)page<=F75_SCREEN){n->page=(uint8_t)page;n->cursor=0;n->editing=0;n->edit_streak=0;n->wheel_pending=0;n->last_turn=0;}}
 f75_ui_action f75_turn(f75_state *s,f75_navigation *n,int direction,uint32_t now){
     f75_activity(s,now);if(modal(s)||!direction)return F75_UI_NONE;direction=direction<0?-1:1;
     if(n->editing){
@@ -32,7 +32,13 @@ f75_ui_action f75_press(f75_state *s,f75_navigation *n,uint32_t now){
     if(n->page==F75_MENU){f75_open_page(n,(f75_page)(n->cursor+F75_DEVICES));return F75_UI_NONE;}
     if(n->page==F75_DEVICES){return f75_switch_host(s,n->cursor,now)?F75_UI_CONNECT:F75_UI_NONE;}
     if(n->page==F75_FOCUS)return (f75_ui_action)(F75_UI_TIMER_TOGGLE+n->cursor);
-    if(n->cursor==((n->page==F75_KEYS||n->page==F75_LIGHTING)?4:3))return F75_UI_SAVE;
+    if(n->cursor==((n->page==F75_KEYS||n->page==F75_LIGHTING||n->page==F75_SCREEN)?4:3))return F75_UI_SAVE;
+    if(n->page==F75_SCREEN){
+        if(n->cursor==0)s->config.companion=(uint8_t)((s->config.companion+1)%4);
+        if(n->cursor==1)s->config.light_mode=(uint8_t)!s->config.light_mode;
+        if(n->cursor==2)s->config.face=(uint8_t)((s->config.face+1)%4);
+        if(n->cursor==3)s->config.reduced_motion=(uint8_t)!s->config.reduced_motion;
+    }
     if(n->page==F75_KEYS){
         if(n->cursor==0){
             uint8_t slot=s->config.active_host;

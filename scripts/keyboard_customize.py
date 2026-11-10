@@ -94,7 +94,7 @@ def decode(data):
  return {'schema':1,'base_hex':data.hex(),'os':list(core[12:17]),'auto_mask':core[126],'caps_swap':bool(core[114]),'face':core[120],
          'names':[core[17+i*19:36+i*19].split(b'\0')[0].decode('ascii') for i in range(5)],
          'lighting':{'color':'#'+core[122:125].hex(),'brightness':core[116],'speed':core[117],'effect':core[118]},
-         'light_mode':bool(core[125]),'reduced_motion':bool(core[121]),
+         'light_mode':bool(core[125]),'reduced_motion':bool(core[121]),'companion':core[127] if core[4]>=6 else 3,'record_version':core[4],
          'screen_color':'#'+custom[2513:2516].hex() if custom[4]>=2 and custom[2512] else None,
          'keys':keys,'colors':colors,'layer_colors':layers,'macros':macros}
 
@@ -107,7 +107,10 @@ def encode(document):
   if not isinstance(v,str) or len(v)!=7 or v[0]!='#':raise ValueError('Color must be #RRGGBB')
   return bytes.fromhex(v[1:])
  data[12:17]=bytes(integer(x,0,2) for x in document['os']);data[126]=integer(document['auto_mask'],0,31)
- if any(x==2 for x in document['os']):data[4]=5
+ companion=document.get('companion',data[127] if data[4]>=6 else 3)
+ companion=integer(companion,0,3)
+ if data[4]>=6 or companion!=3:data[4]=6;data[127]=companion
+ elif any(x==2 for x in document['os']):data[4]=5
  if len(document['os'])!=5:raise ValueError('Five host layouts required')
  if type(document['caps_swap']) is not bool:raise ValueError('Caps swap must be boolean')
  data[114]=document['caps_swap'];data[120]=integer(document.get('face',data[120]),0,3)

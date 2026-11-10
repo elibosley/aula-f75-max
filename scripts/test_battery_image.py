@@ -9,7 +9,7 @@ args=parser.parse_args()
 if args.image.suffix!='.bin' or args.output.suffix!='.json':
  parser.error('Use a .bin input image and a separate .json output receipt')
 os.environ['F75_IMAGE']=str(args.image.resolve())
-from test_keyboard_image import Candidate,SYMBOLS,IMAGE,GPIO
+from test_keyboard_image import Candidate,SYMBOLS,SCRATCH,TILE,IMAGE,GPIO
 
 results={}
 # Actual GPIO bit-banging: three acknowledgments and the eight data bits.
@@ -22,9 +22,9 @@ for nack in [False,True]:
    assert remaining,'unexpected gauge sample'
    bit=remaining.pop(0);fw.word(address,(fw.word(address)&~(1<<15))|(bit<<15))
  fw.cpu.hook_add(UC_HOOK_MEM_READ,read)
- assert bool(fw.call('f75_battery_read_register',4,0x20006200))!=nack
+ assert bool(fw.call('f75_battery_read_register',4,SCRATCH))!=nack
  assert not remaining
- if not nack:assert fw.byte(0x20006200)==0xab
+ if not nack:assert fw.byte(SCRATCH)==0xab
 results['gpio_read_and_nack']=True
 # Coherent voltage/SOC, validation, stale data and unavailable sensor.
 fw=Candidate();registers={2:0x32,3:0,4:0x30,5:0};calls=[]
@@ -33,15 +33,15 @@ def gauge(args):
 fw.callback('f75_battery_read_register',gauge)
 for t in range(1000,1004):fw.call('f75_battery_task',t)
 assert calls==[2,3,4,5]
-assert fw.call('f75_battery_percent',0x20006200)==1 and fw.byte(0x20006200)==50
-fw.call('f75_battery_diagnostics',0x20006200)
-assert struct.unpack('<6I',fw.cpu.mem_read(0x20006200,24))[:4]==(1,50,4000,1)
+assert fw.call('f75_battery_percent',SCRATCH)==1 and fw.byte(SCRATCH)==50
+fw.call('f75_battery_diagnostics',SCRATCH)
+assert struct.unpack('<6I',fw.cpu.mem_read(SCRATCH,24))[:4]==(1,50,4000,1)
 fw.callback('f75_battery_read_register',lambda args:0)
-fw.call('f75_battery_task',40000);assert fw.call('f75_battery_percent',0x20006200)==0
+fw.call('f75_battery_task',40000);assert fw.call('f75_battery_percent',SCRATCH)==0
 for values in [(0,0,0x30,0),(0x32,0,0xff,0xff)]:
  fw=Candidate();registers=dict(zip(range(2,6),values));fw.callback('f75_battery_read_register',gauge)
  for t in range(1000,1004):fw.call('f75_battery_task',t)
- assert fw.call('f75_battery_percent',0x20006200)==0
+ assert fw.call('f75_battery_percent',SCRATCH)==0
 results['coherent_percent_voltage_invalid_and_stale']=True
 fw=Candidate();fw.initialize_app();fw.byte(SYMBOLS['active_slot'],1)
 fw.callback('f75_radio_connected',lambda args:1)

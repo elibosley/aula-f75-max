@@ -16,6 +16,7 @@ typedef struct {
     uint8_t os_source; /* 0 saved, 1 detected automatically, 2 manual */
     uint16_t accent;
     bool custom_accent;
+    uint8_t pet_character;
 } f75_view;
 
 /* Q8 springs. Selection changes synchronously; only its visual position lags.

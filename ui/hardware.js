@@ -79,7 +79,7 @@ function macro(){
   $('#steps').append(row);
  });
 }
-function render(){selection();profiles();macro();$('#face').value=settings.face;lighting();}
+function render(){selection();profiles();macro();$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
 function lighting(){
  $('#main-color').value=settings.lighting.color;$('#light-effect').value=String(settings.lighting.effect);
  for(const [name,id] of [['brightness','light-brightness'],['speed','light-speed']]){$('#'+id).value=settings.lighting[name];$('#'+name+'-value').textContent=settings.lighting[name]+'%';}
@@ -118,6 +118,7 @@ $('#paint-key').onclick=()=>{if(chosen){settings.colors[layer][chosen.matrix]=$(
 $('#inherit-key').onclick=()=>{if(chosen){settings.colors[layer][chosen.matrix]=null;mark();}};
 $('#paint-layer').onclick=()=>{settings.layer_colors[layer]=$('#paint').value;mark();};$('#inherit-layer').onclick=()=>{settings.layer_colors[layer]=null;mark();};
 $('#caps').onchange=()=>{settings.caps_swap=$('#caps').checked;mark();};
+$('#companion').onchange=()=>{settings.companion=Number($('#companion').value);mark();};
 $('#face').onchange=()=>{settings.face=Number($('#face').value);mark();};$('#sync-clock').onclick=()=>send('clock');
 for(let i=0;i<8;i++)option($('#macro-slot'),i,'Macro '+(i+1));$('#macro-slot').onchange=()=>{slot=Number($('#macro-slot').value);macro();};
 $('#repeat').onchange=()=>{settings.macros[slot].repeat=$('#repeat').checked;mark();};

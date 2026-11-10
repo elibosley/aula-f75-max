@@ -24,7 +24,7 @@ int main(void) {
     nav.wheel_divisor=0;f75_turn(&s,&nav,1,1010);assert(nav.cursor==2);
     f75_navigation_init(&nav);
     assert(f75_turn(&s,&nav,1,0)==F75_UI_HOST_ACTION&&nav.volume==44);
-    f75_press(&s,&nav,1);assert(nav.page==F75_MENU);f75_turn(&s,&nav,-1,2);assert(nav.cursor==4);f75_press(&s,&nav,3);assert(nav.page==F75_FOCUS);
+    f75_press(&s,&nav,1);assert(nav.page==F75_MENU);f75_turn(&s,&nav,-1,2);assert(nav.cursor==5);f75_turn(&s,&nav,-1,3);assert(nav.cursor==4);f75_press(&s,&nav,3);assert(nav.page==F75_FOCUS);
     assert(f75_press(&s,&nav,3)==F75_UI_TIMER_TOGGLE);f75_open_page(&nav,F75_POWER);
     f75_turn(&s,&nav,1,4);f75_press(&s,&nav,5);assert(s.config.power==F75_ENDURANCE);
     f75_set_control_layer(&s,true);f75_control_key(&s,&nav,0x1f,6);assert(nav.page==F75_KEYS);f75_control_key(&s,&nav,0x16,7);assert(f75_control_key(&s,&nav,0x16,7)==F75_UI_SAVE);f75_set_control_layer(&s,false);
@@ -38,8 +38,8 @@ int main(void) {
     f75_open_page(&nav,F75_MENU);nav.wheel_divisor=2;
     f75_turn(&s,&nav,1,1100);assert(nav.cursor==0&&nav.wheel_pending==1);
     f75_turn(&s,&nav,-1,1120);assert(nav.cursor==0&&nav.wheel_pending==-1);
-    f75_turn(&s,&nav,-1,1140);assert(nav.cursor==4&&nav.wheel_pending==0);
-    f75_turn(&s,&nav,1,1200);f75_turn(&s,&nav,1,1600);assert(nav.cursor==4&&nav.wheel_pending==1);
+    f75_turn(&s,&nav,-1,1140);assert(nav.cursor==5&&nav.wheel_pending==0);
+    f75_turn(&s,&nav,1,1200);f75_turn(&s,&nav,1,1600);assert(nav.cursor==5&&nav.wheel_pending==1);
     f75_set_control_layer(&s,true);f75_control_key(&s,&nav,0x51,1601);assert(nav.cursor==0&&nav.wheel_pending==0);f75_set_control_layer(&s,false);
     for(unsigned os=0;os<3;os++){assert(f75_set_os(&s,(f75_os)os));assert(f75_map_usage(&s,0x39)==(os==F75_MAC?0xe3:0xe0));assert(f75_map_usage(&s,0xe0)==0x39);assert(f75_map_usage(&s,0xe4)==(os==F75_MAC?0xe7:0xe4));}
     assert(f75_set_os(&s,F75_MAC));assert(f75_map_usage(&s,0xe2)==0xe3);assert(f75_map_usage(&s,0xe3)==0xe2);
@@ -59,16 +59,24 @@ int main(void) {
     other[30]^=1;assert(f75_record_select(a,other,&decoded,&generation));assert(generation==10);
     a[90]^=1;assert(!f75_record_select(a,other,&decoded,&generation));
     f75_record_encode(&s.config,UINT32_MAX,a);f75_record_encode(&s.config,0,other);assert(f75_record_select(a,other,&decoded,&generation));assert(generation==0);
-    s.config.light_mode=1;f75_record_encode(&s.config,12,a);assert(a[4]==5&&f75_record_decode(a,&decoded,&generation)&&decoded.light_mode==1);
+    s.config.companion=2;f75_record_encode(&s.config,11,a);assert(a[4]==6&&a[127]==2);
+    assert(f75_record_decode(a,&decoded,&generation)&&decoded.companion==2);
+    a[4]=5;for(unsigned i=0,crc=f75_crc32(a,156);i<4;i++)a[156+i]=(uint8_t)(crc>>(i*8));
+    assert(f75_record_decode(a,&decoded,&generation)&&decoded.companion==3);
+    s.config.companion=3;
+    s.config.light_mode=1;f75_record_encode(&s.config,12,a);assert(a[4]==6&&f75_record_decode(a,&decoded,&generation)&&decoded.light_mode==1);
     FILE *legacy=fopen("tests/fixtures/settings-v1.bin","rb");assert(legacy);assert(fread(a,1,sizeof(a),legacy)==sizeof(a));fclose(legacy);
     assert(f75_record_decode(a,&decoded,&generation)&&generation==7&&decoded.light_mode==0&&decoded.caps_swap&&decoded.face==3);
     legacy=fopen("tests/fixtures/settings-v2.bin","rb");assert(legacy);assert(fread(a,1,sizeof(a),legacy)==sizeof(a));fclose(legacy);
     assert(f75_record_decode(a,&decoded,&generation)&&generation==8&&decoded.light_mode==1&&decoded.face==3);
     s.config.face=0;f75_record_encode(&s.config,13,a);assert(f75_record_decode(a,&decoded,&generation)&&decoded.face==0);
     f75_open_page(&nav,F75_KEYS);nav.cursor=3;f75_press(&s,&nav,2000);assert(s.config.light_mode==0);
-    f75_set_os(&s,F75_ANDROID);f75_record_encode(&s.config,14,a);assert(a[4]==5&&f75_record_decode(a,&decoded,&generation)&&decoded.os[0]==F75_ANDROID);
+    f75_set_os(&s,F75_ANDROID);f75_record_encode(&s.config,14,a);assert(a[4]==6&&f75_record_decode(a,&decoded,&generation)&&decoded.os[0]==F75_ANDROID);
     f75_open_page(&nav,F75_KEYS);nav.cursor=0;f75_press(&s,&nav,2001);assert(s.config.os_auto_mask&1);f75_press(&s,&nav,2002);assert(s.config.os[0]==F75_MAC&&!(s.config.os_auto_mask&1));f75_press(&s,&nav,2003);assert(s.config.os[0]==F75_WINDOWS);f75_press(&s,&nav,2004);assert(s.config.os[0]==F75_ANDROID);
     f75_defaults(&s.config);f75_open_page(&nav,F75_LIGHTING);nav.cursor=3;f75_press(&s,&nav,2100);assert(!strcmp(f75_color_name(&s.config),"Rose"));nav.cursor=4;assert(f75_press(&s,&nav,2101)==F75_UI_SAVE);
+    f75_open_page(&nav,F75_SCREEN);assert(nav.page==F75_SCREEN);s.config.companion=3;
+    f75_press(&s,&nav,2200);assert(s.config.companion==0);nav.cursor=4;assert(f75_press(&s,&nav,2201)==F75_UI_SAVE);
+    f75_back(&s,&nav,2202);assert(nav.page==F75_MENU);
     printf("C core checks passed. config=%zu bytes state=%zu bytes tile=%u bytes\n",sizeof(f75_config),sizeof(f75_state),128u*F75_TILE_ROWS*2u);
     return 0;
 }

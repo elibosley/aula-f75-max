@@ -28,6 +28,11 @@ for line in subprocess.check_output([str(NM), '-n', str(ELF)], text=True).splitl
         SYMBOLS[parts[2]] = int(parts[0], 16)
 
 
+SCRATCH=(SYMBOLS['__heap_base__']+15)&~15
+TILE=SCRATCH+0x400
+assert TILE+2048<0x20007e00, 'Model scratch overlaps firmware globals or stack'
+
+
 def pin(name):
     port, bit = name[1:].split('.')
     return GPIO[int(port)], 1 << int(bit)
@@ -99,15 +104,15 @@ class Candidate(Firmware):
         self.cpu.reg_write(UC_ARM_REG_LR, STOP | 1)
         for register, value in zip([UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3], args):
             self.cpu.reg_write(register, value)
-        self.cpu.emu_start(SYMBOLS[name] | 1, STOP + 2, timeout=1000000, count=300000)
+        self.cpu.emu_start(SYMBOLS[name] | 1, STOP + 2, timeout=2000000, count=1500000 if name in ('f75_render_tile','f75_sprite_decode','housekeeping_task_user') else 300000)
         assert self.completed, ('did not return within emulator bound', name)
         return self.cpu.reg_read(UC_ARM_REG_R0)
 
     def key(self, row, col, down):
         code = struct.unpack('<H', self.cpu.mem_read(SYMBOLS['keymaps'] + (row * 6 + col) * 2, 2))[0]
         # This target uses QMK's short enum keyevent_t: col,row,time,type,pressed.
-        self.cpu.mem_write(0x20006100, struct.pack('<BBHBB', col, row, self.now & 0xffff, 1, down))
-        assert self.call('process_record_user', code, 0x20006100) == 0
+        self.cpu.mem_write(SCRATCH+0x100, struct.pack('<BBHBB', col, row, self.now & 0xffff, 1, down))
+        assert self.call('process_record_user', code, SCRATCH+0x100) == 0
 
     def initialize_app(self, arm=True):
         if 'f75_panel_init' in SYMBOLS:
@@ -117,11 +122,11 @@ class Candidate(Firmware):
             self.call('matrix_init_custom')
             if 'f75_matrix_sample' in SYMBOLS:
                 for _ in range(30):self.call('begin_row')
-            self.call('matrix_scan_custom', 0x20006020)
+            self.call('matrix_scan_custom', SCRATCH+0x20)
             self.now += 25
             if 'f75_matrix_sample' in SYMBOLS:
                 for _ in range(30):self.call('begin_row')
-            self.call('matrix_scan_custom', 0x20006020)
+            self.call('matrix_scan_custom', SCRATCH+0x20)
         self.byte(SYMBOLS['USBD1'],4)  # configured USB state for the isolated adapter fixture
         self.events.clear()
 
@@ -130,7 +135,7 @@ def matrix_test():
     fw = Candidate()
     fw.call('matrix_init_custom')
     fw.model_matrix = True
-    address = 0x20006010
+    address = SCRATCH+0x10
     fw.cpu.mem_write(address - 1, b'\xa5' + bytes(15) + b'\x5a')
     assert fw.call('matrix_scan_custom', address) == 0
     for row in range(15):
@@ -214,12 +219,12 @@ def panel_test():
         if c['data']: expected.append(('data', bytes(c['data'])))
     assert stream == expected
     stream.clear()
-    fw.cpu.mem_write(0x20006000, struct.pack('<128H', *([0xf800, 0x07e0, 0x001f, 0xffff] * 32)))
-    assert fw.call('f75_panel_tile', 7, 1, 0x20006000) == 1
+    fw.cpu.mem_write(TILE, struct.pack('<128H', *([0xf800, 0x07e0, 0x001f, 0xffff] * 32)))
+    assert fw.call('f75_panel_tile', 7, 1, TILE) == 1
     assert stream[:5] == [('command', b'\x2a'), ('data', b'\x00\x02\x00\x81'),
                           ('command', b'\x2b'), ('data', b'\x00\x08\x00\x08'), ('command', b'\x2c')]
     assert b''.join(data for kind, data in stream[5:]) == b'\xf8\x00\x07\xe0\x00\x1f\xff\xff' * 32
-    for y, rows, pointer in [(127, 2, 0x20006000), (0, 0, 0x20006000), (0, 9, 0x20006000), (0, 1, 0)]:
+    for y, rows, pointer in [(127, 2, TILE), (0, 0, TILE), (0, 9, TILE), (0, 1, 0)]:
         stream.clear(); assert fw.call('f75_panel_tile', y, rows, pointer) == 0; assert not stream
     return dict(stock_reset_delays=True,stock_initialization=True, pin_mux_preserved=True, window_offsets=True, rgb565_byte_order=True, invalid_tiles_rejected=True)
 
@@ -247,7 +252,7 @@ def boot_shortcut_test():
 def health_test():
     fw = Candidate(); fw.initialize_app(); replies = []
     fw.callback('raw_hid_send', lambda args: replies.append(bytes(fw.cpu.mem_read(args[0], args[1]))) or 0)
-    address = 0x20006200
+    address = SCRATCH
     request = b'F75?' + struct.pack('<I', 0x12345678) + bytes(24)
     fw.cpu.mem_write(address, request); fw.call('raw_hid_receive', address, 32)
     assert len(replies) == 1 and len(replies[0]) == 32
@@ -274,7 +279,7 @@ def gpio_snapshot_test():
     expected = [0x11223344, 0x55667788, 0x12345678, 0x87654321, 0xaabbccdd, 0x12345678]
     for address, value in zip([*GPIO, GPIO[1]+4, GPIO[1]+0x30], expected):
         fw.word(address, value)
-    pointer = 0x20006200
+    pointer = SCRATCH
     fw.cpu.mem_write(pointer, b'F75Gtest' + b'\xff' * 24)
     before = len(fw.writes)
     fw.call('raw_hid_receive', pointer, 32)
@@ -291,7 +296,7 @@ def auxiliary_snapshot_test():
         if not coordinate.get('vendor_key'):
             expected[coordinate['scan_index']] |= 1 << coordinate['sense_bit']
     fw.cpu.mem_write(SYMBOLS['matrix'], bytes([63] * 15))
-    pointer = 0x20006200
+    pointer = SCRATCH
     fw.cpu.mem_write(pointer, b'F75Ktest' + bytes(24))
     before = len(fw.writes)
     fw.call('raw_hid_receive', pointer, 32)
@@ -331,7 +336,7 @@ def performance_snapshot_test():
     names = ['perf_tiles','perf_render_ticks','perf_spi_ticks','perf_max_render','perf_max_spi','f75_max_scan_gap_ticks']
     values = [100, 200, 300, 4, 5, 6]
     for name, value in zip(names, values): fw.word(SYMBOLS[name], value)
-    pointer = 0x20006200
+    pointer = SCRATCH
     fw.cpu.mem_write(pointer, b'F75Ptest' + bytes(24))
     before = len(fw.writes)
     fw.call('raw_hid_receive', pointer, 32)
@@ -488,7 +493,7 @@ def rgb_test():
                     assert set(data[channel*90:(channel+1)*90])=={color*(level*127//100)//255}
     # The full-key snapshot is driven by fixed IRQ samples, not main-loop redraws.
     live=Candidate();live.call('matrix_init_custom');live.model_matrix=True;live.call('f75_rgb_init')
-    pointer=0x20006010
+    pointer=SCRATCH+0x10
     for row in range(15):
         for col in range(6):
             live.pressed={(row,col)}
@@ -528,7 +533,7 @@ def rgb_test():
 def lighting_details_test():
     fw=Candidate();fw.initialize_app();replies=[]
     fw.callback('raw_hid_send',lambda args:replies.append(bytes(fw.cpu.mem_read(args[0],args[1]))) or 0)
-    address=0x20006200;fw.cpu.mem_write(address,b'F75Etest'+bytes(24))
+    address=SCRATCH;fw.cpu.mem_write(address,b'F75Etest'+bytes(24))
     before=len(fw.writes);fw.call('raw_hid_receive',address,32)
     assert len(replies)==1 and replies[0][:8]==b'F75Ftest'
     assert replies[0][8:12]==bytes([0,28,35,0])
@@ -541,7 +546,7 @@ def gpio_modes_test():
     addresses=[GPIO[0]+4,GPIO[1]+4,GPIO[2]+4,GPIO[3]+4,GPIO[0],GPIO[2]]
     values=[0x11,0x22,0x33,0x44,0x55,0x66]
     for address,value in zip(addresses,values):fw.word(address,value)
-    pointer=0x20006200;fw.cpu.mem_write(pointer,b'F75Mtest'+bytes(24));before=len(fw.writes)
+    pointer=SCRATCH;fw.cpu.mem_write(pointer,b'F75Mtest'+bytes(24));before=len(fw.writes)
     fw.call('raw_hid_receive',pointer,32)
     assert replies==[b'F75Ntest'+struct.pack('<6I',*values)] and len(fw.writes)==before
     return dict(fixed_registers_only=True,nonce_echo=True,peripheral_writes=False)
@@ -552,7 +557,7 @@ def pwm_hardware_snapshot_test():
     fw.byte(SYMBOLS['duties'],37)
     for address in [0x40002030,0x40004024,0x40000020]:fw.word(address,37)
     fw.word(0x40000098,0xf0000f)
-    pointer=0x20006200;fw.cpu.mem_write(pointer,b'F75Xtest'+bytes(24));before=len(fw.writes)
+    pointer=SCRATCH;fw.cpu.mem_write(pointer,b'F75Xtest'+bytes(24));before=len(fw.writes)
     fw.call('raw_hid_receive',pointer,32)
     assert replies==[b'F75Ytest'+struct.pack('<6I',0,37,37,37,37,0xf0000f)]
     assert len(fw.writes)==before
@@ -569,7 +574,7 @@ def timer1_register_contract_test():
     fw=Candidate();replies=[]
     fw.callback('raw_hid_send',lambda args:replies.append(bytes(fw.cpu.mem_read(args[0],args[1]))) or 0)
     for address,value in zip([0x40000014,0x40002014,0x40004014,0x40000004,0x40002004,0x40004004],[1,2,3,4,5,6]):fw.word(address,value)
-    pointer=0x20006200;fw.cpu.mem_write(pointer,b'F75Ctest'+bytes(24));before=len(fw.writes)
+    pointer=SCRATCH;fw.cpu.mem_write(pointer,b'F75Ctest'+bytes(24));before=len(fw.writes)
     fw.call('raw_hid_receive',pointer,32)
     assert replies==[b'F75Dtest'+struct.pack('<6I',1,2,3,4,5,6)] and len(fw.writes)==before
     return dict(timer1_unkeyed_registers=True,no_unintended_match_resets=True,hardware_control_snapshot_readonly=True)
@@ -605,7 +610,7 @@ def spi_byte_boundaries_test():
             assert transfer['reads']>=6
             transfer['pending']=False
     fw.cpu.hook_add(UC_HOOK_MEM_WRITE,write);fw.cpu.hook_add(UC_HOOK_MEM_READ,read)
-    pointer=0x20006200;fw.cpu.mem_write(pointer,b'\x2a\x12\x34')
+    pointer=SCRATCH;fw.cpu.mem_write(pointer,b'\x2a\x12\x34')
     assert fw.call('f75_panel_transfer',pointer,3)==1
     fw.cpu.mem_write(pointer,struct.pack('<2H',0xf800,0x07e0))
     assert fw.call('f75_panel_pixels',pointer,2)==1
@@ -627,7 +632,7 @@ def panel_bus_snapshot_test():
     fw=Candidate();replies=[]
     fw.callback('raw_hid_send',lambda args:replies.append(bytes(fw.cpu.mem_read(args[0],args[1]))) or 0)
     values=[1,2,3,4,5,6];fw.cpu.mem_write(SYMBOLS['bus'],struct.pack('<6I',*values))
-    pointer=0x20006200;fw.cpu.mem_write(pointer,b'F75Itest'+bytes(24));before=len(fw.writes)
+    pointer=SCRATCH;fw.cpu.mem_write(pointer,b'F75Itest'+bytes(24));before=len(fw.writes)
     fw.call('raw_hid_receive',pointer,32)
     assert replies==[b'F75Jtest'+struct.pack('<6I',*values)] and len(fw.writes)==before
     return dict(nonce_echo=True,fixed_counters=True,peripheral_writes=False)
@@ -636,7 +641,7 @@ def panel_bus_snapshot_test():
 def isolation_actions_test():
     fw=Candidate();fw.initialize_app();fw.model_matrix=True;replies=[]
     fw.callback('raw_hid_send',lambda args:replies.append(bytes(fw.cpu.mem_read(args[0],args[1]))) or 0)
-    pointer=0x20006200
+    pointer=SCRATCH
     def send(command,magic=b'F75DIAG!'):
         fw.cpu.mem_write(pointer,b'F75Ttest'+magic+command+bytes(12))
         fw.call('raw_hid_receive',pointer,32)
@@ -650,10 +655,10 @@ def isolation_actions_test():
     assert fw.word(0x400020a4)==0
     for base,mask in zip(GPIO,[0xb00,0x30,0x3c00,0x73f00]):assert fw.word(base)&mask==0
     fw.call('suspend_wakeup_init_user');assert fw.call('f75_rgb_clock_active')==0
-    fw.pressed={(1,3)};fw.call('matrix_scan_custom',0x20006020)
-    assert fw.byte(0x20006021)==8
-    fw.pressed.clear();fw.call('matrix_scan_custom',0x20006020)
-    assert not any(fw.cpu.mem_read(0x20006020,15))
+    fw.pressed={(1,3)};fw.call('matrix_scan_custom',SCRATCH+0x20)
+    assert fw.byte(SCRATCH+0x21)==8
+    fw.pressed.clear();fw.call('matrix_scan_custom',SCRATCH+0x20)
+    assert not any(fw.cpu.mem_read(SCRATCH+0x20,15))
     fw.callback('f75_panel_init',lambda args:1)
     fw.cpu.mem_write(SYMBOLS['tile_valid'],bytes([1])*16)
     send(b'LCD0');assert replies[-1][8:10]==b'\1\1'
@@ -676,7 +681,7 @@ def isolation_actions_test():
 def radio_snapshot_test():
     fw=Candidate();fw.initialize_app();replies=[]
     fw.callback('raw_hid_send',lambda args:replies.append(bytes(fw.cpu.mem_read(args[0],args[1]))) or 0)
-    address=0x20006200;request=b'F75Ouart'+bytes(24)
+    address=SCRATCH;request=b'F75Ouart'+bytes(24)
     fw.cpu.mem_write(address,request);before=len(fw.writes)
     fw.call('raw_hid_receive',address,32)
     assert len(replies)==1 and replies[0][:8]==b'F75Zuart'

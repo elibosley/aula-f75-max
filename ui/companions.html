@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Desk companions · F75 Studio</title>
+  <link rel="stylesheet" href="style.css"><link rel="stylesheet" href="companions.css">
+  <script src="companion-motion.js" defer></script><script src="companions.js" defer></script>
+</head>
+<body>
+  <header><a class="wordmark" href="/">F75<span>STUDIO</span></a><a class="text-button" href="hardware.html">Your keyboard</a></header>
+  <main>
+    <div class="intro"><div><p class="eyebrow">A LITTLE COMPANY</p><h1>Meet your desk crew.</h1><p>Quiet company. Very busy hands.</p></div><a class="primary download" href="assets/characters/f75-companions.zip" download>Download the set</a></div>
+    <div class="companion-controls" aria-label="Animation preview controls">
+      <label>Animation <select id="pace" aria-label="Animation"><option value="life" selected>Living desk · reacts to typing</option><option value="idle">Idle</option><option value="typing">Typing</option><option value="flow">Flow · 60+ WPM</option><option value="zoom">Zoom · 100+ WPM</option><option value="sip">Drink break</option><option value="stretch">Big stretch</option><option value="music">Headphone groove</option><option value="cheer">Little celebration</option><option value="sleep">Sleepy</option></select></label>
+      <button id="playback" type="button">Pause</button>
+      <label>Screen <select id="appearance" aria-label="Screen"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+      <label class="size-toggle"><input id="native-size" type="checkbox"> Actual sprite size</label>
+    </div>
+    <div class="typing-preview"><label for="typing-demo">Try a typing streak</label><input id="typing-demo" type="text" autocomplete="off" spellcheck="false" placeholder="Give their hands something to do…"><output id="typing-rate" for="typing-demo">0 WPM</output><p>Your typing stays in this page. Little scenes appear between typing streaks.</p></div>
+    <p class="availability">Artwork preview and downloads. Base characters need a firmware build. The new random scenes and live character upload still need keyboard support.</p>
+    <p id="load-status" role="status">Loading your companions…</p>
+    <div id="characters" class="companions"></div>
+    <noscript><p>Enable JavaScript for the animated previews. You can still download the set above.</p></noscript>
+  </main>
+</body></html>

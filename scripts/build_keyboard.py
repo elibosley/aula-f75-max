@@ -62,7 +62,7 @@ def prepare():
     for p in (ROOT / "firmware").glob("*"):
         if p.name.startswith("f75_") and p.suffix in {".c", ".h"}:
             shutil.copy2(p, out / p.name)
-    for n in ["font_data.h", "pet_assets.h", "font-license.txt"]:
+    for n in ["font_data.h", "pet_assets.h", "companion_assets.h", "font-license.txt"]:
         shutil.copy2(ROOT / "firmware" / n, out / n)
 
     def pin(p):

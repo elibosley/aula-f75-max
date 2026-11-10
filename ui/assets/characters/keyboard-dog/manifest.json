@@ -1,0 +1,205 @@
+{
+  "source_sha256": "ecc7602d9c6d87ee4bc3d37f142f8ca8a5c5ce119b63a6dfe128da35a2bf72f6",
+  "source": "Original AI-generated artwork; built-in image_gen",
+  "grid": [
+    3,
+    2
+  ],
+  "frame_size": [
+    64,
+    64
+  ],
+  "frames": [
+    "idle",
+    "blink",
+    "type-left",
+    "type-right",
+    "cheer",
+    "sleep",
+    "sip-lift",
+    "sip",
+    "stretch-ready",
+    "stretch",
+    "groove-left",
+    "groove-right"
+  ],
+  "palette_entries": 16,
+  "pixel_storage_bytes": 12288,
+  "palette_storage_bytes": 32,
+  "native_frame_size": [
+    80,
+    80
+  ],
+  "native_rgb565_storage_bytes": 153600,
+  "native_source": "original atlas at target size; RGB565, no 15-color palette",
+  "native_transparent_color": 0,
+  "native_opaque_black": 1,
+  "transparent_index": 0,
+  "compiler": "scripts/build_pet_assets.py",
+  "rgb565_byte_order": "little",
+  "rgb565_layout": "twelve row-major 80x80 frames in frame order",
+  "drop_in_header": "pet_assets.h",
+  "live_character_upload_supported": false,
+  "native_grid": [
+    3,
+    4
+  ],
+  "compiled_header_frames": 6,
+  "bonus_source_sha256": "836eb0937a8581f372204790e577ceeda97cefeaf3276bf005750db880e3be19",
+  "id": "keyboard-dog",
+  "name": "Mochi",
+  "description": "A little keyboard dog with very busy paws.",
+  "animation": {
+    "idle": {
+      "frames": [
+        0,
+        1,
+        0
+      ],
+      "durations_ms": [
+        2700,
+        160,
+        700
+      ]
+    },
+    "typing": {
+      "frames": [
+        2,
+        3
+      ],
+      "durations_ms": [
+        180,
+        180
+      ]
+    },
+    "flow": {
+      "frames": [
+        2,
+        3
+      ],
+      "durations_ms": [
+        120,
+        120
+      ]
+    },
+    "zoom": {
+      "frames": [
+        2,
+        3
+      ],
+      "durations_ms": [
+        85,
+        85
+      ]
+    },
+    "cheer": {
+      "frames": [
+        4
+      ],
+      "durations_ms": [
+        700
+      ]
+    },
+    "sleep": {
+      "frames": [
+        5
+      ],
+      "durations_ms": [
+        1200
+      ]
+    },
+    "reduced_motion": {
+      "frames": [
+        0
+      ],
+      "durations_ms": [
+        1000
+      ]
+    },
+    "sip": {
+      "frames": [
+        6,
+        7,
+        6,
+        0
+      ],
+      "durations_ms": [
+        350,
+        1300,
+        350,
+        300
+      ]
+    },
+    "stretch": {
+      "frames": [
+        8,
+        9,
+        8,
+        0
+      ],
+      "durations_ms": [
+        350,
+        1100,
+        350,
+        300
+      ]
+    },
+    "music": {
+      "frames": [
+        10,
+        11,
+        10,
+        11,
+        10,
+        11,
+        0
+      ],
+      "durations_ms": [
+        240,
+        240,
+        240,
+        240,
+        240,
+        240,
+        300
+      ]
+    },
+    "streak": {
+      "frames": [
+        4,
+        0,
+        4,
+        0
+      ],
+      "durations_ms": [
+        350,
+        150,
+        350,
+        250
+      ]
+    }
+  },
+  "firmware_motion_note": "Typing frame order and timing match f75_pet.c. The firmware also adds a one-pixel bob and occasional cheer/effects.",
+  "random_idle": {
+    "first_delay_ms": [
+      6000,
+      12000
+    ],
+    "cooldown_ms": [
+      12000,
+      28000
+    ],
+    "after_typing_delay_ms": [
+      5000,
+      11000
+    ],
+    "clips": [
+      "sip",
+      "stretch",
+      "music"
+    ],
+    "immediate_repeat": false,
+    "typing_interrupts": true
+  },
+  "deployment": "Firmware source integrates the four-character bank and bonus scenes; a validated build and guarded installation are required. Live sprite upload is not implemented."
+}

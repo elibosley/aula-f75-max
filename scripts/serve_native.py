@@ -20,7 +20,7 @@ RUNTIME.mkdir(mode=0o700, exist_ok=True)
 LIB = C.CDLL(str(ROOT / 'analysis/libf75.dylib'))
 
 class Config(C.Structure):
-    _fields_ = [('os',C.c_uint8*5),('names',(C.c_char*19)*5)] + [(n,C.c_uint8) for n in ['active_host','bonded_mask','caps_swap','power','brightness','speed','effect','wheel','face','reduced_motion']] + [('color',C.c_uint8*3),('light_mode',C.c_uint8),('os_auto_mask',C.c_uint8)]
+    _fields_ = [('os',C.c_uint8*5),('names',(C.c_char*19)*5)] + [(n,C.c_uint8) for n in ['active_host','bonded_mask','caps_swap','power','brightness','speed','effect','wheel','face','reduced_motion']] + [('color',C.c_uint8*3),('light_mode',C.c_uint8),('os_auto_mask',C.c_uint8),('companion',C.c_uint8)]
 class State(C.Structure):
     _fields_ = [('config',Config)] + [(n,C.c_uint32) for n in ['last_activity','pair_started','transaction','release_epoch']] + [('pair_slot',C.c_uint8),('connected_slot',C.c_uint8),('pairing',C.c_int),('control_layer',C.c_bool)]
 class Budget(C.Structure):
@@ -28,7 +28,7 @@ class Budget(C.Structure):
 class Timer(C.Structure):
     _fields_=[(n,C.c_uint32) for n in ['remaining_ms','last_tick','finished_at']]+[('phase',C.c_uint8),('completed',C.c_uint8),('running',C.c_bool),('alert',C.c_bool)]
 class Pet(C.Structure):
-    _fields_=[(n,C.c_uint32) for n in ['bucket_at','last_key','last_effect','effect_started','rng','next_blink','blink_started']]+[('buckets',C.c_uint16*16),('wpm',C.c_uint16)]+[(n,C.c_uint8) for n in ['bucket','mode','effect','previous_effect']]+[('has_key',C.c_bool),('blinking',C.c_bool)]
+    _fields_=[(n,C.c_uint32) for n in ['bucket_at','last_key','last_effect','effect_started','rng','next_blink','blink_started']]+[('buckets',C.c_uint16*16),('wpm',C.c_uint16)]+[(n,C.c_uint8) for n in ['bucket','mode','effect','previous_effect']]+[('has_key',C.c_bool),('blinking',C.c_bool)]+[(n,C.c_uint32) for n in ['next_bonus','bonus_started','last_streak']]+[('bonus',C.c_uint8),('previous_bonus',C.c_uint8),('streak_pending',C.c_bool)]
 class PetFrame(C.Structure):
     _fields_=[('wpm',C.c_uint16)]+[(n,C.c_uint8) for n in ['mode','frame','effect','phase']]+[('bob',C.c_int8)]
 class Navigation(C.Structure):
@@ -36,7 +36,7 @@ class Navigation(C.Structure):
 class Motion(C.Structure):
     _fields_=[(n,C.c_int32) for n in ['selection','velocity','slide','slide_velocity']]+[(n,C.c_uint32) for n in ['last_step','last_input']]+[('context',C.c_uint16),('selected',C.c_uint8),('flags',C.c_uint8)]
 HOSTS=['usb','bt1','bt2','bt3','rf'];POWERS=['Balanced','Endurance','Desk'];EFFECTS=['Still','Tidal','Rain','Trails','Constellation'];WHEELS=['Volume','Scroll','Brightness'];FACES=['Orbit','Minimal','Constellation','Chibi']
-PAGES=['Home','Menu','Devices','Keys','Lighting','Power','Focus']
+PAGES=['Home','Menu','Devices','Keys','Lighting','Power','Focus','Screen']
 PState=C.POINTER(State);PConfig=C.POINTER(Config);U32=C.c_uint32;U8=C.c_uint8
 def bind(name,args,restype=None):
     f=getattr(LIB,name);f.argtypes=args;f.restype=restype;return f
@@ -49,7 +49,11 @@ budget=bind('f75_power_budget',[PState,U32,U8,C.c_bool],Budget);map_usage=bind('
 encode=bind('f75_record_encode',[PConfig,U32,C.POINTER(U8)])
 select=bind('f75_record_select',[C.POINTER(U8),C.POINTER(U8),PConfig,C.POINTER(U32)],C.c_bool)
 lighting_frame=bind('f75_lighting_frame',[PConfig,U8,U32,C.POINTER(U8)])
-render_tile=bind('f75_render_tile',[C.POINTER(View),U8,U8,C.POINTER(C.c_uint16),C.c_size_t],C.c_bool)
+render_tile_unlocked=bind('f75_render_tile',[C.POINTER(View),U8,U8,C.POINTER(C.c_uint16),C.c_size_t],C.c_bool)
+RENDER_LOCK=threading.Lock()
+def render_tile(*args):
+    with RENDER_LOCK:return render_tile_unlocked(*args)
+
 motion_update=bind('f75_motion_update',[C.POINTER(Motion),C.c_uint16,U8,C.c_int,U32,C.c_bool])
 motion_apply=bind('f75_motion_apply',[C.POINTER(Motion),C.POINTER(View)])
 motion_active=bind('f75_motion_active',[C.POINTER(Motion)],C.c_bool)
@@ -70,7 +74,7 @@ pet_init=bind('f75_pet_init',[C.POINTER(Pet),U32,U32])
 pet_tick=bind('f75_pet_tick',[C.POINTER(Pet),U32])
 pet_tap=bind('f75_pet_tap',[C.POINTER(Pet),U32])
 pet_get_frame=bind('f75_pet_get_frame',[C.POINTER(Pet),U32,C.c_bool],PetFrame)
-assert C.sizeof(Config)==115 and C.sizeof(State)==144 and C.sizeof(Timer)==16
+assert C.sizeof(Config)==116 and C.sizeof(State)==144 and C.sizeof(Timer)==16
 
 def png(rgb):
     def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
@@ -116,6 +120,7 @@ class Session:
         for key,target in [('brightness','brightness'),('speed','speed')]:
             value=l.get(key,getattr(c,target))
             if isinstance(value,int) and not isinstance(value,bool) and 0<=value<=100:setattr(c,target,value)
+        if type(config.get('companion')) is int and 0<=config['companion']<4:self.state.config.companion=config['companion']
         for key,choices,target in [('power',POWERS,'power'),('wheel',WHEELS,'wheel'),('screenFace',FACES,'face'),('screenTheme',['Dark','Light'],'light_mode')]:
             if config.get(key) in choices:setattr(c,target,choices.index(config[key]))
         if l.get('effect') in EFFECTS:c.effect=EFFECTS.index(l['effect'])
@@ -204,13 +209,14 @@ class Session:
         return {'version':1,'capsSwap':bool(c.caps_swap),'activeHost':HOSTS[c.active_host],
             'hosts':{id:{'name':bytes(c.names[i]).split(b'\0')[0].decode('ascii'),'os':['mac','windows','android'][c.os[i]],'automatic':bool(c.os_auto_mask&(1<<i)),'bonded':bool(c.bonded_mask&(1<<i)) or i==0} for i,id in enumerate(HOSTS)},
             'lighting':{'effect':EFFECTS[c.effect],'brightness':c.brightness,'speed':c.speed,'color':'#'+bytes(c.color).hex(),'perKey':self.aux.get('perKey',{})},
-            'power':POWERS[c.power],'reducedMotion':bool(c.reduced_motion),'wheel':WHEELS[c.wheel],'screenFace':FACES[c.face],'screenTheme':['Dark','Light'][c.light_mode],
+            'companion':int(c.companion),'power':POWERS[c.power],'reducedMotion':bool(c.reduced_motion),'wheel':WHEELS[c.wheel],'screenFace':FACES[c.face],'screenTheme':['Dark','Light'][c.light_mode],
             'screenColor':self.aux.get('screenColor'),'layerColors':self.aux.get('layerColors') or {'Base':'#91e2ce','Function':'#edc08c','Control':'#c4b4ef'}}
     def frame(self,view):
         page=PAGES[self.navigation.page]
         c=self.state.config
-        rows={'Menu':['Devices','Keys','Lighting','Power','Focus'],'Devices':[HOSTS[i].upper()+' '+bytes(c.names[i]).split(b'\0')[0].decode() for i in range(5)],'Keys':[('Auto: ' if c.os_auto_mask&(1<<c.active_host) else 'Layout: ')+['Mac','Windows','Android'][c.os[c.active_host]],'Caps: '+(('Command' if c.os[c.active_host]==0 else 'Ctrl') if c.caps_swap else 'Normal'),'Wheel: '+WHEELS[c.wheel],'Screen: '+('Light' if c.light_mode else 'Dark'),'Save settings'],'Lighting':['Effect: '+EFFECTS[c.effect],f'Brightness {c.brightness}%',f'Speed {c.speed}%','Color: '+('Custom' if bytes(c.color).hex() not in ['91e2ce','f2a4aa','c4b4ef','a4c8f2','edc08c','ffffff'] else ['Mint','Rose','Lilac','Ocean','Peach','White'][['91e2ce','f2a4aa','c4b4ef','a4c8f2','edc08c','ffffff'].index(bytes(c.color).hex())]),'Save settings'],'Power':['Balanced','Endurance','Desk','Save settings']}.get(page,[])
-        start=0
+        rows={'Menu':['Devices','Keys','Lighting','Power','Focus','Screen'],'Devices':[HOSTS[i].upper()+' '+bytes(c.names[i]).split(b'\0')[0].decode() for i in range(5)],'Keys':[('Auto: ' if c.os_auto_mask&(1<<c.active_host) else 'Layout: ')+['Mac','Windows','Android'][c.os[c.active_host]],'Caps: '+(('Command' if c.os[c.active_host]==0 else 'Ctrl') if c.caps_swap else 'Normal'),'Wheel: '+WHEELS[c.wheel],'Screen: '+('Light' if c.light_mode else 'Dark'),'Save settings'],'Lighting':['Effect: '+EFFECTS[c.effect],f'Brightness {c.brightness}%',f'Speed {c.speed}%','Color: '+('Custom' if bytes(c.color).hex() not in ['91e2ce','f2a4aa','c4b4ef','a4c8f2','edc08c','ffffff'] else ['Mint','Rose','Lilac','Ocean','Peach','White'][['91e2ce','f2a4aa','c4b4ef','a4c8f2','edc08c','ffffff'].index(bytes(c.color).hex())]),'Save settings'],'Power':['Balanced','Endurance','Desk','Save settings'],'Screen':['Pet: '+['Mochi','Pip','Ren','Lumi'][c.companion],'Theme: '+('Light' if c.light_mode else 'Dark'),'Home: '+FACES[c.face],'Motion: '+('Quiet' if c.reduced_motion else 'Lively'),'Save settings']}.get(page,[])
+        start=1 if page=='Menu' and self.navigation.cursor>=5 else 0
+        rows=rows[start:]
         view={**view,'home':page=='Home','title':page,'rows':rows[:5],'selected':self.navigation.cursor-start}
         if page=='Home' and view.get('footer') in ('PRESS FOR MENU','Press for menu','Press wheel: Menu'):view['footer']=''
         if self.navigation.editing:view['footer']='TURN / PRESS done'
@@ -226,7 +232,7 @@ class Session:
         for i,row in enumerate(view.get('rows',[])[:5]):v.rows[i].value=str(row).encode('ascii','replace')[:19]
         v.selected=int(view.get('selected',255))%256;v.home=bool(view.get('home'));v.caps_swap=bool(self.state.config.caps_swap)
         b=self.power_budget()
-        v.face=self.state.config.face
+        v.face=self.state.config.face;v.pet_character=self.state.config.companion
         v.animation_phase=(self.now()//100)%16 if b.animation_fps else 0
         if b.stage>=2:
             v.home=False;v.title=b'Display off' if b.stage==2 else b'Sleep';v.rows[0].value=b'Any key to wake';v.footer=b'Power saving';v.selected=255
@@ -285,7 +291,7 @@ class Session:
         result['lightingFps']=30 if b.rgb and b.animation_fps and light_config.effect else 0
         result['timer']={'phase':['Focus','Short break','Long break'][self.timer.phase],'remaining':(self.timer.remaining_ms+999)//1000,'remainingMs':self.timer.remaining_ms,'running':bool(self.timer.running),'alert':bool(self.timer.alert),'completed':self.timer.completed,'pulse':bool(timer_pulse(C.byref(self.timer),self.now(),self.system_motion or bool(s.config.reduced_motion) or (self.battery<=10 and not self.usb)))}
         pf=pet_get_frame(C.byref(self.pet),self.now(),not bool(b.animation_fps))
-        result['pet']={'mode':['Idle','Typing','Flow','Zoom','Sleepy'][pf.mode],'wpm':pf.wpm,'frame':pf.frame,'effect':['None','Sparkles','Hearts','Confetti','Speed lines'][pf.effect],'effectId':pf.effect,'phase':pf.phase,'bob':pf.bob,'quiet':not bool(b.animation_fps)}
+        result['pet']={'mode':['Idle','Typing','Flow','Zoom','Sleepy','Sip','Stretch','Groove','Yay'][pf.mode],'wpm':pf.wpm,'frame':pf.frame,'effect':['None','Sparkles','Hearts','Confetti','Speed lines'][pf.effect],'effectId':pf.effect,'phase':pf.phase,'bob':pf.bob,'quiet':not bool(b.animation_fps)}
         if self.last_view:result['frame']=self.frame(self.last_view)
         result['motion']={'active':bool(motion_active(C.byref(self.motion))),'highlight':self.motion.selection/256,'slide':self.motion.slide/256,'fps':self.display_fps}
         return result

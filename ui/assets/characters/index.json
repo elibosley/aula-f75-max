@@ -1,0 +1,40 @@
+{
+  "characters": [
+    {
+      "id": "keyboard-dog",
+      "name": "Mochi",
+      "description": "A little keyboard dog with very busy paws.",
+      "manifest": "assets/characters/keyboard-dog/manifest.json",
+      "atlas": "assets/characters/keyboard-dog/firmware-sprites-80.png",
+      "download": "assets/characters/keyboard-dog/keyboard-dog.zip",
+      "sha256": "529cd5bab9b26fd4026c2cc2e59e0f9e8f380f6ccb6ecd87e11dabc1b0201b4f"
+    },
+    {
+      "id": "little-robot",
+      "name": "Pip",
+      "description": "A mint robot with bright eyes and mitten hands.",
+      "manifest": "assets/characters/little-robot/manifest.json",
+      "atlas": "assets/characters/little-robot/firmware-sprites-80.png",
+      "download": "assets/characters/little-robot/little-robot.zip",
+      "sha256": "3db1017e562b0c5d4b7caf9e670c623c1ea71c4c770b9dac10fb732946fa4e92"
+    },
+    {
+      "id": "anime-guy",
+      "name": "Ren",
+      "description": "A cozy anime guy in a blue cardigan.",
+      "manifest": "assets/characters/anime-guy/manifest.json",
+      "atlas": "assets/characters/anime-guy/firmware-sprites-80.png",
+      "download": "assets/characters/anime-guy/anime-guy.zip",
+      "sha256": "aa1495e0b14e76c787a425a01d9762bfacf4f4d013cd5d25b2193f8d783a6546"
+    },
+    {
+      "id": "starlight",
+      "name": "Lumi",
+      "description": "Your original lavender-haired desk companion.",
+      "manifest": "assets/characters/starlight/manifest.json",
+      "atlas": "assets/characters/starlight/firmware-sprites-80.png",
+      "download": "assets/characters/starlight/starlight.zip",
+      "sha256": "5a64e5f76a74bd925430a59df7fba3f129dd475ae3965635e5f844a880db4d5c"
+    }
+  ]
+}

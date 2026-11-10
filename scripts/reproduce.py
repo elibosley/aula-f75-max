@@ -124,6 +124,7 @@ def main():
                     'power-scroll': 'test_power_scroll.py', 'idle-power': 'test_idle_power.py',
                     'profiles': 'test_profiles_system.py', 'clock': 'test_clock_system.py',
                     'storage': 'test_storage_probe.py',
+                    'companions': 'test_companion_system.py',
                 }
                 for name, script in scripts.items():
                     print(f'Checking {name} on the exact full_ui image...', flush=True)

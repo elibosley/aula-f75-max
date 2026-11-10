@@ -6,7 +6,7 @@ from unicorn import UC_HOOK_MEM_READ
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('image',type=Path);parser.add_argument('--output',type=Path,required=True)
 args=parser.parse_args();os.environ['F75_IMAGE']=str(args.image.resolve())
-from test_keyboard_image import Candidate,IMAGE
+from test_keyboard_image import Candidate,IMAGE,SCRATCH
 
 SPI=0x40058000
 SAVED=[0x4005e000,0x40042010,0x40044000,0x40044004,SPI,SPI+4,SPI+8,SPI+0x10,SPI+0x20,0xe000e100]
@@ -35,7 +35,7 @@ def run():
  cases=0
  for scan in (False,True):
   for operation,address,length in [(0,0,3),(1,0,1),(1,0x123456,18),(1,0xffffee,18)]:
-   fw=Probe(scan=scan);saved={a:fw.word(a) for a in SAVED};out=0x20006200
+   fw=Probe(scan=scan);saved={a:fw.word(a) for a in SAVED};out=SCRATCH
    fw.cpu.mem_write(out-1,b'\xa5'+bytes(18)+b'\x5a');before=len(fw.writes)
    assert fw.call('f75_storage_probe',operation,address,length,out)==0
    expected=bytes([0xef,0x40,0x18]) if operation==0 else bytes(((address+i)*17+23)&255 for i in range(length))
@@ -46,12 +46,12 @@ def run():
    cases+=1
  for operation,address,length in [(2,0,3),(0,1,3),(0,0,2),(1,0,0),(1,0,19),(1,0xffffff,2),(1,0x1000000,1),(1,0xffffffff,18)]:
   fw=Probe();before=len(fw.writes)
-  assert fw.call('f75_storage_probe',operation,address,length,0x20006200)==1
+  assert fw.call('f75_storage_probe',operation,address,length,SCRATCH)==1
   assert not fw.tx and len(fw.writes)==before,'Invalid request touched hardware'
  fw=Probe(stuck=True);saved={a:fw.word(a) for a in SAVED}
- assert fw.call('f75_storage_probe',0,0,3,0x20006200)==2
+ assert fw.call('f75_storage_probe',0,0,3,SCRATCH)==2
  assert {a:fw.word(a) for a in SAVED}==saved,'Timeout failed to restore hardware'
- fw=Probe();fw.word(SPI,0x40701);assert fw.call('f75_storage_probe',0,0,3,0x20006200)==3 and not fw.tx
+ fw=Probe();fw.word(SPI,0x40701);assert fw.call('f75_storage_probe',0,0,3,SCRATCH)==3 and not fw.tx
  for reserved in (False,True):
   fw=Probe();replies=[];fw.callback('raw_hid_send',lambda args:replies.append(bytes(fw.cpu.mem_read(args[0],args[1]))))
   packet=b'F75ztest'+bytes([0,3])+bytes(4)+bytes(17)+bytes([int(reserved)])

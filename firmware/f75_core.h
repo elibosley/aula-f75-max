@@ -18,6 +18,7 @@ typedef struct {
     uint8_t color[3];
     uint8_t light_mode;
     uint8_t os_auto_mask;
+    uint8_t companion;
 } f75_config;
 typedef struct {
     f75_config config;

@@ -7,7 +7,7 @@ from system_emulator import ROOT,HOST,NM
 
 def run(image,out):
  os.environ['F75_IMAGE']=str(image.resolve())
- from test_keyboard_image import Candidate,SYMBOLS
+ from test_keyboard_image import Candidate,SYMBOLS,SCRATCH,TILE
  from serve_emulator import Emulator
  class Headless(Emulator):
   def close(self):self.machine.close()
@@ -22,12 +22,12 @@ def run(image,out):
   def check_pixels(name):
    e.advance(500)
    view=e.machine.read(e.machine.symbols['frame'],frame_size)
-   renderer.cpu.mem_write(0x20005000,view)
+   renderer.cpu.mem_write(SCRATCH,view)
    expected=Image.new('RGB',(128,128))
    for y in range(0,128,8):
     renderer.word(0x20007f00,1024) # fifth AAPCS argument: tile capacity
-    assert renderer.call('f75_render_tile',0x20005000,y,8,0x20006000)==1
-    pixels=bytes(renderer.cpu.mem_read(0x20006000,2048))
+    assert renderer.call('f75_render_tile',SCRATCH,y,8,TILE)==1
+    pixels=bytes(renderer.cpu.mem_read(TILE,2048))
     for i,(p,) in enumerate(struct.iter_unpack('<H',pixels)):
      expected.putpixel((i%128,y+i//128),(((p>>11)&31)*255//31,((p>>5)&63)*255//63,(p&31)*255//31))
    assert e.frame.tobytes()==expected.tobytes(),f'Stale display pixels on {name}'

@@ -32,8 +32,9 @@ def handle(handler):
     data=encode(body['document']);result=keyboard.apply(data,body['action']=='save');actual=keyboard.read()
     if actual[160:]!=data[160:]:raise RuntimeError('Custom settings readback differs; read the keyboard before trying again')
     result['document']=decode(actual);result['custom_readback_verified']=True
-    for key in ['names','lighting','light_mode','reduced_motion','screen_color']:
-     if result['document'][key]!=body['document'][key]:raise RuntimeError('Settings readback differs: '+key)
+    expected=decode(data)
+    for key in ['names','lighting','light_mode','reduced_motion','screen_color','companion']:
+     if result['document'][key]!=expected[key]:raise RuntimeError('Settings readback differs: '+key)
    if body['action']!='clock':result['host_status']=keyboard.host_status()
   respond(result)
  except Exception as error:respond({'error':str(error)},409)

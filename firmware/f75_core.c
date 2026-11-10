@@ -23,9 +23,10 @@ void f75_defaults(f75_config *c) {
     c->os[2]=c->os[4]=F75_WINDOWS; c->caps_swap=1;
     c->brightness=28; c->speed=35; c->effect=0;c->face=3;
     c->color[0]=0x91;c->color[1]=0xe2;c->color[2]=0xce;
-    c->os_auto_mask=0x1f;
+    c->os_auto_mask=0x1f;c->companion=3;
 }
 bool f75_config_valid(const f75_config *c) {
+    if(c->companion>3)return false;
     if(c->active_host>=F75_HOSTS||c->caps_swap>1||c->power>F75_DESK||c->brightness>100||c->speed>100||c->effect>4||c->wheel>2||c->face>3||c->reduced_motion>1||c->light_mode>1||(c->bonded_mask&0xe0)||(c->os_auto_mask&0xe0)) return false;
     for(unsigned i=0;i<F75_HOSTS;i++) if(c->os[i]>F75_ANDROID||!c->names[i][0]||!has_zero(c->names[i],sizeof(c->names[i]))) return false;
     return true;
@@ -110,18 +111,19 @@ f75_budget f75_power_budget(const f75_state *s,uint32_t now,uint8_t battery,bool
     return b;
 }
 void f75_record_encode(const f75_config *c,uint32_t generation,uint8_t out[F75_RECORD_BYTES]) {
-    clear_bytes(out,F75_RECORD_BYTES);copy_bytes(out,"F75S",4);out[4]=5;out[6]=F75_RECORD_BYTES;put32(out+8,generation);
+    clear_bytes(out,F75_RECORD_BYTES);copy_bytes(out,"F75S",4);out[4]=6;out[6]=F75_RECORD_BYTES;put32(out+8,generation);
     copy_bytes(out+12,c->os,F75_HOSTS);copy_bytes(out+17,c->names,sizeof(c->names));
     const uint8_t fields[]={c->active_host,c->bonded_mask,c->caps_swap,c->power,c->brightness,c->speed,c->effect,c->wheel,c->face,c->reduced_motion,c->color[0],c->color[1],c->color[2]};
-    copy_bytes(out+112,fields,sizeof(fields));out[125]=c->light_mode;out[126]=c->os_auto_mask;put32(out+156,f75_crc32(out,156));
+    copy_bytes(out+112,fields,sizeof(fields));out[125]=c->light_mode;out[126]=c->os_auto_mask;out[127]=c->companion;put32(out+156,f75_crc32(out,156));
 }
 bool f75_record_decode(const uint8_t in[F75_RECORD_BYTES],f75_config *c,uint32_t *generation) {
-    if(!same_bytes(in,"F75S",4)||in[4]<1||in[4]>5||in[6]!=F75_RECORD_BYTES||in[7]||get32(in+156)!=f75_crc32(in,156))return false;
+    if(!same_bytes(in,"F75S",4)||in[4]<1||in[4]>6||in[6]!=F75_RECORD_BYTES||in[7]||get32(in+156)!=f75_crc32(in,156))return false;
     f75_config candidate;clear_bytes(&candidate,sizeof(candidate));copy_bytes(candidate.os,in+12,F75_HOSTS);copy_bytes(candidate.names,in+17,sizeof(candidate.names));
     if(in[4]<5)for(unsigned i=0;i<F75_HOSTS;i++)if(candidate.os[i]>F75_WINDOWS)return false;
     candidate.active_host=in[112];candidate.bonded_mask=in[113];candidate.caps_swap=in[114];candidate.power=in[115];candidate.brightness=in[116];candidate.speed=in[117];candidate.effect=in[118];candidate.wheel=in[119];candidate.face=in[120];candidate.reduced_motion=in[121];copy_bytes(candidate.color,in+122,3);
     candidate.light_mode=in[4]>=2?in[125]:0;
     candidate.os_auto_mask=in[4]>=4?in[126]:0;
+    candidate.companion=in[4]>=6?in[127]:3;
     if(in[4]<3&&candidate.face==0)candidate.face=3;
     if(!f75_config_valid(&candidate))return false;
     copy_bytes(c,&candidate,sizeof(candidate));

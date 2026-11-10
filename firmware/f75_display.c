@@ -1,7 +1,8 @@
 #include "f75_display.h"
 #include "font_data.h"
 #include "f75_icons.h"
-#include "pet_assets.h"
+#include "companion_assets.h"
+#include "f75_sprite.h"
 
 typedef struct { uint8_t y,rows;uint16_t *pixels; } tile;
 static void dot(tile *t,int x,int y,uint16_t color){if(x>=0&&x<128&&y>=t->y&&y<t->y+t->rows)t->pixels[(y-t->y)*128+x]=color;}
@@ -117,15 +118,22 @@ static void desk_clock(tile *t,const f75_view *v,uint16_t rose){
     dot(t,cx,cy,rose);
 }
 static void pet_sprite(tile *t,const f75_view *v,uint16_t accent){
-    unsigned frame=v->pet_frame<6?v->pet_frame:0;
+    static uint8_t sprite[4800],cached_frame=255,cached_character=255;
+    static bool valid;
+    unsigned frame=v->pet_frame<F75_COMPANION_FRAMES?v->pet_frame:0;
+    unsigned character=v->pet_character<F75_COMPANION_COUNT?v->pet_character:3;
+    if(cached_frame!=frame||cached_character!=character){
+        valid=f75_sprite_decode(f75_companion_streams[character][frame],f75_companion_lengths[character][frame],sprite,sizeof(sprite),6400);
+        cached_frame=(uint8_t)frame;cached_character=(uint8_t)character;
+    }
+    if(!valid)return;
     int bob=v->pet_bob< -2?-2:v->pet_bob>2?2:v->pet_bob;
     int top=(int)t->y-24-bob,bottom=(int)t->y+t->rows-24-bob;
     if(top<0)top=0;
     if(bottom>80)bottom=80;
     for(int y=top;y<bottom;y++){
-        const uint16_t *source=f75_pet_native[frame]+y*80;
         uint16_t *out=t->pixels+(24+y+bob-t->y)*128+24;
-        for(int x=0;x<80;x++){uint16_t color=source[x];if(color)out[x]=color;}
+        for(int x=0;x<80;x++){uint16_t color=f75_companion_palette[character][f75_sprite_index(sprite,(size_t)y*80+x)];if(color)out[x]=color;}
     }
     for(unsigned i=0;v->pet_effect&&i<8;i++){
         int x=i%2?108+(int)(i%3)*4:8+(int)(i%3)*4;
@@ -204,8 +212,8 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
         pet_sprite(&t,v,ACCENT);char rate[]="000 WPM";unsigned wpm=v->pet_wpm>999?999:v->pet_wpm;
         rate[0]=wpm>=100?(char)('0'+wpm/100):' ';rate[1]=wpm>=10?(char)('0'+wpm/10%10):' ';rate[2]=(char)('0'+wpm%10);
         const char *pace=rate+(wpm>=100?0:wpm>=10?1:2);
-        text(&t,pace,7,6,105,0,MUTED);static const char *moods[]={"Idle","Typing","Flow","Zoom!","Sleepy"};
-        const char *mood=moods[v->pet_mode<5?v->pet_mode:0];
+        text(&t,pace,7,6,105,0,MUTED);static const char *moods[]={"Idle","Typing","Flow","Zoom!","Sleepy","Sip","Stretch","Groove","Yay!"};
+        const char *mood=moods[v->pet_mode<9?v->pet_mode:0];
         text(&t,mood,6,121-text_width(mood,6,0),105,0,ACCENT);
     }else if(v->home){
         centered(&t,v->clock,5,34,3,INK);centered(&t,v->host_label,18,65,1,MUTED);

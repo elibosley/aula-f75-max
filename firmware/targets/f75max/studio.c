@@ -548,15 +548,19 @@ bool encoder_update_user(uint8_t index, bool clockwise) {
 }
 
 static void make_frame(uint32_t now) {
-    static const char *pages[] = {"Home", "Menu", "Devices", "Keys", "Lighting", "Power", "Focus"};
-    static const char *menu[] = {"Devices", "Keys", "Lighting", "Power", "Focus"};
+    static const char *pages[] = {"Home", "Menu", "Devices", "Keys", "Lighting", "Power", "Focus", "Screen"};
+    static const char *menu[] = {"Devices", "Keys", "Lighting", "Power", "Focus", "Screen"};
+    static const char *companions[]={"Mochi","Pip","Ren","Lumi"};
+    static const char *faces[]={"Orbit","Minimal","Stars","Companion"};
     static const char *wheels[] = {"Volume", "Scroll", "Brightness"};
     static const char *effects[] = {"Still", "Tidal", "Rain", "Trails", "Constellation"};
     static const char *power[] = {"Balanced", "Endurance", "Desk", "Save settings"};
     memset(&frame, 0, sizeof(frame));
     uint8_t page = navigation.page;
+    uint8_t menu_start=page==F75_MENU&&navigation.cursor>=5?1:0;
     frame.home = page == F75_HOME;
     frame.face = state.config.face;
+    frame.pet_character=state.config.companion;
     frame.light_mode = state.config.light_mode;
     frame.caps_swap = state.config.caps_swap;
     frame.custom_accent=f75_custom_config.screen_custom;
@@ -564,7 +568,7 @@ static void make_frame(uint32_t now) {
     bool quiet=state.config.reduced_motion||!screen_budget.animation_fps;
     frame.motion = !quiet;
     frame.animation_phase = now / 100;
-    frame.selected = navigation.cursor;
+    frame.selected = navigation.cursor-menu_start;
     frame.editing = navigation.editing;
     snprintf(frame.title, sizeof(frame.title), "%s", pages[page]);
     snprintf(frame.status_left, sizeof(frame.status_left), "%s", usb_selected()?"USB":active_slot==4?"RF":active_slot==1?"BT1":active_slot==2?"BT2":"BT3");
@@ -577,9 +581,16 @@ static void make_frame(uint32_t now) {
     frame.os_source=!(state.config.os_auto_mask&(1u<<active_slot))?2:(os_evidence_mask&(1u<<active_slot))?1:0;
     f75_clock_text(&clock_state,frame.clock);
     for (uint8_t i = 0; i < 5; ++i) {
-        unsigned row = i;
+        unsigned row = i+menu_start;
         char *text = frame.rows[i];
-        if (page == F75_MENU && row < 5) snprintf(text, 20, "%s", menu[row]);
+        if (page == F75_MENU && row < 6) snprintf(text, 20, "%s", menu[row]);
+        if(page==F75_SCREEN){
+            if(row==0)snprintf(text,20,"Pet: %s",companions[state.config.companion]);
+            if(row==1)snprintf(text,20,"Theme: %s",state.config.light_mode?"Light":"Dark");
+            if(row==2)snprintf(text,20,"Home: %s",faces[state.config.face]);
+            if(row==3)snprintf(text,20,"Motion: %s",state.config.reduced_motion?"Quiet":"Lively");
+            if(row==4)snprintf(text,20,"Save settings");
+        }
         if (page == F75_DEVICES && row < 5){static const char *slots[]={"USB","BT1","BT2","BT3","RF"};snprintf(text,20,"%c%s %.12s",row==active_slot?(linked?'>':'~'):' ',slots[row],state.config.names[row]);}
         if (page == F75_KEYS) {
             if (row == 0) snprintf(text,20,"%s: %s",state.config.os_auto_mask&(1u<<active_slot)?"Auto":"Layout",state.config.os[active_slot]==F75_MAC?"Mac":state.config.os[active_slot]==F75_ANDROID?"Android":"Windows");
@@ -631,7 +642,7 @@ static void make_frame(uint32_t now) {
         snprintf(frame.rows[1],20,"on your device");snprintf(frame.footer,sizeof(frame.footer),"Fn+Esc: Cancel");
     }else if(state.pairing==F75_PAIR_TIMEOUT)snprintf(frame.footer,sizeof(frame.footer),"Pairing timed out");
     if (notice && (int32_t)(notice_until - now) > 0) snprintf(frame.footer, sizeof(frame.footer), "%s", notice);
-    f75_motion_update(&motion, page, frame.selected, direction, now, quiet);
+    f75_motion_update(&motion, (uint16_t)(page|((uint16_t)menu_start<<8)), frame.selected, direction, now, quiet);
     f75_motion_apply(&motion, &frame);
     if (benchmark_active) {
         if (now-benchmark_at>=5000u) benchmark_active=false;
