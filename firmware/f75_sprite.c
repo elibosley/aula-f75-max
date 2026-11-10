@@ -1,9 +1,15 @@
 #include "f75_sprite.h"
 static bool take(f75_sprite_decoder *s,unsigned count,unsigned *value){
     if(s->bit>s->bytes*8||count>s->bytes*8-s->bit)return false;
-    unsigned result=0;
-    for(unsigned i=0;i<count;i++,s->bit++)result|=((s->data[s->bit/8]>>(s->bit%8))&1u)<<i;
-    *value=result;return true;
+    if(!count){*value=0;return true;}
+    /* Tokens use at most eleven bits. Read only their covered bytes instead
+     * of walking every bit in the display task. The bound above also covers
+     * the optional second and third byte at a truncated stream boundary. */
+    unsigned shift=s->bit%8;size_t byte=s->bit/8;
+    unsigned result=s->data[byte]>>shift;
+    if(count>8-shift)result|=(unsigned)s->data[byte+1]<<(8-shift);
+    if(count>16-shift)result|=(unsigned)s->data[byte+2]<<(16-shift);
+    s->bit+=count;*value=result&((1u<<count)-1u);return true;
 }
 uint8_t f75_sprite_index(const uint8_t *packed,size_t pixel){
     size_t bit=pixel*6,byte=bit/8;unsigned shift=bit%8;

@@ -53,14 +53,32 @@ def run(image):
   # Fn and wheel are activity even without a host typing usage.
   age();key(71,True);step(30);assert power()[0]==0 and power()[4]==255
   key(71,False);step(30)
-  age();key(84,True);step(50);assert power()[0]==0 and power()[5]&1,'Held wheel did not wake display'
-  assert m.read(m.symbols['navigation'],1)==b'\0','Wheel click fired before release'
-  key(84,False);step(40);assert m.read(m.symbols['navigation'],1)==b'\1','Wake swallowed the menu click'
+  # Input wake and display completion are separate contracts. A dark panel
+  # must receive all sixteen fresh tiles before its backlight can turn on.
+  # Keep input under 50ms and bound that complete repaint to 100ms; do not
+  # depend on extra diagnostic queries accidentally finishing the frame.
+  wheel_wake_us=[];wheel_input_us=[]
+  for character in range(4):
+   m.write(m.symbols['state']+115,bytes([character]))
+   for phase in range(2):
+    m.write(m.symbols['navigation'],b'\0');age();step(phase+1)
+    frames_before=m.read32(m.symbols['complete_frames']);started=m.read32(HOST+12)
+    key(84,True);elapsed=lambda:(m.read32(HOST+12)-started)&0xffffffff
+    while m.read(m.symbols['button_stable'],1)!=b'\0' and elapsed()<50000:step(2)
+    input_us=elapsed()
+    assert m.read(m.symbols['button_stable'],1)==b'\0' and m.read(m.symbols['screen_dark'],1)==b'\0' and input_us<=50000,('Wheel input wake',character,phase,input_us)
+    wheel_input_us.append(input_us)
+    assert m.read(m.symbols['navigation'],1)==b'\0','Wheel click fired before release'
+    while not m.read32(0x40044000)&(1<<16) and elapsed()<100000:step(2)
+    wake_us=elapsed()
+    assert m.read32(0x40044000)&(1<<16) and wake_us<=100000 and m.read32(m.symbols['complete_frames'])>frames_before,('Fresh wake frame missed 100ms deadline',character,phase,wake_us)
+    wheel_wake_us.append(wake_us)
+    key(84,False);step(40);assert m.read(m.symbols['navigation'],1)==b'\1','Wake swallowed the menu click'
   # Adaptive row changes cannot undo an explicit diagnostic suspension.
   m.endpoint_out(3,b'F75TdiagF75DIAG!RGB0'+bytes(12));step();assert m.endpoint_in(2)[:4]==b'F75U'
   age();assert power()[4]==511;assert m.read32(0x40006000)==0
   key(keymap.index(4),True);step(25);assert power()[4]==255 and m.read32(0x40006000)==0
   key(keymap.index(4),False);step(20);assert m.read32(HOST+8)==0
- return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'idle_row_period_511_active_255':True,'idle_pwm_banks_stopped_mux_detached':True,'dark_color_frames_stop':True,'idle_thread_WFI_reached_and_interrupt_wake_executes':True,'metadata_does_not_wake':True,'real_usb_15ms_pulses':96,'companions_covered':4,'idle_pulse_rows':[0,1,14],'idle_phases_per_key':8,'fn_and_held_wheel_wake':True,'click_after_wake_preserved':True,'diagnostic_suspend_preserved':True,'deep_sleep_or_battery_endurance':'not_claimed'}
+ return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'idle_row_period_511_active_255':True,'idle_pwm_banks_stopped_mux_detached':True,'dark_color_frames_stop':True,'idle_thread_WFI_reached_and_interrupt_wake_executes':True,'metadata_does_not_wake':True,'real_usb_15ms_pulses':96,'companions_covered':4,'idle_pulse_rows':[0,1,14],'idle_phases_per_key':8,'fn_and_held_wheel_wake':True,'wheel_wake_cases':8,'wheel_input_deadline_ms':50,'max_wheel_input_wake_us':max(wheel_input_us),'fresh_frame_deadline_ms':100,'max_fresh_frame_wake_us':max(wheel_wake_us),'click_after_wake_preserved':True,'diagnostic_suspend_preserved':True,'deep_sleep_or_battery_endurance':'not_claimed'}
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--output',type=Path,required=True);a=p.parse_args();r=run(a.image);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
