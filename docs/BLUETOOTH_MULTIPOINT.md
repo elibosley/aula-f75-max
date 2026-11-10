@@ -14,6 +14,10 @@ The [AJAZZ AK820 Pro port](https://github.com/fpb/ajazz-ak820-pro) identifies a 
 
 The [official WCH CH582/CH583 SDK](https://github.com/openwch/ch583/tree/bd508ad7ceed48377619837051412a651952857f/EVT/EXAM/BLE/MultiCentPeri) contains a multiple-connection peripheral example. Its `multiPeripheral.c` tracks connection handles in an array and resumes advertising when capacity remains. The shared [configuration header](https://github.com/openwch/ch583/blob/bd508ad7ceed48377619837051412a651952857f/EVT/EXAM/BLE/HAL/include/config.h) exposes `PERIPHERAL_MAX_CONNECTION`, defaulting to one. This is a plausible development path if the actual board uses a compatible, recoverable radio. It does not prove that the supplier keyboard radio binary supports multipoint, that this PCB has that chip, or that three HID hosts work with the required latency and power budget.
 
+The example's [actual project configuration](https://github.com/openwch/ch583/blob/bd508ad7ceed48377619837051412a651952857f/EVT/EXAM/BLE/MultiCentPeri/.cproject) explicitly sets `PERIPHERAL_MAX_CONNECTION=3` and `BLE_MEMHEAP_SIZE=10*1024`. This establishes an SDK example configured for three peripheral links. It remains a generic GATT demonstration, not a verified HID implementation for this keyboard.
+
+The three inspected supplier updater packages each contain a 256 KiB main application resource and an embedded archive naming `Settings/FWFiles/SN32F290.hex`. No radio firmware image was identified in those packages. The existing PCB photo shows the radio area, but its top marking is not reliably readable; the package outline alone is insufficient to identify the silicon. Main-MCU firmware restore therefore cannot be treated as a verified radio restore path.
+
 ## Required evidence before a radio replacement
 
 1. Identify the actual radio silicon/revision and its programming interface from this board or a matching verified hardware source.

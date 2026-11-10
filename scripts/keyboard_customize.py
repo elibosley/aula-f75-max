@@ -2,7 +2,6 @@
 """Read or apply structured keyboard settings over its fixed raw-HID protocol."""
 import argparse,contextlib,json,secrets,struct,time,zlib
 from pathlib import Path
-import hid
 from keyboard_transport_lock import TransportLock
 ROOT=Path(__file__).resolve().parents[1]
 BUNDLE_BYTES=3232
@@ -10,6 +9,7 @@ class Keyboard:
  def __init__(self,lock_timeout=1.0):self.lock=TransportLock(lock_timeout)
  def __enter__(self):
   try:
+   import hid
    self.lock.__enter__()
    devices=[d for d in hid.enumerate(0xfeed,0xf750) if d['usage_page']==0xff60]
    if len(devices)!=1:raise RuntimeError('Connect the keyboard USB cable; one diagnostics interface is required')

@@ -23,9 +23,14 @@ def sha(path):
 
 
 def run(command, log, env=None, timeout=300):
-    with log.open('w') as stream:
-        subprocess.run(command, cwd=ROOT, env=env, stdout=stream, stderr=subprocess.STDOUT,
-                       check=True, timeout=timeout)
+    try:
+        with log.open('w') as stream:
+            subprocess.run(command, cwd=ROOT, env=env, stdout=stream, stderr=subprocess.STDOUT,
+                           check=True, timeout=timeout)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        print(f'Failed command log: {log.relative_to(ROOT)}', file=sys.stderr, flush=True)
+        print('\n'.join(log.read_text(errors='replace').splitlines()[-60:]), file=sys.stderr, flush=True)
+        raise
 
 
 def verify_sources():
