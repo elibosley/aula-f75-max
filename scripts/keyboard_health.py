@@ -178,7 +178,7 @@ def radio_snapshot():
         device.write(b'\0F75O'+nonce+bytes(24));response=bytes(device.read(32,1000))
     if len(response)!=32 or response[:8]!=b'F75Z'+nonce:raise RuntimeError('Radio counters or nonce did not verify')
     flags,tx,rx,errors,event,status=struct.unpack_from('<6I',response,8)
-    return dict(seen=bool(flags&1),connected_event=bool(flags&2),waiting_ack=bool(flags&4),
+    return dict(seen=bool(flags&1),connected_event=bool(flags&2),waiting_ack=bool(flags&4),report_queue_fault=bool(flags&8),
         selected=(flags>>8)&255,last_command=hex((flags>>16)&255),tx_packets=tx,rx_packets=rx,
         errors=errors,last_event=hex(event),uart_status=hex(status&255),uart_mux=hex((status>>8)&65535),
         rx_pin_high=bool(status&(1<<24)),tx_pin_high=bool(status&(1<<25)),

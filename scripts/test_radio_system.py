@@ -62,6 +62,14 @@ def run(image):
    packet=bytes([0xa1])+expected+bytes([(0xa1+sum(expected))&255])
    assert packet in trace()[offset:],('Bluetooth Caps/Ctrl mapping',physical,trace()[offset:].hex())
    assert bytes([0xa1]+[0]*8+[0xa1]) in trace()[offset:]
+  # A missing UART report ACK is not an RF disconnection. The physical
+  # board can still type while this flag is falsely cleared by a timeout.
+  auto_ack=False;before=m.read32(m.symbols['errors']);offset=len(trace())
+  key(4,True);step(100)
+  assert bytes.fromhex('a10000040000000000a5') in trace()[offset:],'Fixture did not transmit a keyboard report'
+  assert m.read32(m.symbols['errors'])>before,'Fixture did not exhaust report ACK retries'
+  assert m.read(m.symbols['connected'],1)==b'\1','UART report timeout falsely claimed an RF disconnect'
+  auto_ack=True;key(4,False);settle()
   # Battery-route idle must keep UART RX/ACK processing and first-key delivery
   # alive even though USB has not been configured in this test yet.
   age=struct.unpack('<I',m.read(m.symbols['state']+116,4))[0]
@@ -104,7 +112,7 @@ def run(image):
   return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),
    uart_bytes=m.read32(HOST+0x40),hardware_writes=False,real_arm_image=True,function_stubs=[],
    no_usb_startup=True,stock_framing=True,bluetooth_press_and_release=True,bluetooth_caps_ctrl_swap=True,
-   release_before_switch=True,wireless_idle_uart_and_first_key_without_usb=True,usb_cable_does_not_replace_wireless=True,
+   release_before_switch=True,report_ack_timeout_is_not_rf_disconnect=True,wireless_idle_uart_and_first_key_without_usb=True,usb_cable_does_not_replace_wireless=True,
    unavailable_requests_preserve_route=True,physical_selector_clears_override=True,
    switching_never_pairs=True,fn_wheel_toggles_previous_bluetooth=True,separate_pair_confirmation=True,stuck_uart_bounded=True,
    limitations=['UART replies are explicitly injected by the test','No Bluetooth or receiver RF link is modeled','Physical pairing and selector power rails require hardware checks'])

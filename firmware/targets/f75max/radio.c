@@ -110,7 +110,11 @@ void f75_radio_task(uint32_t now){
         if(++retries>2){
             packet *p=&queue[tail];
             if(p->kind==COMMAND_SELECT&&p->generation==command_generation)selection_status=F75_RADIO_SELECT_FAILED;
-            ++errors;tail=(tail+1u)&15u;retries=0;connected=false;
+            /* A report ACK timeout describes the UART transaction, not the
+             * RF link. Keep the last link event until a disconnect, route
+             * change, pairing request, or report-queue fault supersedes it.
+             * Selection still fails through its independent status above. */
+            ++errors;tail=(tail+1u)&15u;retries=0;
         }
     }
     if(!(SN_UART2->LS&(1u<<5)))return;
