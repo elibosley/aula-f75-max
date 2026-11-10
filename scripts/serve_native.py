@@ -12,6 +12,7 @@ import struct
 import threading
 import time
 import zlib
+from display_types import View
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / '.runtime'
@@ -34,8 +35,6 @@ class Navigation(C.Structure):
     _fields_=[(n,C.c_uint8) for n in ['page','cursor','volume','editing','wheel_divisor','edit_streak']]+[('wheel_pending',C.c_int8),('last_direction',C.c_int8),('last_turn',C.c_uint32)]
 class Motion(C.Structure):
     _fields_=[(n,C.c_int32) for n in ['selection','velocity','slide','slide_velocity']]+[(n,C.c_uint32) for n in ['last_step','last_input']]+[('context',C.c_uint16),('selected',C.c_uint8),('flags',C.c_uint8)]
-class View(C.Structure):
-    _fields_ = [('status_left',C.c_char*8),('status_right',C.c_char*8),('title',C.c_char*20),('rows',(C.c_char*20)*5),('footer',C.c_char*21),('clock',C.c_char*6),('host_label',C.c_char*19),('os',C.c_char*4),('selected',C.c_uint8),('animation_phase',C.c_uint8),('face',C.c_uint8),('home',C.c_bool),('caps_swap',C.c_bool),('motion',C.c_bool),('editing',C.c_bool),('highlight_y',C.c_int16),('content_x',C.c_int16),('light_mode',C.c_bool),('timer',C.c_bool),('alert_pulse',C.c_bool),('timer_progress',C.c_uint8),('pet_wpm',C.c_uint16),('pet_mode',C.c_uint8),('pet_frame',C.c_uint8),('pet_effect',C.c_uint8),('pet_phase',C.c_uint8),('pet_bob',C.c_int8),('os_source',C.c_uint8),('accent',C.c_uint16),('custom_accent',C.c_bool)]
 HOSTS=['usb','bt1','bt2','bt3','rf'];POWERS=['Balanced','Endurance','Desk'];EFFECTS=['Still','Tidal','Rain','Trails','Constellation'];WHEELS=['Volume','Scroll','Brightness'];FACES=['Orbit','Minimal','Constellation','Chibi']
 PAGES=['Home','Menu','Devices','Keys','Lighting','Power','Focus']
 PState=C.POINTER(State);PConfig=C.POINTER(Config);U32=C.c_uint32;U8=C.c_uint8

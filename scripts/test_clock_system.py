@@ -3,7 +3,7 @@
 import argparse,hashlib,json,struct
 from pathlib import Path
 from serve_emulator import Emulator
-from serve_native import View
+from display_types import View
 from system_emulator import HOST
 
 

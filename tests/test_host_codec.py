@@ -38,6 +38,24 @@ except ImportError as error:
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_arm_clock_check_imports_without_native_preview(self):
+        program = """
+import sys,ctypes
+sys.path.insert(0,'scripts')
+load=ctypes.CDLL
+def library(name,*args,**kwargs):
+ if str(name).endswith('libf75.dylib'):raise AssertionError('ARM check loaded the native preview')
+ return load(name,*args,**kwargs)
+ctypes.CDLL=library
+import test_clock_system
+from display_types import View
+assert ctypes.sizeof(View)==214
+assert 'serve_native' not in sys.modules
+"""
+        result = subprocess.run([sys.executable, '-c', program], cwd=ROOT,
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()
