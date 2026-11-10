@@ -1,0 +1,77 @@
+name: Desktop builds
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/desktop.yml'
+      - 'desktop/**'
+      - 'requirements-desktop.txt'
+      - 'scripts/build_desktop.py'
+      - 'scripts/build_preview.py'
+      - 'scripts/desktop.py'
+      - 'scripts/hardware_api.py'
+      - 'scripts/host_display.py'
+      - 'scripts/keyboard_*.py'
+      - 'firmware/targets/f75max/board-map.json'
+      - 'ui/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    name: package (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: macos-15
+            python: '3.14.6'
+            archive: F75-Studio-macos-arm64.zip
+          - platform: windows-x64
+            runner: windows-2025
+            python: '3.12'
+            archive: F75-Studio-windows-x64.zip
+          - platform: linux-x64
+            runner: ubuntu-24.04
+            python: '3.12'
+            archive: F75-Studio-linux-x64.tar.gz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install Linux desktop libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0 libnss3 libasound2t64
+      - name: Bundle app
+        run: |
+          python -m pip install -r requirements-desktop.txt
+          python scripts/build_desktop.py
+      - name: Verify and archive macOS app
+        if: runner.os == 'macOS'
+        run: |
+          codesign --verify --strict 'dist/desktop/F75 Studio.app'
+          'dist/desktop/F75 Studio.app/Contents/MacOS/F75 Studio' --check
+          ditto -c -k --keepParent 'dist/desktop/F75 Studio.app' 'dist/F75-Studio-macos-arm64.zip'
+      - name: Verify and archive Windows app
+        if: runner.os == 'Windows'
+        run: |
+          python -c "import subprocess; subprocess.run([r'dist/desktop/F75 Studio/F75 Studio.exe', '--check'], check=True)"
+          python -c "import shutil; shutil.make_archive('dist/F75-Studio-windows-x64', 'zip', 'dist/desktop', 'F75 Studio')"
+      - name: Verify and archive Linux app
+        if: runner.os == 'Linux'
+        run: |
+          'dist/desktop/F75 Studio/F75 Studio' --check
+          cp desktop/70-f75-studio.rules 'dist/desktop/F75 Studio/'
+          tar -czf dist/F75-Studio-linux-x64.tar.gz -C dist/desktop 'F75 Studio'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: F75-Studio-${{ matrix.platform }}
+          path: dist/${{ matrix.archive }}
+          if-no-files-found: error
+          retention-days: 30

@@ -1,6 +1,6 @@
 # F75 Studio
 
-Custom firmware and a Mac-friendly editor for the AULA F75 Max. The board gets a chibi desk companion, a little analog clock, clear menus, customizable lighting, macros, per-device layouts, and Bluetooth device switching.
+Custom firmware and a desktop editor for the AULA F75 Max. The board gets a chibi desk companion, a little analog clock, clear menus, customizable lighting, macros, per-device layouts, and Bluetooth device switching.
 
 This is an experimental community board port. The physical selector remains authoritative when moved. The keyboard uses its existing radio controller and saved bonds; one device receives keyboard input at a time.
 
@@ -34,7 +34,11 @@ make verify
 
 [GitHub Actions](https://github.com/elibosley/aula-f75-max/actions/workflows/firmware.yml) publishes firmware, ELF files, SHA-256 checksums, and verification receipts for each successful build. These artifacts contain erased settings regions, not anyone’s device backup or pairing identities.
 
-## Editor and preview
+## Desktop app
+
+F75 Studio configures your USB-connected keyboard on macOS, Windows, and Linux. [Desktop downloads and setup](docs/DESKTOP.md)
+
+## Browser editor and preview
 
 ```sh
 make preview

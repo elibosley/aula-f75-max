@@ -1,0 +1,2 @@
+# Permit the active desktop user to configure the F75 Studio USB device.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="feed", ATTRS{idProduct}=="f750", TAG+="uaccess"

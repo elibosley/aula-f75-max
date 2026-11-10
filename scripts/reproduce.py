@@ -125,6 +125,7 @@ def main():
                     'profiles': 'test_profiles_system.py', 'clock': 'test_clock_system.py',
                     'storage': 'test_storage_probe.py',
                     'companions': 'test_companion_system.py',
+                    'host-display': 'test_host_display_system.py',
                 }
                 for name, script in scripts.items():
                     print(f'Checking {name} on the exact full_ui image...', flush=True)

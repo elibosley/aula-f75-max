@@ -121,6 +121,55 @@ static uint32_t tile_signature(void) {
 #ifndef F75_USB_ONLY
 static virtual_timer_t startup_timer;
 extern uint32_t __ram0_end__;
+static char host_display_text[21];
+static uint32_t host_display_started;
+static uint32_t host_display_duration;
+
+static bool host_display_ready(void) {
+    return panel_ready && usb_selected() && USB_DRIVER.state == USB_ACTIVE;
+}
+
+static void host_display_expire(uint32_t now) {
+    if (!host_display_ready() || now - host_display_started >= host_display_duration) {
+        host_display_duration = 0;
+    }
+}
+
+static void host_display_receive(const uint8_t data[32]) {
+    uint32_t now = timer_read32();
+    host_display_expire(now);
+    uint8_t response[32] = {'F', '7', '5', 'a'};
+    memcpy(response + 4, data + 4, 4);
+    response[8] = 1;
+    response[9] = 1; // Invalid request
+    response[10] = host_display_ready();
+    uint8_t operation = data[9], seconds = data[10], length = data[11];
+    bool valid = data[8] == 1 && operation <= 2;
+    if (operation == 1) {
+        valid = valid && seconds >= 1 && seconds <= 60 && length >= 1 && length <= 20;
+    } else {
+        valid = valid && seconds == 0 && length == 0;
+    }
+    for (unsigned index = 0; valid && index < 20; ++index) {
+        uint8_t byte = data[12 + index];
+        valid = index < length ? byte >= 32 && byte <= 126 : byte == 0;
+    }
+    if (valid) {
+        response[9] = 0;
+        if (operation == 1 && !response[10]) {
+            response[9] = 2; // USB is not the active route
+        } else if (operation == 1) {
+            memcpy(host_display_text, data + 12, length);
+            memset(host_display_text + length, 0, sizeof(host_display_text) - length);
+            host_display_started = now;
+            host_display_duration = (uint32_t)seconds * 1000u;
+        } else if (operation == 2) {
+            host_display_duration = 0;
+        }
+    }
+    response[11] = host_display_duration != 0;
+    raw_hid_send(response, sizeof(response));
+}
 
 static void startup_guard(virtual_timer_t *timer, void *context) {
     (void)timer; (void)context;
@@ -134,11 +183,17 @@ static void startup_guard(virtual_timer_t *timer, void *context) {
 }
 #endif
 
-/* Counts and state only. No key codes, text, or arbitrary memory access.
- * The explicit boot request uses a different magic from the read-only query. */
+/* Explicit commands have distinct report signatures. Diagnostics return
+ * counters and device state, without returning typed keys. */
 void raw_hid_receive(uint8_t *data, uint8_t length) {
     static const uint8_t boot_magic[8] = {0xaa,0x42,0x89,0x5a,0xff,0x71,0x62,0xcc};
     if (length != 32) return;
+#ifndef F75_USB_ONLY
+    if (!memcmp(data, "F75y", 4)) {
+        host_display_receive(data);
+        return;
+    }
+#endif
     if(!memcmp(data,"F75d",4)){
         uint8_t response[32]={'F','7','5','e'};memcpy(response+4,data+4,4);
         f75_budget budget=f75_board_power_budget(&state,timer_read32());
@@ -329,6 +384,9 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
     uint32_t counters[] = {timer_read32(), f75_matrix_scans, complete_frames, state.release_epoch};
     memcpy(response + 8, counters, sizeof(counters));
     response[24] = (uint8_t)panel_ready | ((uint8_t)usb_selected() << 1) | ((uint8_t)state.control_layer << 2) | ((uint8_t)f75_matrix_ready << 3);
+#ifndef F75_USB_ONLY
+    response[24] |= 1u << 4;
+#endif
     response[25] = navigation.page;
     response[26] = (uint8_t)gpio_read_pin(B17) | ((uint8_t)gpio_read_pin(A10) << 1) | ((uint8_t)gpio_read_pin(B2) << 2);
     response[27] = (uint8_t)gpio_read_pin(A2) | ((uint8_t)gpio_read_pin(A3) << 1);
@@ -369,6 +427,9 @@ static void release_keys(void) {
 }
 static void show_notice(const char *text) { notice = text; notice_until = timer_read32() + 2200; }
 static void commit_host(uint8_t slot,bool physical,bool select_radio){
+#ifndef F75_USB_ONLY
+    if (slot != active_slot) host_display_duration = 0;
+#endif
     radio_switch_pending=false;
     f75_pair_cancel(&state);release_keys();
     os_evidence_mask&=1u;
@@ -625,6 +686,11 @@ static void make_frame(uint32_t now) {
     f75_pet_frame pf = f75_pet_get_frame(&pet, now, quiet);
     frame.pet_wpm = pf.wpm; frame.pet_mode = pf.mode; frame.pet_frame = pf.frame;
     frame.pet_effect = pf.effect; frame.pet_phase = pf.phase; frame.pet_bob = pf.bob;
+#ifndef F75_USB_ONLY
+    if (frame.home && state.pairing == F75_PAIR_IDLE && host_display_duration) {
+        memcpy(frame.footer, host_display_text, sizeof(frame.footer));
+    }
+#endif
     if (frame.home && focus.running) {
         uint32_t seconds = (focus.remaining_ms + 999) / 1000;
         snprintf(frame.footer, sizeof(frame.footer), "%s %02lu:%02lu", focus.phase == 0 ? "Focus" : "Break", (unsigned long)(seconds / 60), (unsigned long)(seconds % 60));
@@ -661,6 +727,9 @@ static void make_frame(uint32_t now) {
 
 void housekeeping_task_user(void) {
     uint32_t now = timer_read32();
+#ifndef F75_USB_ONLY
+    host_display_expire(now);
+#endif
     f75_clock_tick(&clock_state,now);
     uint32_t activity=f75_matrix_activity_epoch;
     if(activity!=matrix_activity_seen){matrix_activity_seen=activity;f75_activity(&state,now);}
@@ -807,7 +876,12 @@ void housekeeping_task_user(void) {
     if (frame_y == 128) { frame_pending = false; ++complete_frames;f75_panel_backlight(true); }
 }
 
-void suspend_power_down_user(void) { if(usb_selected())f75_rgb_suspend(true); }
+void suspend_power_down_user(void) {
+#ifndef F75_USB_ONLY
+    host_display_duration = 0;
+#endif
+    if (usb_selected()) f75_rgb_suspend(true);
+}
 void suspend_wakeup_init_user(void) {
     if(!diagnostic_rgb_off){f75_rgb_suspend(false);if(diagnostic_rgb_blank)f75_rgb_pause();}
 }

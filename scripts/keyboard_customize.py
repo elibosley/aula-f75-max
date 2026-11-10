@@ -1,19 +1,39 @@
 #!/usr/bin/env python3
 """Read or apply structured keyboard settings over its fixed raw-HID protocol."""
-import argparse,contextlib,json,secrets,struct,time,zlib
+import argparse,contextlib,json,secrets,struct,sys,time,zlib
 from pathlib import Path
 from keyboard_transport_lock import TransportLock
 ROOT=Path(__file__).resolve().parents[1]
 BUNDLE_BYTES=3232
+
+def hid_backend():
+ if sys.platform.startswith('linux'):
+  try:
+   import hidraw
+   return hidraw
+  except ImportError:
+   pass
+ import hid
+ return hid
+
 class Keyboard:
  def __init__(self,lock_timeout=1.0):self.lock=TransportLock(lock_timeout)
  def __enter__(self):
   try:
-   import hid
+   hid=hid_backend()
    self.lock.__enter__()
    devices=[d for d in hid.enumerate(0xfeed,0xf750) if d['usage_page']==0xff60]
    if len(devices)!=1:raise RuntimeError('Connect the keyboard USB cable; one diagnostics interface is required')
-   self.device=hid.Device(path=devices[0]['path']);self.token=secrets.randbits(32) or 1;return self
+   if hasattr(hid, 'Device'):
+    self.device=hid.Device(path=devices[0]['path'])
+   else:
+    self.device=hid.device()
+    try:
+     self.device.open_path(devices[0]['path'])
+    except BaseException:
+     self.device.close()
+     raise
+   self.token=secrets.randbits(32) or 1;return self
   except BaseException:self.lock.__exit__();raise
  def __exit__(self,*exc):
   try:self.device.close()
@@ -92,6 +112,7 @@ def decode(data):
   steps=[dict(zip(['usage','delay_ms'],struct.unpack_from('<HH',custom,at+slot*128+i*4))) for i in range(lengths[slot])]
   macros.append({'repeat':bool(repeat[slot]),'steps':steps})
  return {'schema':1,'base_hex':data.hex(),'os':list(core[12:17]),'auto_mask':core[126],'caps_swap':bool(core[114]),'face':core[120],
+         'power':core[115],'wheel':core[119],
          'names':[core[17+i*19:36+i*19].split(b'\0')[0].decode('ascii') for i in range(5)],
          'lighting':{'color':'#'+core[122:125].hex(),'brightness':core[116],'speed':core[117],'effect':core[118]},
          'light_mode':bool(core[125]),'reduced_motion':bool(core[121]),'companion':core[127] if core[4]>=6 else 3,'record_version':core[4],
@@ -114,6 +135,8 @@ def encode(document):
  if len(document['os'])!=5:raise ValueError('Five host layouts required')
  if type(document['caps_swap']) is not bool:raise ValueError('Caps swap must be boolean')
  data[114]=document['caps_swap'];data[120]=integer(document.get('face',data[120]),0,3)
+ data[115]=integer(document.get('power',data[115]),0,2)
+ data[119]=integer(document.get('wheel',data[119]),0,2)
  if 'names' in document:
   if len(document['names'])!=5:raise ValueError('Five device names required')
   for i,name in enumerate(document['names']):

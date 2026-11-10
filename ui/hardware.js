@@ -2,6 +2,7 @@
 const $=s=>document.querySelector(s);
 const colorPresets=[['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['Ocean','#a4c8f2'],['Peach','#edc08c'],['White','#ffffff'],['Blossom','#ffd3e7'],['Buttercream','#fff0b3'],['Seafoam','#c0f2df'],['Periwinkle','#b3bfff'],['Candy','#ff75b5'],['Coral','#ff806f'],['Cherry','#ed4667'],['Tangerine','#ff9b45'],['Sunflower','#ffd447'],['Lime','#b9ef61'],['Jade','#42d69b'],['Teal','#32bcb4'],['Cyan','#59dcf2'],['Azure','#4ba4ff'],['Indigo','#8072ee'],['Violet','#bd75f2'],['Fuchsia','#ed63d2'],['Warm white','#ffedd6']];
 let settings=null,observedHost=null,csrf='',layout=[],chosen=null,layer=0,slot=0,busy=false,dirty=false;
+let desktop=false;
 const reserved=new Set([0,7,13,19,25,31,41,52,62,71,84]);
 const names={224:'Left Ctrl',225:'Left Shift',226:'Left Alt / Option',227:'Left Command / Windows',228:'Right Ctrl',229:'Right Shift',230:'Right Alt / Option',231:'Right Command / Windows',256:'Primary (Cmd / Ctrl)'};
 const logicalKeys=()=>[...new Map(F75_LAYOUT.filter(k=>k.label!=='Fn').map(k=>[k.usage,names[k.usage]||k.label])).entries()].concat([[228,'Right Ctrl'],[231,'Right Command / Windows']]);
@@ -24,8 +25,47 @@ async function send(action){
   $('#state-label').textContent=action==='save'?'Saved to keyboard':action==='apply'?'Applied · not saved':'Current keyboard settings';
   $('#message').textContent=action==='save'?'Settings saved and read back from your keyboard.':action==='apply'?'Settings applied and read back. Save to keep them after a restart.':'Keyboard settings loaded. Choose a key or edit a macro.';
   render();
+  if(desktop && action==='read') await refreshDisplay();
  }catch(error){$('#message').textContent=error.message;$('#state-label').textContent=dirty?'Changes kept in editor':'Keyboard unavailable';}
  finally{busy=false;updateButtons();}
+}
+async function displayRequest(action, fields={}) {
+ const response=await fetch('/api/hardware',{
+  method:'POST', headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},
+  body:JSON.stringify({action:'display-'+action,...fields})
+ });
+ const result=await response.json();
+ if(!response.ok) throw Error(result.error || 'Keyboard display request failed');
+ return result;
+}
+function displayAvailability(result) {
+ $('#display-send').disabled=!result.ready;
+ $('#display-clear').disabled=!result.ready;
+ if(!result.supported) return 'Update the keyboard firmware to show computer status.';
+ if(!result.ready) return 'Select USB on the keyboard to show computer status.';
+ return result.active?'A message is active.':'Ready to show a message.';
+}
+async function refreshDisplay() {
+ try { $('#display-message').textContent=displayAvailability(await displayRequest('info')); }
+ catch(error) { $('#display-message').textContent=error.message; }
+}
+async function sendDisplay(action) {
+ if(busy)return;
+ busy=true;
+ updateButtons();
+ const message=$('#display-message');
+ try {
+  const result=await displayRequest(action,{
+   text:$('#display-text').value.trim(),seconds:Number($('#display-duration').value)
+  });
+  const availability=displayAvailability(result);
+  message.textContent=result.ready && action==='set'?'Status sent to the keyboard.':availability;
+ } catch(error) {
+  message.textContent=error.message;
+ } finally {
+  busy=false;
+  updateButtons();
+ }
 }
 function paint(){
  if(!settings)return;
@@ -79,7 +119,7 @@ function macro(){
   $('#steps').append(row);
  });
 }
-function render(){selection();profiles();macro();$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
+function render(){selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
 function lighting(){
  $('#main-color').value=settings.lighting.color;$('#light-effect').value=String(settings.lighting.effect);
  for(const [name,id] of [['brightness','light-brightness'],['speed','light-speed']]){$('#'+id).value=settings.lighting[name];$('#'+name+'-value').textContent=settings.lighting[name]+'%';}
@@ -119,6 +159,10 @@ $('#inherit-key').onclick=()=>{if(chosen){settings.colors[layer][chosen.matrix]=
 $('#paint-layer').onclick=()=>{settings.layer_colors[layer]=$('#paint').value;mark();};$('#inherit-layer').onclick=()=>{settings.layer_colors[layer]=null;mark();};
 $('#caps').onchange=()=>{settings.caps_swap=$('#caps').checked;mark();};
 $('#companion').onchange=()=>{settings.companion=Number($('#companion').value);mark();};
+$('#wheel-mode').onchange=()=>{settings.wheel=Number($('#wheel-mode').value);mark();};
+$('#power-mode').onchange=()=>{settings.power=Number($('#power-mode').value);mark();};
+$('#display-send').onclick=()=>sendDisplay('set');
+$('#display-clear').onclick=()=>sendDisplay('clear');
 $('#face').onchange=()=>{settings.face=Number($('#face').value);mark();};$('#sync-clock').onclick=()=>send('clock');
 for(let i=0;i<8;i++)option($('#macro-slot'),i,'Macro '+(i+1));$('#macro-slot').onchange=()=>{slot=Number($('#macro-slot').value);macro();};
 $('#repeat').onchange=()=>{settings.macros[slot].repeat=$('#repeat').checked;mark();};
@@ -128,9 +172,16 @@ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();
 (async()=>{
  try{
   const response=await fetch('/api/hardware');if(!response.ok)throw Error('Hardware editor unavailable');const data=await response.json();csrf=data.csrf;layout=data.layout;
+  desktop=data.desktop===true;
+  if(desktop){
+   document.body.classList.add('desktop');
+   $('#desktop-sections').hidden=false;
+   $('#display-controls').hidden=false;
+  }
   for(const key of F75_LAYOUT){const b=document.createElement('button');b.className='key';b.dataset.key=key.id;b.textContent=key.label;b.setAttribute('aria-label','Select '+key.label);b.setAttribute('aria-pressed','false');
    Object.assign(b.style,{left:key.x/660*100+'%',top:key.y/280*100+'%',width:key.w/660*100+'%',height:key.h/280*100+'%'});
    b.onclick=()=>{chosen=layout.find(x=>String(x.key_index)===key.id);selection();};$('#keyboard').append(b);
   }
+  if(desktop) await send('read');
  }catch(error){$('#message').textContent=error.message;$('#read').disabled=true;}
 })();

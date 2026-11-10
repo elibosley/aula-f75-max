@@ -15,3 +15,15 @@ header>a:last-child{margin-left:auto;text-decoration:none}fieldset{border:0;marg
 .hex-entry input:invalid{border-color:var(--danger)}
 
 .color-error{flex-basis:100%;color:var(--danger);font-size:12px}.color-error:empty{display:none}
+
+.desktop-sections:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 0 0 20px;
+}
+.desktop-sections a { color: var(--accent); padding: 8px 0; text-decoration: none; }
+.desktop-sections a:hover { text-decoration: underline; }
+.desktop #keyboard { width: 100%; min-width: 580px; }
+.display-controls { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 18px; }
+.display-controls h3 { margin: 0 0 6px; }
