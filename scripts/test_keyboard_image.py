@@ -249,7 +249,7 @@ def boot_shortcut_test():
     return 'Fn+Escape hold/cancel checked; the reset guard exclusively owns boot-time wheel entry'
 
 
-def health_test():
+def health_test(usb_only):
     fw = Candidate(); fw.initialize_app(); replies = []
     fw.callback('raw_hid_send', lambda args: replies.append(bytes(fw.cpu.mem_read(args[0], args[1]))) or 0)
     address = SCRATCH
@@ -258,7 +258,8 @@ def health_test():
     assert len(replies) == 1 and len(replies[0]) == 32
     assert replies[0][:8] == b'F75!' + struct.pack('<I', 0x12345678)
     assert struct.unpack_from('<I', replies[0], 8)[0] == fw.now
-    assert replies[0][24] == 10 and replies[0][28:31] == bytes([1, 1, 0])
+    expected_flags = 10 if usb_only else 10 | (1 << 4)
+    assert replies[0][24] == expected_flags and replies[0][28:31] == bytes([1, 1, 0])
     fw.cpu.mem_write(address, b'BAD!' + bytes(28)); fw.call('raw_hid_receive', address, 32)
     assert len(replies) == 1
     fw.call('raw_hid_receive', 0, 16)
@@ -694,7 +695,7 @@ def radio_snapshot_test():
 def main():
     usb_only = json.loads(IMAGE.with_suffix('.json').read_text()).get('profile') == 'usb_only'
     results = dict(candidate_sha256=hashlib.sha256(IMAGE.read_bytes()).hexdigest(),
-                   matrix=matrix_test(), keys=key_test(),radio_snapshot=radio_snapshot_test(), pwm_hardware_snapshot='omitted' if usb_only else pwm_hardware_snapshot_test(), gpio_modes=gpio_modes_test(), lighting_details='omitted' if usb_only else lighting_details_test(), rgb='omitted' if usb_only else rgb_test(), panel='omitted in USB-only profile' if usb_only else panel_test(), boot_shortcut=boot_shortcut_test(), health=health_test(), startup_guard='omitted in USB-only profile' if usb_only else startup_guard_test(), reset_recovery=reset_recovery_test(), clock_divider=clock_divider_test(),
+                   matrix=matrix_test(), keys=key_test(),radio_snapshot=radio_snapshot_test(), pwm_hardware_snapshot='omitted' if usb_only else pwm_hardware_snapshot_test(), gpio_modes=gpio_modes_test(), lighting_details='omitted' if usb_only else lighting_details_test(), rgb='omitted' if usb_only else rgb_test(), panel='omitted in USB-only profile' if usb_only else panel_test(), boot_shortcut=boot_shortcut_test(), health=health_test(usb_only), startup_guard='omitted in USB-only profile' if usb_only else startup_guard_test(), reset_recovery=reset_recovery_test(), clock_divider=clock_divider_test(),
                    timer1_register_contract='omitted' if usb_only else timer1_register_contract_test(),spi_byte_boundaries='omitted' if usb_only else spi_byte_boundaries_test(),panel_bus='omitted' if usb_only else panel_bus_snapshot_test(),isolation_actions='omitted' if usb_only else isolation_actions_test(),gpio_snapshot=gpio_snapshot_test(), auxiliary_snapshot=auxiliary_snapshot_test(), wheel_matrix=wheel_matrix_button_test(), performance=performance_snapshot_test(), hardware_tested=False, usb_reports_sent=False)
     path = Path(os.environ.get('F75_TEST_RECEIPT', ROOT / 'analysis/keyboard-image-tests.json'))
     path.write_text(json.dumps(results, indent=2) + '\n')
