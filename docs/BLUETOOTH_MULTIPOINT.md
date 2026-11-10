@@ -1,12 +1,12 @@
 # Live Bluetooth switching investigation
 
-The requested behavior is two or three Bluetooth hosts connected at once, with key reports sent only to the selected host. This is not implemented. The current firmware selects one supplier-radio slot and reconnects its saved bond.
+The requested behavior is two or three Bluetooth hosts connected at once, with key reports sent only to the selected host. This is not implemented. The current firmware selects one supplier-radio slot. Keeping the other links alive has not been verified.
 
 ## What the current interface establishes
 
 The recovered application sends `A6 31 D7`, `A6 32 D8`, or `A6 33 D9` to select BT1, BT2, or BT3. Keyboard reports use `A1` plus eight report bytes and a checksum. Neither key reports nor the recovered link events include a connection handle. The adapter tracks one selected slot and one connected flag. Keeping three saved bonds does not establish three live links.
 
-No recovered command enables simultaneous links. Commands whose meaning is unqualified must not be relabeled as a multipoint feature. The main MCU image and its recovery stub do not contain or replace the supplier radio firmware. A tested main-MCU recovery path does not prove radio recovery.
+No recovered command has been verified to enable simultaneous links. Commands whose meaning is unqualified must not be relabeled as a multipoint feature. The main MCU image and its recovery stub do not contain or replace the supplier radio firmware. A tested main-MCU recovery path does not prove radio recovery.
 
 ## Open-source lead
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tarfile
+import tempfile
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +18,24 @@ URL = f'https://download.qemu.org/qemu-{VERSION}.tar.xz'
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def source_filter(member, destination):
+    # This pinned EDK2 host-emulator convenience link is not used by our ARM
+    # machine. Keep the data filter for every other member and link.
+    if (member.name == f'qemu-{VERSION}/roms/edk2/EmulatorPkg/Unix/Host/X11IncludeHack'
+            and member.issym() and member.linkname == '/opt/X11/include'):
+        return None
+    return tarfile.data_filter(member, destination)
+
+
+def extract_source(archive, deps):
+    # Publish only a complete source tree. A failed extraction cannot leave a
+    # partial directory that a later bootstrap would mistake for installed.
+    with tempfile.TemporaryDirectory(prefix='.qemu-extract-', dir=deps) as staging:
+        with tarfile.open(archive) as stream:
+            stream.extractall(staging, filter=source_filter)
+        Path(staging, f'qemu-{VERSION}').rename(deps / f'qemu-{VERSION}')
 
 
 def main():
@@ -32,8 +51,7 @@ def main():
         raise SystemExit('Pinned QEMU archive hash mismatch')
     source = deps / f'qemu-{VERSION}'
     if not source.exists():
-        with tarfile.open(archive) as stream:
-            stream.extractall(deps, filter='data')
+        extract_source(archive, deps)
     model = ROOT / 'emulator/qemu/f75max.c'
     shutil.copy2(model, source / 'hw/arm/f75max.c')
     for path, extra in [
