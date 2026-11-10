@@ -1,5 +1,6 @@
 'use strict';
 const $=s=>document.querySelector(s);
+const colorPresets=[['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['Ocean','#a4c8f2'],['Peach','#edc08c'],['White','#ffffff'],['Blossom','#ffd3e7'],['Buttercream','#fff0b3'],['Seafoam','#c0f2df'],['Periwinkle','#b3bfff'],['Candy','#ff75b5'],['Coral','#ff806f'],['Cherry','#ed4667'],['Tangerine','#ff9b45'],['Sunflower','#ffd447'],['Lime','#b9ef61'],['Jade','#42d69b'],['Teal','#32bcb4'],['Cyan','#59dcf2'],['Azure','#4ba4ff'],['Indigo','#8072ee'],['Violet','#bd75f2'],['Fuchsia','#ed63d2'],['Warm white','#ffedd6']];
 let settings=null,observedHost=null,csrf='',layout=[],chosen=null,layer=0,slot=0,busy=false,dirty=false;
 const reserved=new Set([0,7,13,19,25,31,41,52,62,71,84]);
 const names={224:'Left Ctrl',225:'Left Shift',226:'Left Alt / Option',227:'Left Command / Windows',228:'Right Ctrl',229:'Right Shift',230:'Right Alt / Option',231:'Right Command / Windows',256:'Primary (Cmd / Ctrl)'};
@@ -7,8 +8,9 @@ const logicalKeys=()=>[...new Map(F75_LAYOUT.filter(k=>k.label!=='Fn').map(k=>[k
 function option(select,value,label){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}
 function mark(){dirty=true;$('#state-label').textContent='Unapplied changes';updateButtons();paint();}
 function updateButtons(){
+ const invalid=!!$('#editor input:invalid');
  $('#editor').disabled=busy||!settings;$('#read').disabled=busy;
- $('#apply').disabled=busy||!settings||!dirty;$('#save-board').disabled=busy||!settings;
+ $('#apply').disabled=busy||!settings||!dirty||invalid;$('#save-board').disabled=busy||!settings||invalid;
  $('#read').textContent=busy?'Working…':'Read keyboard';
 }
 async function send(action){
@@ -82,15 +84,32 @@ function lighting(){
  $('#main-color').value=settings.lighting.color;$('#light-effect').value=String(settings.lighting.effect);
  for(const [name,id] of [['brightness','light-brightness'],['speed','light-speed']]){$('#'+id).value=settings.lighting[name];$('#'+name+'-value').textContent=settings.lighting[name]+'%';}
  $('#quiet-motion').checked=settings.reduced_motion;$('#screen-theme').value=settings.light_mode?'1':'0';$('#screen-accent').value=settings.screen_color||'#91e2ce';
+ $('#main-color-hex').value=settings.lighting.color.toUpperCase();$('#screen-accent-hex').value=settings.screen_color?.toUpperCase()||'';
+ for(const id of ['main-color-hex','screen-accent-hex']){$('#'+id).setCustomValidity('');$('#'+id).setAttribute('aria-invalid','false');$('#'+id+'-error').textContent='';}
+ for(const [id,color] of [['light-presets',settings.lighting.color],['screen-presets',settings.screen_color]])for(const b of $('#'+id).children)b.setAttribute('aria-pressed',String(b.dataset.color===color?.toLowerCase()));
+ updateButtons();
 }
-for(const [name,color] of [['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['Ocean','#a4c8f2'],['Peach','#edc08c'],['White','#ffffff']]){
- const b=document.createElement('button');b.type='button';b.className='swatch';b.style.setProperty('--swatch',color);b.setAttribute('aria-label','Lighting color '+name);b.onclick=()=>{settings.lighting.color=color;mark();lighting();};$('#light-presets').append(b);
+for(const [id,label,set] of [['light-presets','Lighting',color=>settings.lighting.color=color],['screen-presets','Screen accent',color=>settings.screen_color=color]])for(const [name,color] of colorPresets){
+ const b=document.createElement('button');b.type='button';b.className='swatch';b.style.setProperty('--swatch',color);b.dataset.color=color;b.title=name;b.setAttribute('aria-label',label+' color '+name);b.setAttribute('aria-pressed','false');b.onclick=()=>{set(color);mark();lighting();};$('#'+id).append(b);
 }
-$('#main-color').oninput=()=>{settings.lighting.color=$('#main-color').value;mark();};$('#light-effect').onchange=()=>{settings.lighting.effect=Number($('#light-effect').value);mark();};
+function colorInput(picker,hex,set){
+ const input=$('#'+hex),error=document.createElement('span');error.id=hex+'-error';error.className='color-error';error.setAttribute('role','status');input.closest('.color-entry').append(error);input.setAttribute('aria-describedby',error.id);
+ $('#'+picker).oninput=()=>{set($('#'+picker).value);mark();lighting();};
+ input.oninput=()=>{
+  const value=input.value.trim(),match=/^#?([0-9a-f]{6})$/i.exec(value);
+  input.setCustomValidity(match?'':'Enter six hex digits, such as #91E2CE.');
+  if(match){set('#'+match[1].toLowerCase());mark();const start=input.selectionStart;lighting();input.setSelectionRange(start,start);}
+  else updateButtons();
+ };
+ input.onblur=()=>{const invalid=!input.checkValidity();input.setAttribute('aria-invalid',String(invalid));error.textContent=invalid?'Use six hex digits, such as #91E2CE.':'';};
+}
+colorInput('main-color','main-color-hex',color=>settings.lighting.color=color);
+colorInput('screen-accent','screen-accent-hex',color=>settings.screen_color=color);
+$('#light-effect').onchange=()=>{settings.lighting.effect=Number($('#light-effect').value);mark();};
 for(const [name,id] of [['brightness','light-brightness'],['speed','light-speed']])$('#'+id).oninput=()=>{settings.lighting[name]=Number($('#'+id).value);$('#'+name+'-value').textContent=settings.lighting[name]+'%';mark();};
 $('#quiet-motion').onchange=()=>{settings.reduced_motion=$('#quiet-motion').checked;mark();};
 $('#palette-all').onclick=()=>{settings.colors=settings.colors.map(layer=>layer.map(()=>null));settings.layer_colors=[null,null,null];mark();};
-$('#screen-accent').oninput=()=>{settings.screen_color=$('#screen-accent').value;mark();};$('#screen-default').onclick=()=>{settings.screen_color=null;lighting();mark();};
+$('#screen-default').onclick=()=>{settings.screen_color=null;lighting();mark();};
 $('#screen-theme').onchange=()=>{settings.light_mode=$('#screen-theme').value==='1';mark();};
 $('#read').onclick=()=>send('read');$('#apply').onclick=()=>send('apply');$('#save-board').onclick=()=>send('save');
 $('#layer').onchange=()=>{layer=Number($('#layer').value);if(settings)selection();};

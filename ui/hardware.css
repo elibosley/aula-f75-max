@@ -2,3 +2,16 @@ header>a:last-child{margin-left:auto;text-decoration:none}fieldset{border:0;marg
 @media(max-width:480px){#profiles{grid-template-columns:1fr}}
 
 .os-profile-icon{width:14px;height:14px;vertical-align:-2px;margin-right:7px;color:var(--accent)}
+
+/* Extend the existing palette controls without changing other preview swatches. */
+.hardware-card .swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(44px,1fr));gap:6px;max-width:480px}
+.hardware-card .swatch{width:100%;min-width:44px;height:44px;border-radius:8px;background:var(--raised);border:1px solid var(--line);display:grid;place-items:center}
+.hardware-card .swatch::before{content:"";width:24px;height:24px;border-radius:50%;background:var(--swatch);border:1px solid #ffffff80}
+.hardware-card .swatch[aria-pressed=true]{border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-3px;background:var(--raised)}
+.color-entry{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:14px 0}
+.color-entry input[type=color]{width:44px;min-height:44px;padding:3px;border:1px solid var(--line);border-radius:8px;background:var(--raised)}
+.hex-entry{display:flex;align-items:center;gap:8px;font-size:12px}
+.hex-entry input{width:105px;min-height:44px;padding:8px;background:var(--raised);color:var(--text);border:1px solid var(--line);border-radius:8px}
+.hex-entry input:invalid{border-color:var(--danger)}
+
+.color-error{flex-basis:100%;color:var(--danger);font-size:12px}.color-error:empty{display:none}

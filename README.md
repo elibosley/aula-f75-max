@@ -6,7 +6,7 @@ This is an experimental community board port. The physical selector remains auth
 
 ## Make it yours
 
-- Set a global RGB color, choose a lighting effect, or paint individual keys and layers.
+- Choose from 24 lighting and screen accent presets, use an exact RGB hex color, or paint individual keys and layers.
 - Pick a screen accent and light or dark appearance. Text contrast adjusts with the theme.
 - Save names and Mac, Windows, Android, or Auto layouts for each connection.
 - Switch Bluetooth slots with **Fn+1/2/3**. On Home, **Fn+wheel click** returns to the previous Bluetooth slot. The shortcut uses the last two selected slots during the current session.
@@ -47,6 +47,8 @@ To reach the editor from a phone on your own tailnet, run `serve_native.py` with
 ## Before flashing
 
 Use the [guarded programming procedure](firmware/targets/f75max/README.md#settings-preserving-programming). It requires an exact source image, a fresh settings capture, verified recovery, and matched checksums. Public CI does not qualify your individual PCB, battery wiring, or recovery method. Factory BOOT/GND recovery has been exercised on the development board; a cold wheel-held reconnect remains a separate hardware check.
+
+[Live Bluetooth switching investigation](docs/BLUETOOTH_MULTIPOINT.md) tracks the requested two/three simultaneous links.
 
 The radio firmware stays on the radio controller. This project does not provide simultaneous Bluetooth links, a new radio stack, or automatic Android identification. Auto layout uses supported USB evidence or an explicitly enrolled host helper; a manual layout remains available.
 
