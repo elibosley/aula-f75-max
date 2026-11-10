@@ -5,7 +5,7 @@ from keyboard_customize import Keyboard,decode,encode
 from host_display import display
 TOKEN=secrets.token_urlsafe(32);LOCK=threading.Lock()
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[1]))
-LAYOUT=[dict(x['vendor_key'],matrix=x['scan_index']*6+x['sense_bit'],usage=int(x['stock_usage'],16)) for x in json.loads((ROOT/'firmware/targets/f75max/board-map.json').read_text())['matrix']['coordinates'] if x.get('vendor_key')]
+LAYOUT=[dict(x['vendor_key'],matrix=x['scan_index']*6+x['sense_bit'],usage=int(x['stock_usage'],16)) for x in json.loads((ROOT/'firmware/targets/f75max/board-map.json').read_text(encoding='utf-8'))['matrix']['coordinates'] if x.get('vendor_key')]
 
 def handle(handler):
  path=handler.path
