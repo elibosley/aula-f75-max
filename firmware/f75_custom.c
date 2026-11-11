@@ -13,9 +13,13 @@ static bool binding(uint16_t usage){
         usage==F75_BIND_SCROLL_UP||usage==F75_BIND_SCROLL_DOWN||
         (usage>=F75_BIND_MOUSE_LEFT&&usage<=F75_BIND_MOUSE_MIDDLE);
 }
-void f75_custom_defaults(f75_custom *c){memset(c,0,sizeof(*c));}
+void f75_custom_defaults(f75_custom *c){
+    memset(c,0,sizeof(*c));c->indicator_mask=3;
+    const uint8_t caps[]={168,234,212},fn[]={200,170,246};
+    memcpy(c->caps_color,caps,3);memcpy(c->fn_color,fn,3);
+}
 bool f75_custom_valid(const f75_custom *c){
-    if(!c||(c->layer_mask&~7u)||c->screen_custom>1)return false;
+    if(!c||(c->layer_mask&~7u)||c->screen_custom>1||c->indicators_custom>1||(c->indicator_mask&~3u))return false;
     for(unsigned layer=0;layer<2;++layer)for(unsigned key=0;key<F75_CUSTOM_KEYS;++key){
         uint16_t v=c->keys[layer][key];if(!binding(v))return false;
         if((key==71||key==84)&&v)return false; /* physical Fn and wheel/recovery */
@@ -45,7 +49,7 @@ bool f75_custom_valid(const f75_custom *c){
     return true;
 }
 void f75_custom_encode(const f75_custom *c,uint8_t out[F75_CUSTOM_BYTES]){
-    memset(out,0,F75_CUSTOM_BYTES);memcpy(out,"F75C",4);out[4]=c->screen_custom?2:1;put16(out+6,F75_CUSTOM_BYTES);
+    memset(out,0,F75_CUSTOM_BYTES);memcpy(out,"F75C",4);out[4]=c->indicators_custom?3:c->screen_custom?2:1;put16(out+6,F75_CUSTOM_BYTES);
     unsigned at=16;
     for(unsigned layer=0;layer<2;++layer)for(unsigned key=0;key<F75_CUSTOM_KEYS;++key){put16(out+at,c->keys[layer][key]);at+=2;}
     memcpy(out+at,c->colors,sizeof(c->colors));at+=sizeof(c->colors);
@@ -56,11 +60,12 @@ void f75_custom_encode(const f75_custom *c,uint8_t out[F75_CUSTOM_BYTES]){
         put16(out+at,c->steps[slot][step].usage);put16(out+at+2,c->steps[slot][step].delay_ms);at+=4;
     }
     if(c->screen_custom){out[2512]=1;memcpy(out+2513,c->screen_color,3);}
+    if(c->indicators_custom){out[2516]=c->indicator_mask;memcpy(out+2517,c->caps_color,3);memcpy(out+2520,c->fn_color,3);}
     put32(out+F75_CUSTOM_BYTES-4,f75_crc32(out,F75_CUSTOM_BYTES-4));
 }
 bool f75_custom_decode(const uint8_t in[F75_CUSTOM_BYTES],f75_custom *c){
-    if(memcmp(in,"F75C",4)||(in[4]!=1&&in[4]!=2)||get16(in+6)!=F75_CUSTOM_BYTES||get32(in+F75_CUSTOM_BYTES-4)!=f75_crc32(in,F75_CUSTOM_BYTES-4))return false;
-    memset(c,0,sizeof(*c));
+    if(memcmp(in,"F75C",4)||(in[4]<1||in[4]>3)||get16(in+6)!=F75_CUSTOM_BYTES||get32(in+F75_CUSTOM_BYTES-4)!=f75_crc32(in,F75_CUSTOM_BYTES-4))return false;
+    f75_custom_defaults(c);
     unsigned at=16;
     for(unsigned layer=0;layer<2;++layer)for(unsigned key=0;key<F75_CUSTOM_KEYS;++key){c->keys[layer][key]=get16(in+at);at+=2;}
     memcpy(c->colors,in+at,sizeof(c->colors));at+=sizeof(c->colors);
@@ -69,6 +74,7 @@ bool f75_custom_decode(const uint8_t in[F75_CUSTOM_BYTES],f75_custom *c){
     memcpy(c->macro_length,in+at,8);at+=8;memcpy(c->macro_repeat,in+at,8);at+=8;
     for(unsigned slot=0;slot<8;++slot)for(unsigned step=0;step<32;++step){c->steps[slot][step].usage=get16(in+at);c->steps[slot][step].delay_ms=get16(in+at+2);at+=4;}
     if(in[4]>=2){c->screen_custom=in[2512];memcpy(c->screen_color,in+2513,3);}
+    if(in[4]>=3){c->indicators_custom=1;c->indicator_mask=in[2516];memcpy(c->caps_color,in+2517,3);memcpy(c->fn_color,in+2520,3);}
     return f75_custom_valid(c);
 }
 uint16_t f75_custom_binding(const f75_custom *c,uint8_t key,bool fn,uint16_t stock){
@@ -84,6 +90,18 @@ void f75_custom_lighting(const f75_custom *c,uint8_t layer,uint8_t brightness,ui
         if(c->colored[layer][key])color=c->colors[layer][key];
         else if(!flat&&c->colored[0][key])color=c->colors[0][key];
         if(color){unsigned led=(key%6)*15+key/6;for(unsigned ch=0;ch<3;++ch)pwm[ch*90+led]=(uint8_t)((unsigned)color[ch]*peak/255u);}
+    }
+}
+void f75_custom_indicators(const f75_custom *c,bool caps,bool fn,uint8_t brightness,uint8_t pwm[270]){
+    if(!c||!pwm)return;
+    unsigned peak=(brightness>100?100:brightness)*127u/100u;
+    /* Physical Caps is key 3 (RGB 45); physical Fn is key 71 (RGB 86).
+     * Fn takes priority while held, then the host's Caps state returns.
+     * This overlays the completed foreground buffer, never the row IRQ. */
+    const uint8_t *color=fn&&(c->indicator_mask&2u)?c->fn_color:caps&&(c->indicator_mask&1u)?c->caps_color:NULL;
+    for(unsigned ch=0;ch<3;++ch){
+        if(color)pwm[ch*90u+45u]=(uint8_t)((unsigned)color[ch]*peak/255u);
+        if(fn&&(c->indicator_mask&2u))pwm[ch*90u+86u]=(uint8_t)((unsigned)c->fn_color[ch]*peak/255u);
     }
 }
 void f75_macro_cancel(f75_macro_player *p,f75_macro_emit emit,void *context){

@@ -25,6 +25,7 @@ class BluetoothKeyboard:
         self.token = secrets.randbits(32) or 1
         self.session = False
         self.progress = lambda *args: None
+        self.indicator_support = False
 
     def __enter__(self):
         self.lock.__enter__()
@@ -32,6 +33,10 @@ class BluetoothKeyboard:
             info = self.request(0)['payload']
             if info != struct.pack('<BHHB', 3, BUNDLE_BYTES, 256, 48):
                 raise RuntimeError('This Bluetooth settings protocol is unsupported.')
+            capability = self.request(6, allow_unsupported=True)['payload']
+            if capability not in (b'', b'\x01'):
+                raise RuntimeError('Unknown Bluetooth indicator capability.')
+            self.indicator_support = capability == b'\x01'
             return self
         except BaseException:
             self.lock.__exit__()
@@ -45,7 +50,7 @@ class BluetoothKeyboard:
         finally:
             self.lock.__exit__()
 
-    def request(self, command, offset=0, count=0, body=b''):
+    def request(self, command, offset=0, count=0, body=b'', *, allow_unsupported=False):
         nonce = secrets.token_bytes(4)
         request = nonce + struct.pack('<IBHH', self.token, command, offset, count) + body
         if len(request) > 64:
@@ -77,6 +82,8 @@ class BluetoothKeyboard:
         if length > 256 or len(reply) != length + 15 or zlib.crc32(reply[:-4]) != struct.unpack_from('<I', reply, len(reply) - 4)[0]:
             raise RuntimeError('Bluetooth settings reply CRC or length did not match.')
         if reply[5]:
+            if allow_unsupported and command == 6 and reply[5] == 3:
+                return {'phase': reply[6], 'payload': b''}
             reasons = {1: 'Keyboard settings are busy.', 2: 'Settings snapshot CRC did not match.',
                        3: 'Keyboard rejected the settings request.', 4: 'Bluetooth settings session expired or changed.'}
             raise RuntimeError(reasons.get(reply[5], 'Unknown Bluetooth settings error.'))

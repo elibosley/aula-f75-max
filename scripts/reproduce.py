@@ -127,6 +127,7 @@ def main():
                     'companions': 'test_companion_system.py',
                     'host-display': 'test_host_display_system.py',
                     'info-signs': 'test_info_signs_system.py',
+                    'indicators': 'test_indicators_system.py',
                     'bluetooth-settings': 'test_bluetooth_settings_system.py',
                     'bluetooth-consumer': 'test_bluetooth_consumer_system.py',
                 }

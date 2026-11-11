@@ -2,6 +2,9 @@
 #define F75_DISPLAY_H
 #include "f75_core.h"
 
+enum { F75_LINK_UNKNOWN, F75_LINK_OFFLINE, F75_LINK_CONNECTING, F75_LINK_CONNECTED, F75_LINK_PAIRING };
+enum { F75_POWER_UNKNOWN, F75_POWER_BATTERY, F75_POWER_EXTERNAL, F75_POWER_CHARGING };
+
 typedef struct {
     char status_left[8],status_right[8],title[20],rows[5][20],footer[21];
     char clock[6],host_label[19],os[4];
@@ -19,6 +22,7 @@ typedef struct {
     uint8_t pet_character;
     bool pet_info;
     uint8_t info_progress; /* 0..100 acknowledged work, 254 waiting, 255 no bar */
+    uint8_t link_state,power_state;
 } f75_view;
 
 /* Q8 springs. Selection changes synchronously; only its visual position lags.

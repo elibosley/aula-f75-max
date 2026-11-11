@@ -46,11 +46,14 @@ bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,
     memset(r, 0, sizeof(b->response)); memcpy(r, q, 4);
     r[4] = command; put16(r + 7, offset);
     bool body = command == 3 || command == 4;
-    if (size != 13u + (body ? count : 0u) || command > 5) status = 3;
+    if (size != 13u + (body ? count : 0u) || command > 6) status = 3;
     else if (command == 0) {
         if (count || offset) status = 3;
         else { r[11] = 3; put16(r + 12, F75_BUNDLE_BYTES);
             put16(r + 14, F75_BT_READ_MAX); r[16] = F75_BT_PATCH_MAX; length = 6; }
+    } else if (command == 6) {
+        if (count || offset) status = 3;
+        else { r[11] = 1; length = 1; } /* Caps/Fn indicator settings. Info v3 stays unchanged. */
     } else if (command == 1) {
         if (!session || count || offset) status = 3;
         else if (t->phase == 1 || t->phase == 2 || t->phase == 3 || b->owns_transfer) status = 1;

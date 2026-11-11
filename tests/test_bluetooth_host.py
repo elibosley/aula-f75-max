@@ -26,7 +26,7 @@ def fixture():
 
 class BluetoothHostTest(unittest.TestCase):
     def setUp(self):
-        self.live = fixture(); self.staged = None; self.phase = 0; self.calls = []; self.corrupt = False
+        self.live = fixture(); self.staged = None; self.phase = 0; self.calls = []; self.corrupt = False; self.indicator_capability = True
         self.patches = [patch('keyboard_bluetooth.subprocess.run', side_effect=self.helper),
                         patch('keyboard_bluetooth.TransportLock', side_effect=lambda _: contextlib.nullcontext())]
         for item in self.patches: item.start()
@@ -38,8 +38,11 @@ class BluetoothHostTest(unittest.TestCase):
         self.assertEqual(arguments, ['probe', '--settings-request'])
         q = bytes.fromhex(input.strip()); nonce = q[:4]
         token, command, offset, count = struct.unpack_from('<IBHH', q, 4)
-        self.calls.append(command); payload = b''
+        self.calls.append(command); payload = b''; status = 0
         if command == 0: payload = struct.pack('<BHHB', 3, 3232, 256, 48)
+        elif command == 6:
+            if self.indicator_capability: payload = b'\x01'
+            else: status = 3
         elif command == 1:
             self.staged = bytearray(self.live); self.phase = 2
             payload = struct.pack('<I', snapshot_crc(self.staged))
@@ -51,10 +54,18 @@ class BluetoothHostTest(unittest.TestCase):
             self.assertEqual(snapshot_crc(self.staged), struct.unpack_from('<I', q, 13)[0])
             self.live = bytes(self.staged); self.phase = 5 if q[17] else 4
         elif command == 5: self.phase = 0; self.staged = None
-        r = nonce + struct.pack('<BBBH H', command, 0, self.phase, offset, len(payload)) + payload
+        r = nonce + struct.pack('<BBBH H', command, status, self.phase, offset, len(payload)) + payload
         r += struct.pack('<I', zlib.crc32(r) ^ self.corrupt)
         return subprocess.CompletedProcess(arguments, 0, json.dumps({'access':'granted','settings_reply_verified':True,
             'settings_response_hex':r.hex()}), '')
+
+    def test_indicator_capability_and_legacy_unsupported_are_explicit(self):
+        with BluetoothKeyboard('probe') as keyboard:
+            self.assertTrue(keyboard.indicator_support)
+        self.indicator_capability = False
+        with BluetoothKeyboard('probe') as keyboard:
+            self.assertFalse(keyboard.indicator_support)
+        self.assertEqual(self.calls, [0, 6, 0, 6])
 
     def test_full_read_apply_readback_and_explicit_save(self):
         with BluetoothKeyboard('probe') as keyboard:

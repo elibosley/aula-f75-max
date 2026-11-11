@@ -15,6 +15,7 @@ typedef struct {
     uint8_t macro_length[F75_CUSTOM_MACROS],macro_repeat[F75_CUSTOM_MACROS];
     f75_macro_step steps[F75_CUSTOM_MACROS][F75_MACRO_STEPS];
     uint8_t screen_color[3],screen_custom;
+    uint8_t indicator_mask,caps_color[3],fn_color[3],indicators_custom;
 } f75_custom;
 typedef struct {
     uint32_t due;
@@ -28,6 +29,7 @@ void f75_custom_encode(const f75_custom *custom,uint8_t bytes[F75_CUSTOM_BYTES])
 bool f75_custom_decode(const uint8_t bytes[F75_CUSTOM_BYTES],f75_custom *custom);
 uint16_t f75_custom_binding(const f75_custom *custom,uint8_t key,bool function,uint16_t stock);
 void f75_custom_lighting(const f75_custom *custom,uint8_t layer,uint8_t brightness,uint8_t pwm[270]);
+void f75_custom_indicators(const f75_custom *custom,bool caps,bool fn,uint8_t brightness,uint8_t pwm[270]);
 bool f75_macro_start(f75_macro_player *player,const f75_custom *custom,uint8_t slot,f75_os os,uint32_t now,f75_macro_emit emit,void *context);
 void f75_macro_tick(f75_macro_player *player,const f75_custom *custom,uint32_t now,uint16_t gap_ms,f75_macro_emit emit,void *context);
 void f75_macro_cancel(f75_macro_player *player,f75_macro_emit emit,void *context);

@@ -104,6 +104,7 @@ def run(image, consumer_only=False):
             return decoded[5], decoded[6], bytes(decoded[11:-4])
 
         assert rpc(0) == (0, 0, struct.pack('<BHHB', 3, BUNDLE_BYTES, 256, 48))
+        assert rpc(6) == (0, 0, b'\x01')
         status, phase, snapshot_identity = rpc(1)
         assert (status, phase) == (0, 2)
         if consumer_only:

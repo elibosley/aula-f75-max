@@ -38,6 +38,36 @@ static void line(tile *t,int x,int y,int end_x,int end_y,uint16_t color){
     for(;;){dot(t,x,y,color);if(x==end_x&&y==end_y)break;int twice=error*2;
         if(twice>=dy){error+=dy;x+=sx;}if(twice<=dx){error+=dx;y+=sy;}}
 }
+static int link_indicator(tile *t,const f75_view *v,int x,uint16_t accent,uint16_t muted){
+    if(!v->link_state)return 0;
+    uint16_t good=v->light_mode?0x1b68:0x7f59;
+    uint16_t pending=v->light_mode?0x8b20:0xf629;
+    if(v->link_state==F75_LINK_CONNECTED){
+        rect(t,x+1,8,3,1,good);rect(t,x,9,5,3,good);rect(t,x+1,12,3,1,good);
+    }else if(v->link_state==F75_LINK_CONNECTING){
+        unsigned phase=v->motion?(v->animation_phase/3u)%3u:1u;
+        for(unsigned i=0;i<3;++i)rect(t,x+(int)i*3,10,2,2,i==phase?pending:muted);
+    }else if(v->link_state==F75_LINK_PAIRING){
+        rect(t,x,8,2,2,accent);rect(t,x+4,11,2,2,accent);
+        line(t,x+2,10,x+4,10,muted);
+    }else{
+        rect(t,x+1,8,3,1,muted);rect(t,x+1,12,3,1,muted);
+        rect(t,x,9,1,3,muted);rect(t,x+4,9,1,3,muted);
+        line(t,x-1,13,x+5,7,muted);
+    }
+    return 11;
+}
+static void power_indicator(tile *t,uint8_t state,int x,uint16_t color){
+    if(state==F75_POWER_CHARGING){
+        static const uint8_t rows[]={0x06,0x0c,0x18,0x18,0x3e,0x0c,0x18,0x30,0x20};
+        for(unsigned y=0;y<9;++y)for(unsigned bit=0;bit<6;++bit)
+            if(rows[y]&(1u<<(5-bit)))dot(t,x+(int)bit,5+(int)y,color);
+    }else if(state==F75_POWER_EXTERNAL){
+        rect(t,x+1,5,1,3,color);rect(t,x+4,5,1,3,color);
+        rect(t,x,8,6,2,color);rect(t,x+1,10,4,1,color);
+        rect(t,x+2,11,2,3,color);
+    }
+}
 static const f75_glyph *glyph(unsigned char c,int scale){
     const f75_glyph *font=scale>1?f75_font_large:scale==0?f75_font_compact:f75_font_small;
     return &font[c<128&&font[c].advance?c:'?'];
@@ -227,8 +257,11 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
     if(v->home&&!v->timer){
         text(&t,v->status_left,7,7,7,1,ACCENT);
         int icon_x=11+text_width(v->status_left,7,1);
+        icon_x+=link_indicator(&t,v,icon_x,ACCENT,MUTED);
         os_icon(&t,v,icon_x,4,ACCENT);
-        text(&t,v->status_right,7,121-text_width(v->status_right,7,1),7,1,INK);
+        int battery_x=121-text_width(v->status_right,7,1);
+        power_indicator(&t,v->power_state,battery_x-9,INK);
+        text(&t,v->status_right,7,battery_x,7,1,INK);
     }else text(&t,v->title,19,8,7,1,ACCENT);
     bool companion=v->home&&!v->timer&&v->face==3;
     uint16_t ROSE=v->light_mode?0xa2af:0xe51b;

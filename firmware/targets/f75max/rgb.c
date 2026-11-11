@@ -8,6 +8,8 @@
 #include "f75_custom.h"
 extern f75_custom f75_custom_config;
 extern uint8_t f75_custom_layer(void);
+extern bool f75_caps_lock_on(void);
+extern bool f75_fn_held(void);
 
 /* Supplier-derived, shared key/LED matrix. See scripts/recover_rgb.py.
  * 18 high-active color rows, 15 low-active PWM columns. CT16B0/1/2
@@ -172,6 +174,7 @@ void f75_rgb_tick(const f75_state *state,uint32_t now) {
     if(brightness){
         f75_lighting_frame(&state->config,(uint8_t)brightness,now,&duties[next][0][0]);
         f75_custom_lighting(&f75_custom_config,f75_custom_layer(),(uint8_t)brightness,&duties[next][0][0]);
+        f75_custom_indicators(&f75_custom_config,f75_caps_lock_on(),f75_fn_held(),(uint8_t)brightness,&duties[next][0][0]);
     }else memset(duties[next],0,sizeof(duties[next]));
     frame_initialized=true;
     pending_effect=state->config.effect;

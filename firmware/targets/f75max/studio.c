@@ -75,10 +75,13 @@ static uint8_t active_slot, last_bt_slot=1,previous_bt_slot=2;
 static uint8_t bluetooth_report_data;
 #endif
 static bool radio_switch_pending;
+static bool radio_caps_lock;
 static uint8_t pending_radio_slot;
 static uint32_t pending_radio_since;
 static void request_host(uint8_t slot,bool physical);
 static bool usb_selected(void);
+bool f75_caps_lock_on(void){return usb_selected()?host_keyboard_led_state().caps_lock:f75_radio_connected()&&radio_caps_lock;}
+bool f75_fn_held(void){return fn;}
 static uint8_t selector(void);
 static void radio_report(void){
     uint8_t report[8]={0};unsigned count=0;
@@ -221,6 +224,7 @@ static void bluetooth_settings_reply(uint32_t now) {
 }
 
 static void bluetooth_display_receive(uint8_t led, uint32_t now) {
+    radio_caps_lock=f75_radio_connected()&&(led&2u)!=0;
     uint8_t symbol = led >> 5;
     if (!bluetooth_display_ready() || symbol == 0) {
         bluetooth_display.active = false;
@@ -414,6 +418,9 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
         response[10]=active_slot;memcpy(response+11,state.config.os,F75_HOSTS);
         response[16]=state.config.caps_swap;response[17]=os_evidence_mask;response[18]=1;
         response[19]=(uint8_t)f75_radio_connected()|((uint8_t)clock_state.valid<<1);
+#ifndef F75_USB_ONLY
+        response[19]|=1u<<2;
+#endif
         memcpy(response+20,&state.transaction,4);memcpy(response+24,&host_os_accepted,4);memcpy(response+28,&host_os_rejected,4);
         raw_hid_send(response,sizeof(response));return;
     }
@@ -600,6 +607,7 @@ static void release_keys(void) {
 }
 static void show_notice(const char *text) { notice = text; notice_until = timer_read32() + 2200; }
 static void commit_host(uint8_t slot,bool physical,bool select_radio){
+    radio_caps_lock=false;
 #ifndef F75_USB_ONLY
     if (slot != active_slot || host_display_bluetooth) host_display_duration = 0;
     transfer_info=NULL;
@@ -812,6 +820,17 @@ static void make_frame(uint32_t now) {
     snprintf(frame.title, sizeof(frame.title), "%s", pages[page]);
     snprintf(frame.status_left, sizeof(frame.status_left), "%s", usb_selected()?"USB":active_slot==4?"RF":active_slot==1?"BT1":active_slot==2?"BT2":"BT3");
     bool linked=usb_selected()?USB_DRIVER.state==USB_ACTIVE:f75_radio_connected();
+    frame.link_state=linked?F75_LINK_CONNECTED:F75_LINK_OFFLINE;
+    if(!usb_selected()){
+        if(state.pairing==F75_PAIR_WAIT)frame.link_state=F75_LINK_PAIRING;
+        else if(radio_switch_pending||f75_radio_selection_status()==F75_RADIO_SELECT_PENDING)frame.link_state=F75_LINK_CONNECTING;
+    }
+    bool charging=false;
+    frame.power_state=USB_DRIVER.state==USB_ACTIVE?F75_POWER_EXTERNAL:F75_POWER_UNKNOWN;
+    if(f75_battery_charging(&charging)){
+        if(charging)frame.power_state=F75_POWER_CHARGING;
+        else if(frame.power_state==F75_POWER_UNKNOWN)frame.power_state=F75_POWER_BATTERY;
+    }
     uint8_t battery;
     if(f75_battery_percent(&battery))snprintf(frame.status_right,sizeof(frame.status_right),"%u%%",battery);
     else snprintf(frame.status_right,sizeof(frame.status_right),"--%%");

@@ -54,7 +54,7 @@ class Keyboard:
   r=self.raw_request(b'F75o')
   if r[:4]!=b'F75p':raise RuntimeError('Invalid host status reply')
   return {'usb_detected':r[8],'auto_mask':r[9],'active_slot':r[10],'os':list(r[11:16]),'caps_swap':bool(r[16]),
-          'evidence_mask':r[17],'helper_protocol':r[18],'radio_connected':bool(r[19]&1),'clock_synced':bool(r[19]&2),'transaction':struct.unpack_from('<I',r,20)[0],
+          'evidence_mask':r[17],'helper_protocol':r[18],'radio_connected':bool(r[19]&1),'clock_synced':bool(r[19]&2),'indicator_supported':bool(r[19]&4),'transaction':struct.unpack_from('<I',r,20)[0],
           'hints_accepted':struct.unpack_from('<I',r,24)[0],'hints_rejected':struct.unpack_from('<I',r,28)[0]}
  def report_host_os(self,slot,os,transaction):
   if not 1<=slot<=4 or os not in (0,1) or not 0<transaction<2**32:raise ValueError('Invalid host evidence')
@@ -105,6 +105,8 @@ def validate(data):
 
 def decode(data):
  validate(data);core=data[:160];custom=data[160:];at=16
+ if custom[4] not in (1,2,3):raise ValueError('Unsupported custom settings version')
+ if custom[4]==3 and custom[2516]&~3:raise ValueError('Invalid indicator flags')
  keys=[list(struct.unpack_from('<90H',custom,at+layer*180)) for layer in range(2)];at+=360
  rgb=[['#'+custom[at+(layer*90+key)*3:at+(layer*90+key)*3+3].hex() for key in range(90)] for layer in range(3)];at+=810
  flags=custom[at:at+270];at+=270
@@ -122,6 +124,8 @@ def decode(data):
          'lighting':{'color':'#'+core[122:125].hex(),'brightness':core[116],'speed':core[117],'effect':core[118]},
          'light_mode':bool(core[125]),'reduced_motion':bool(core[121]),'companion':core[127] if core[4]>=6 else 3,'record_version':core[4],
          'screen_color':'#'+custom[2513:2516].hex() if custom[4]>=2 and custom[2512] else None,
+         'indicators':{'custom':custom[4]>=3,'caps':bool(custom[2516]&1) if custom[4]>=3 else True,'fn':bool(custom[2516]&2) if custom[4]>=3 else True,
+                       'caps_color':'#'+custom[2517:2520].hex() if custom[4]>=3 else '#a8ead4','fn_color':'#'+custom[2520:2523].hex() if custom[4]>=3 else '#c8aaf6'},
          'keys':keys,'colors':colors,'layer_colors':layers,'macros':macros}
 
 def encode(document):
@@ -203,6 +207,13 @@ def encode(document):
    struct.pack_into('<HH',custom,at,integer(step['usage'],0,65535),integer(step['delay_ms'],0,5000));at+=4
  if document.get('screen_color') is not None:
   custom[4]=2;custom[2512]=1;custom[2513:2516]=color(document['screen_color'])
+ indicators=document.get('indicators')
+ if indicators is not None:
+  for flag in ['custom','caps','fn']:
+   if type(indicators.get(flag)) is not bool:raise ValueError('Indicator options must be boolean')
+  caps_color=color(indicators['caps_color']);fn_color=color(indicators['fn_color'])
+  if indicators['custom'] or not indicators['caps'] or not indicators['fn'] or caps_color!=bytes.fromhex('a8ead4') or fn_color!=bytes.fromhex('c8aaf6'):
+   custom[4]=3;custom[2516]=int(indicators['caps'])|(int(indicators['fn'])<<1);custom[2517:2520]=caps_color;custom[2520:2523]=fn_color
  struct.pack_into('<I',custom,3068,zlib.crc32(custom[:3068]));data[160:]=custom;return bytes(data)
 
 def main():

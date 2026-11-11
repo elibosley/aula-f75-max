@@ -39,3 +39,7 @@ The **Settings connection → Bluetooth preview** option is experimental. Its na
 ## Transfer progress
 
 The working-tree Studio build displays Read, Apply, Save, and verification progress. Byte percentages describe the current transfer step, not the whole operation. Save is complete only after readback verification. An interrupted or failed request retains editor changes and requires reading the keyboard before retrying; Studio never automatically repeats a Save. The sign-mode firmware candidate shows transfer progress on the selected companion’s sign.
+
+## Lock and Fn lights
+
+With indicator firmware installed, **Lighting → Lock and Fn lights** sets separate Caps Lock and Fn-held colors. Caps follows the active computer’s lock state, including remapped keys. Holding Fn temporarily highlights Caps and Fn; release restores the current palette or Caps feedback. Apply tries the colors in RAM; Save keeps them after restart. Older firmware shows these controls disabled. See [indicator behavior and verification](INDICATORS.md).

@@ -39,6 +39,8 @@ static uint8_t request(unsigned command, unsigned offset, unsigned count, const 
 int main(void) {
     f75_defaults(&c); f75_custom_defaults(&custom);
     assert(request(0, 0, 0, NULL, 0) == 0 && b.response[11] == 3);
+    assert(request(6, 0, 0, NULL, 0) == 0 && b.response[11] == 1);
+    assert(request(6, 1, 0, NULL, 0) == 3);
     assert(request(1, 0, 0, NULL, 0) == 3);
     assert(request(1, 0, 0, NULL, 21) == 0 && t.phase == 2);
     uint8_t initial[F75_BUNDLE_BYTES]; memcpy(initial, t.bytes, sizeof(initial));

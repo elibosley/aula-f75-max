@@ -8,6 +8,8 @@
 static uint8_t sample[4],phase,percent;
 static bool valid;
 static uint32_t next_sample,last_good,voltage,successes,failures;
+static bool charge_started,charge_raw,charge_stable,charge_valid;
+static uint32_t charge_changed;
 static void delay(void){wait_us(5);}
 static void data(bool high){
     /* MODE is shared with the row ISR's A4..A7 updates. Protect only this
@@ -37,6 +39,15 @@ bool f75_battery_read_register(uint8_t reg,uint8_t *value){
     stop();return ok;
 }
 void f75_battery_task(uint32_t now){
+    /* Supplier 0x2184 debounces active-low B17 into 0x20000059.
+     * Its Home painter at 0xfd8c selects battery icon 0x0e from that
+     * flag: the lightning-bolt image at asset-flash offset 0xbd10.
+     * Read the existing input only; do not alter its mux or pull settings. */
+    bool incoming=!gpio_read_pin(B17);
+    if(!charge_started||incoming!=charge_raw){
+        charge_started=true;charge_raw=incoming;charge_changed=now;
+    }
+    if(now-charge_changed>=50u){charge_stable=charge_raw;charge_valid=true;}
     if(valid&&now-last_good>=30000u)valid=false;
     if(!phase&&(int32_t)(now-next_sample)<0)return;
     if(!f75_battery_read_register(2+phase,&sample[phase])){
@@ -53,6 +64,7 @@ void f75_battery_task(uint32_t now){
     percent=value>100u?100u:value;voltage=mv;last_good=now;valid=true;++successes;
 }
 bool f75_battery_percent(uint8_t *out){if(valid)*out=percent;return valid;}
+bool f75_battery_charging(bool *out){if(charge_valid)*out=charge_stable;return charge_valid;}
 void f75_battery_diagnostics(uint32_t out[6]){
     out[0]=valid;out[1]=valid?percent:255u;out[2]=voltage;
     out[3]=successes;out[4]=failures;out[5]=last_good;

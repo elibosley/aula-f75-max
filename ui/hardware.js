@@ -177,11 +177,15 @@ function macro(){
 }
 function render(){selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
 function lighting(){
+ const indicators=settings.indicators||{caps:true,fn:true,caps_color:'#a8ead4',fn_color:'#c8aaf6',custom:false};
+ $('#caps-light').checked=indicators.caps;$('#fn-light').checked=indicators.fn;
+ for(const [name,id] of [['caps_color','caps-light'],['fn_color','fn-light']]){$('#'+id+'-color').value=indicators[name];$('#'+id+'-hex').value=indicators[name].toUpperCase();}
+ $('#indicator-controls').disabled=!settings.indicator_supported;$('#indicator-support').textContent=settings.indicator_supported?'':'Update keyboard firmware to customize these indicators.';
  $('#main-color').value=settings.lighting.color;$('#light-effect').value=String(settings.lighting.effect);
  for(const [name,id] of [['brightness','light-brightness'],['speed','light-speed']]){$('#'+id).value=settings.lighting[name];$('#'+name+'-value').textContent=settings.lighting[name]+'%';}
  $('#quiet-motion').checked=settings.reduced_motion;$('#screen-theme').value=settings.light_mode?'1':'0';$('#screen-accent').value=settings.screen_color||'#91e2ce';
  $('#main-color-hex').value=settings.lighting.color.toUpperCase();$('#screen-accent-hex').value=settings.screen_color?.toUpperCase()||'';
- for(const id of ['main-color-hex','screen-accent-hex']){$('#'+id).setCustomValidity('');$('#'+id).setAttribute('aria-invalid','false');$('#'+id+'-error').textContent='';}
+ for(const id of ['main-color-hex','screen-accent-hex','caps-light-hex','fn-light-hex']){$('#'+id).setCustomValidity('');$('#'+id).setAttribute('aria-invalid','false');$('#'+id+'-error').textContent='';}
  for(const [id,color] of [['light-presets',settings.lighting.color],['screen-presets',settings.screen_color]])for(const b of $('#'+id).children)b.setAttribute('aria-pressed',String(b.dataset.color===color?.toLowerCase()));
  updateButtons();
 }
@@ -217,6 +221,8 @@ $('#caps').onchange=()=>{settings.caps_swap=$('#caps').checked;mark();};
 $('#companion').onchange=()=>{settings.companion=Number($('#companion').value);mark();};
 $('#wheel-mode').onchange=()=>{settings.wheel=Number($('#wheel-mode').value);mark();};
 $('#power-mode').onchange=()=>{settings.power=Number($('#power-mode').value);mark();};
+for(const [id,name] of [['caps-light','caps'],['fn-light','fn']])$('#'+id).onchange=()=>{settings.indicators[name]=$('#'+id).checked;settings.indicators.custom=true;mark();};
+for(const [id,name] of [['caps-light','caps_color'],['fn-light','fn_color']])colorInput(id+'-color',id+'-hex',value=>{settings.indicators[name]=value;settings.indicators.custom=true;});
 $('#display-send').onclick=()=>sendDisplay('set');
 $('#display-clear').onclick=()=>sendDisplay('clear');
 $('#display-transport').onchange=async()=>{if($('#display-transport').value==='bluetooth')await checkBluetoothAccess();await refreshDisplay();};

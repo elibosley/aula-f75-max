@@ -259,6 +259,10 @@ class Session:
         if self.timer.alert and ((self.now()-self.timer.finished_at)&0xffffffff)<4000 and not (self.system_motion or c.reduced_motion or (self.battery<=10 and not self.usb)):self.display_fps=max(self.display_fps,2)
         # Status fields always come from the C state, rather than the client view.
         v.status_left=HOSTS[self.state.config.active_host].upper().encode();v.status_right=f'{self.battery}%'.encode()
+        v.link_state=3 if self.state.connected_slot==self.state.config.active_host and (self.state.config.active_host or self.usb) else 1
+        if self.state.pairing==2:v.link_state=4
+        # Preview power is a simulation input, not a physical charge measurement.
+        v.power_state=3 if self.usb else 1
         v.os=[b'MAC',b'WIN',b'AND'][self.state.config.os[self.state.config.active_host]]
         screen_color=self.aux.get('screenColor')
         if isinstance(screen_color,str) and re.fullmatch(r'#[0-9a-fA-F]{6}',screen_color):
