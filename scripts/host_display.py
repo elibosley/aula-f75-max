@@ -52,13 +52,15 @@ def bluetooth_access(probe, request=False):
     return {'access': access, 'permission_requested': result.get('permission_requested') is True}
 
 
-def bluetooth_display(probe, operation, text='', seconds=20):
+def bluetooth_display(probe, operation, text='', seconds=20, *, board_identity=None):
     request = payload(operation, text, seconds)
     arguments = {'info': ('--status-info',), 'clear': ('--clear-status',)}
     command = ('--status', request[4:4 + request[3]].decode('ascii'),
                str(request[2])) if operation == 'set' else arguments[operation]
     try:
-        result = subprocess.run([str(probe), *command], capture_output=True, text=True, timeout=30)
+        arguments=[str(probe), *command]
+        if board_identity:arguments.extend(('--board',board_identity))
+        result = subprocess.run(arguments, capture_output=True, text=True, timeout=30)
     except subprocess.TimeoutExpired as error:
         raise RuntimeError('Bluetooth status timed out. Check the keyboard and try again.') from error
     except OSError as error:

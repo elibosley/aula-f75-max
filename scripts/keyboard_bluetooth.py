@@ -26,6 +26,7 @@ class BluetoothKeyboard:
         self.session = False
         self.progress = lambda *args: None
         self.indicator_support = False
+        self.expected_board = None
 
     def __enter__(self):
         self.lock.__enter__()
@@ -56,7 +57,9 @@ class BluetoothKeyboard:
         if len(request) > 64:
             raise ValueError('Bluetooth request exceeds its fixed limit.')
         try:
-            completed = subprocess.run([self.probe, '--settings-request'],
+            arguments=[self.probe, '--settings-request']
+            if self.expected_board:arguments.extend(('--board',self.expected_board))
+            completed = subprocess.run(arguments,
                 input=request.hex() + '\n', capture_output=True, text=True, timeout=30)
         except subprocess.TimeoutExpired as error:
             raise RuntimeError('Bluetooth settings timed out. Read the keyboard before retrying an Apply or Save.') from error

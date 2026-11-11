@@ -103,9 +103,9 @@ def check(origin, use_keyboard):
     if not metadata['desktop'] or not metadata['layout']:
         raise RuntimeError('Desktop editor API unavailable')
     if use_keyboard:
-        request = Request(f'{origin}/api/hardware', data=b'{"action":"read"}', headers={
+        request = Request(f'{origin}/api/hardware', data=b'{"action":"read","transport":"auto"}', headers={
             'Origin': origin, 'Content-Type': 'application/json', 'X-F75-CSRF': metadata['csrf']})
-        with urlopen(request, timeout=10) as response:
+        with urlopen(request, timeout=180) as response:
             result = json.load(response)
         if not result['read'] or result['document']['schema'] != 1:
             raise RuntimeError('Keyboard settings read failed')

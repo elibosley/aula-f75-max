@@ -4,6 +4,29 @@ const transferProgress=new F75TransferProgress($('#transfer-progress'));
 const colorPresets=[['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['Ocean','#a4c8f2'],['Peach','#edc08c'],['White','#ffffff'],['Blossom','#ffd3e7'],['Buttercream','#fff0b3'],['Seafoam','#c0f2df'],['Periwinkle','#b3bfff'],['Candy','#ff75b5'],['Coral','#ff806f'],['Cherry','#ed4667'],['Tangerine','#ff9b45'],['Sunflower','#ffd447'],['Lime','#b9ef61'],['Jade','#42d69b'],['Teal','#32bcb4'],['Cyan','#59dcf2'],['Azure','#4ba4ff'],['Indigo','#8072ee'],['Violet','#bd75f2'],['Fuchsia','#ed63d2'],['Warm white','#ffedd6']];
 let settings=null,observedHost=null,csrf='',layout=[],chosen=null,layer=0,slot=0,busy=false,dirty=false;
 let desktop=false,displayReady=false,bluetoothAccess=null;
+let resolvedTransport=null,connectionReady=false,connectionSnapshot=null,settingsBoard=null,detecting=false,autoReadKey=null;
+function connectionFields(action){return {transport:$('#settings-transport').value,expected_transport:resolvedTransport,board_identity:action==='read'?connectionSnapshot?.choice.board_identity:settingsBoard||connectionSnapshot?.choice.board_identity};}
+async function refreshConnection(){
+ if(busy||detecting||document.hidden)return;
+ const mode=$('#settings-transport').value;detecting=true;updateButtons();
+ try{
+  const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action:'connections',transport:mode})});
+  const snapshot=await response.json();if(!response.ok)throw Error(snapshot.error||'Connection check failed');
+  if($('#settings-transport').value!==mode)return;
+  connectionSnapshot=snapshot;resolvedTransport=snapshot.choice.selected;connectionReady=snapshot.choice.ready;
+  bluetoothAccess=snapshot.bluetooth.access;
+  const label=resolvedTransport==='bluetooth'?'Bluetooth · BT'+snapshot.choice.slot:resolvedTransport==='usb'?'USB':null;
+  $('#settings-transport option[value="auto"]').textContent=mode==='auto'&&label?'Automatic · '+label:'Automatic';
+  $('#connection-state').textContent=snapshot.choice.reason||('Connected via '+label+'.');
+  $('#connection-intro').textContent=label?'Edit your keyboard settings over '+(resolvedTransport==='bluetooth'?'Bluetooth.':'USB.'):'Connect your keyboard to load its settings.';
+  $('#bluetooth-access').hidden=resolvedTransport!=='bluetooth'||bluetoothAccess==='granted';
+  displayReady=connectionReady;
+  if(!resolvedTransport)autoReadKey=null;
+ }catch(error){connectionReady=displayReady=false;resolvedTransport=null;$('#connection-state').textContent=error.message;}
+ finally{detecting=false;updateButtons();if($('#settings-transport').value!==mode)queueMicrotask(refreshConnection);}
+ const key=connectionSnapshot?.choice.board_identity+':'+resolvedTransport+':'+connectionSnapshot?.choice.slot;
+ if(connectionReady&&!settings&&!dirty&&autoReadKey!==key){autoReadKey=key;await send('read');}
+}
 
 // Sidebar navigation changes the visible settings pane without discarding edits.
 let activeSection='keys';
@@ -36,17 +59,18 @@ function option(select,value,label){const o=document.createElement('option');o.v
 function mark(){transferProgress.dismiss();dirty=true;$('#state-label').textContent='Unapplied changes';updateButtons();paint();}
 function updateButtons(){
  const invalid=!!$('#editor input:invalid');
- $('#editor').disabled=busy||!settings;$('#read').disabled=busy||($('#settings-transport').value==='bluetooth'&&bluetoothAccess!==null&&bluetoothAccess!=='granted');
- $('#apply').disabled=busy||!settings||!dirty||invalid;$('#save-board').disabled=busy||!settings||invalid;
+ const ready=connectionReady&&!detecting;const sameBoard=!settingsBoard||settingsBoard===connectionSnapshot?.choice.board_identity;
+ $('#editor').disabled=busy||!settings;$('#read').disabled=busy||!ready;
+ $('#apply').disabled=busy||!ready||!sameBoard||!settings||!dirty||invalid;$('#save-board').disabled=busy||!ready||!sameBoard||!settings||invalid;
  $('#read').textContent=busy?'Working…':'Read keyboard';
- $('#display-send').disabled=busy||!displayReady;
- $('#display-clear').disabled=busy||!displayReady;
+ $('#display-send').disabled=busy||!ready||!displayReady;
+ $('#display-clear').disabled=busy||!ready||!displayReady;
  $('#display-transport').disabled=busy;
  $('#display-check').disabled=busy;
- $('#settings-transport').disabled=busy||dirty;
+ $('#settings-transport').disabled=busy;
  $('#bluetooth-allow').disabled=busy;$('#bluetooth-recheck').disabled=busy;
- $('#settings-connection-note').hidden=$('#settings-transport').value!=='bluetooth';
- $('#sync-clock').disabled=busy||!settings||$('#settings-transport').value==='bluetooth';
+ $('#settings-connection-note').hidden=resolvedTransport!=='bluetooth';
+ $('#sync-clock').disabled=busy||!ready||!settings||resolvedTransport!=='usb';
 }
 async function checkBluetoothAccess(request=false){
  if(busy)return;busy=true;updateButtons();
@@ -56,21 +80,22 @@ async function checkBluetoothAccess(request=false){
   bluetoothAccess=result.access;$('#bluetooth-access').hidden=result.access==='granted';
   $('#bluetooth-access-message').textContent=result.access==='granted'?'Bluetooth access is ready.':'Mac Input Monitoring lets Studio exchange settings with this Bluetooth keyboard. Studio does not record key codes or typed text. Enable F75 Studio in System Settings > Privacy & Security > Input Monitoring, then quit and reopen Studio.';
  }catch(error){$('#bluetooth-access').hidden=false;$('#bluetooth-access-message').textContent=error.message;}
- finally{busy=false;updateButtons();}
+ finally{busy=false;updateButtons();await refreshConnection();}
 }
 $('#bluetooth-allow').onclick=()=>checkBluetoothAccess(true);
 $('#bluetooth-recheck').onclick=()=>checkBluetoothAccess();
 async function send(action){
- if(busy)return;
- const operation_id=transferProgress.start(action,$('#settings-transport').value,csrf);
+ if(busy||!connectionReady||detecting)return;
+ const fields=connectionFields(action);
+ const operation_id=transferProgress.start(action,resolvedTransport,csrf);
  busy=true;updateButtons();$('#message').textContent=action==='clock'?'Synchronizing clock…':action==='read'?'Reading keyboard…':action==='save'?'Applying and saving to keyboard…':'Applying settings…';
- if($('#settings-transport').value==='bluetooth')$('#message').textContent+=' Bluetooth may take a few minutes. Keep the keyboard connected.';
+ if(resolvedTransport==='bluetooth')$('#message').textContent+=' Bluetooth may take a few minutes. Keep the keyboard connected.';
  try{
   const time=new Date();const seconds=time.getHours()*3600+time.getMinutes()*60+time.getSeconds();
-  const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action,operation_id,document:settings,seconds,transport:$('#settings-transport').value})});
+  const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action,operation_id,document:settings,seconds,...fields})});
   const result=await response.json();if(!response.ok)throw Error(result.error||'Keyboard request failed');
   if(action==='clock'){transferProgress.finish(true);$('#message').textContent='Clock synchronized to this device’s local time.';return;}
-  settings=result.document;observedHost=result.host_status;dirty=false;
+  settings=result.document;observedHost=result.host_status;settingsBoard=result.board_identity;dirty=false;
   $('#state-label').textContent=action==='save'?'Saved to keyboard':action==='apply'?'Applied · not saved':'Current keyboard settings';
   $('#message').textContent=action==='save'?'Settings saved and read back from your keyboard.':action==='apply'?'Settings applied and read back. Save to keep them after a restart.':'Keyboard settings loaded. Choose a key or edit a macro.';
   render();transferProgress.finish(true);
@@ -80,7 +105,7 @@ async function send(action){
 async function displayRequest(action, fields={}) {
  const response=await fetch('/api/hardware',{
   method:'POST', headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},
-  body:JSON.stringify({action:'display-'+action,transport:$('#display-transport').value,...fields})
+  body:JSON.stringify({action:'display-'+action,...connectionFields('display'),...fields})
  });
  const result=await response.json();
  if(!response.ok) throw Error(result.error || 'Keyboard display request failed');
@@ -88,7 +113,7 @@ async function displayRequest(action, fields={}) {
 }
 function displayAvailability(result) {
  displayReady=result.ready;
- if(result.transport==='bluetooth') return 'Mac ready to send. The keyboard needs Bluetooth status firmware.';
+ if(result.transport==='bluetooth') return 'Bluetooth ready. Show a message on the keyboard’s Home screen.';
  if(!result.supported) return 'Update the keyboard firmware to show computer status.';
  if(!result.ready) return 'Select USB on the keyboard to show computer status.';
  return result.active?'A message is active.':'Ready to show a message.';
@@ -225,13 +250,8 @@ for(const [id,name] of [['caps-light','caps'],['fn-light','fn']])$('#'+id).oncha
 for(const [id,name] of [['caps-light','caps_color'],['fn-light','fn_color']])colorInput(id+'-color',id+'-hex',value=>{settings.indicators[name]=value;settings.indicators.custom=true;});
 $('#display-send').onclick=()=>sendDisplay('set');
 $('#display-clear').onclick=()=>sendDisplay('clear');
-$('#display-transport').onchange=async()=>{if($('#display-transport').value==='bluetooth')await checkBluetoothAccess();await refreshDisplay();};
-$('#settings-transport').onchange=async()=>{
- transferProgress.dismiss();settings=null;observedHost=null;dirty=false;updateButtons();
- $('#state-label').textContent='Not read yet';
- $('#message').textContent=$('#settings-transport').value==='bluetooth'?'Select Bluetooth on the keyboard, connect this Mac, then read its settings. Clock sync currently uses USB.':'Read the keyboard over USB to load current settings.';
- if($('#settings-transport').value==='bluetooth')await checkBluetoothAccess();else $('#bluetooth-access').hidden=true;
-};
+$('#display-transport').onchange=async()=>{$('#settings-transport').value=$('#display-transport').value;await refreshConnection();};
+$('#settings-transport').onchange=async()=>{$('#display-transport').value=$('#settings-transport').value;connectionReady=displayReady=false;await refreshConnection();};
 $('#display-check').onclick=refreshDisplay;
 $('#face').onchange=()=>{settings.face=Number($('#face').value);mark();};$('#sync-clock').onclick=()=>send('clock');
 for(let i=0;i<8;i++)option($('#macro-slot'),i,'Macro '+(i+1));$('#macro-slot').onchange=()=>{slot=Number($('#macro-slot').value);macro();};
@@ -243,19 +263,23 @@ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();
  try{
   const response=await fetch('/api/hardware');if(!response.ok)throw Error('Hardware editor unavailable');const data=await response.json();csrf=data.csrf;layout=data.layout;
   desktop=data.desktop===true;
+  $('#settings-transport option[value="bluetooth"]').disabled=data.bluetooth_settings!==true;
   if(desktop){
    document.body.classList.add('desktop');
    $('#desktop-sections').hidden=false;
    document.querySelector('[data-section="status"]').hidden=false;
-   $('#display-connection').hidden=data.bluetooth_status!==true;
-   $('#settings-connection').hidden=data.bluetooth_settings!==true;
-   if(data.bluetooth_settings===true)$('#connection-intro').textContent='Edit keyboard settings over USB or Bluetooth.';
+   $('#display-connection').hidden=true;
+   $('#settings-connection').hidden=false;
+   $('#settings-transport option[value="bluetooth"]').disabled=data.bluetooth_settings!==true;
   }
   showSection(document.querySelector(`[data-section][href="${location.hash}"]`)?.dataset.section||'keys');
   for(const key of F75_LAYOUT){const b=document.createElement('button');b.className='key';b.dataset.key=key.id;b.textContent=key.label;b.setAttribute('aria-label','Select '+key.label);b.setAttribute('aria-pressed','false');
    Object.assign(b.style,{left:key.x/660*100+'%',top:key.y/280*100+'%',width:key.w/660*100+'%',height:key.h/280*100+'%'});
    b.onclick=()=>{chosen=layout.find(x=>String(x.key_index)===key.id);selection();};$('#keyboard').append(b);
   }
-  if(desktop) await send('read');
+  $('#settings-connection').hidden=false;
+  await refreshConnection();
+  const poll=setInterval(refreshConnection,4000);window.addEventListener('pagehide',()=>clearInterval(poll),{once:true});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshConnection();});
  }catch(error){$('#message').textContent=error.message;$('#read').disabled=true;}
 })();

@@ -398,11 +398,17 @@ static int hex_digit(char c) {
 int main(int argc, const char **argv) {
  @autoreleasepool {
     BOOL request = NO, openCheck = NO, ledTest = NO;
+    NSString *expectedBoard = nil;
     BOOL displayInfo = NO, displaySent = NO, observePadding = NO;
     uint8_t display[67] = {0};
     size_t displayLength = 0;
     for (int i = 1; i < argc; ++i) {
-        if (!strcmp(argv[i], "--check")) continue;
+        if (!strcmp(argv[i], "--board") && i + 1 < argc) {
+            expectedBoard = [NSString stringWithUTF8String:argv[++i]];
+            NSCharacterSet *hex = [NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"];
+            if (expectedBoard.length != 64 || [expectedBoard rangeOfCharacterFromSet:hex.invertedSet].location != NSNotFound) return 2;
+        }
+        else if (!strcmp(argv[i], "--check")) continue;
         else if (!strcmp(argv[i], "--request-access")) request = YES;
         else if (!strcmp(argv[i], "--open-check")) openCheck = YES;
         else if (!strcmp(argv[i], "--led-test")) ledTest = openCheck = YES;
@@ -504,12 +510,13 @@ int main(int argc, const char **argv) {
         if (![@[@"Bluetooth", @"Bluetooth Low Energy"] containsObject:transport] || !keyboard) continue;
         NSString *slot = [name substringFromIndex:name.length - 1];
         NSString *serial = identity(property(device, @"SerialNumber"));
-        unsigned owners = 0;
-        for (id board in [bindings[@"boards"] allValues]) {
-            if ([board isKindOfClass:[NSDictionary class]] && serial && [board[slot] isEqual:serial]) ++owners;
+        unsigned owners = 0; NSString *ownerIdentity = nil;
+        for (NSString *boardIdentity in bindings[@"boards"]) {
+            id board = bindings[@"boards"][boardIdentity];
+            if ([board isKindOfClass:[NSDictionary class]] && serial && [board[slot] isEqual:serial]) { ++owners; ownerIdentity = boardIdentity; }
         }
-        [matches addObject:@{@"slot": @([slot intValue]), @"enrolled_owners": @(owners)}];
-        if (owners == 1) { if (target) { result[@"ambiguous"] = @YES; } else target = device; }
+        [matches addObject:@{@"slot": @([slot intValue]), @"enrolled_owners": @(owners), @"board_identity": owners == 1 ? ownerIdentity : @""}];
+        if (owners == 1 && (!expectedBoard || [ownerIdentity isEqual:expectedBoard])) { if (target) { result[@"ambiguous"] = @YES; } else target = device; }
     }
     result[@"candidate_metadata"] = candidates;
     result[@"local_wireless_devices"] = matches;

@@ -5,9 +5,21 @@ from keyboard_customize import Keyboard,decode,encode
 from host_display import bluetooth_access,bluetooth_display,display
 from keyboard_bluetooth import BluetoothKeyboard
 from hardware_progress import PROGRESS
+from keyboard_connections import discover,select
 TOKEN=secrets.token_urlsafe(32);LOCK=threading.Lock()
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[1]))
 LAYOUT=[dict(x['vendor_key'],matrix=x['scan_index']*6+x['sense_bit'],usage=int(x['stock_usage'],16)) for x in json.loads((ROOT/'firmware/targets/f75max/board-map.json').read_text(encoding='utf-8'))['matrix']['coordinates'] if x.get('vendor_key')]
+
+def resolve_connection(body,probe):
+ mode=body.get('transport','usb');identity=None
+ if mode=='auto' or body.get('board_identity'):
+  snapshot=discover(probe);choice=select(snapshot,mode)
+  if not choice['ready']:raise RuntimeError(choice['reason'] or 'No keyboard connection is available.')
+  if body.get('expected_transport') and choice['selected']!=body['expected_transport']:raise RuntimeError('The keyboard connection changed. Check the connection before retrying.')
+  identity=choice['board_identity']
+  if body.get('board_identity') and identity!=body['board_identity']:raise RuntimeError('A different keyboard is connected. Read it before applying settings.')
+  mode=choice['selected']
+ return mode,identity
 
 def handle(handler):
  path=handler.path
@@ -39,31 +51,35 @@ def handle(handler):
   if not 0<length<=65536:raise ValueError('Invalid request size')
   body=json.loads(handler.rfile.read(length))
   action=body.get('action')
+  if action=='connections':
+   snapshot=discover(probe);snapshot['choice']=select(snapshot,body.get('transport','auto'));respond(snapshot);return True
   if desktop and probe is not None and action in ('bluetooth-access','bluetooth-request-access'):
    respond(bluetooth_access(probe,request=action=='bluetooth-request-access'))
    return True
   if desktop and action in ('display-info','display-set','display-clear'):
-   transport=body.get('transport','usb')
+   transport,identity=resolve_connection(body,probe)
    fields=(action[8:],body.get('text',''),body.get('seconds',20))
    if transport=='bluetooth' and probe is not None:
-    result=bluetooth_display(probe,*fields)
+    result=bluetooth_display(probe,*fields,board_identity=identity)
    elif transport=='usb':
-    with Keyboard() as keyboard:
+    connection=Keyboard();connection.expected_board=identity
+    with connection as keyboard:
      result=display(keyboard,*fields)
    else:raise ValueError('This status connection is unavailable.')
+   result['transport']=transport;result['board_identity']=identity
    respond(result)
    return True
   if action not in ('read','apply','save','clock'):raise ValueError('Unknown hardware action')
   if body.get('operation_id') is not None:
    PROGRESS.begin(body['operation_id'],action);tracked=body['operation_id']
-  transport=body.get('transport','usb')
+  transport,identity=resolve_connection(body,probe)
   if transport=='bluetooth' and probe is not None:connection=BluetoothKeyboard(probe)
   elif transport=='usb':connection=Keyboard()
   else:raise ValueError('This settings connection is unavailable.')
   verifying=False
   def report(phase,completed=None,total=None):
    if tracked:PROGRESS.update(tracked,'verifying' if verifying and phase in ('reading','checking') else phase,completed,total)
-  connection.progress=report
+  connection.progress=report;connection.expected_board=identity
   with connection as keyboard:
    if body['action']=='clock':
     report('clock');result=keyboard.sync_clock(body['seconds'])
@@ -81,6 +97,7 @@ def handle(handler):
    if body['action']!='clock':
     result['host_status']=keyboard.host_status()
     result['document']['indicator_supported']=bool((result['host_status'] or {}).get('indicator_supported') or getattr(keyboard,'indicator_support',False))
+  result['transport']=transport;result['board_identity']=identity
   if tracked:PROGRESS.finish(tracked,True)
   respond(result)
  except Exception as error:

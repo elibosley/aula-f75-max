@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Read or apply structured keyboard settings over its fixed raw-HID protocol."""
-import argparse,contextlib,json,secrets,struct,sys,time,zlib
+import argparse,contextlib,hashlib,json,secrets,struct,sys,time,zlib
 from pathlib import Path
 from keyboard_transport_lock import TransportLock
 ROOT=Path(__file__).resolve().parents[1]
@@ -17,13 +17,14 @@ def hid_backend():
  return hid
 
 class Keyboard:
- def __init__(self,lock_timeout=1.0):self.lock=TransportLock(lock_timeout);self.progress=lambda *args:None
+ def __init__(self,lock_timeout=1.0):self.lock=TransportLock(lock_timeout);self.progress=lambda *args:None;self.expected_board=None
  def __enter__(self):
   try:
    hid=hid_backend()
    self.lock.__enter__()
    devices=[d for d in hid.enumerate(0xfeed,0xf750) if d['usage_page']==0xff60]
    if len(devices)!=1:raise RuntimeError('Connect the keyboard USB cable; one diagnostics interface is required')
+   if self.expected_board and hashlib.sha256(str(devices[0].get('serial_number','')).encode()).hexdigest()!=self.expected_board:raise RuntimeError('The connected USB keyboard changed. Read it before applying settings.')
    if hasattr(hid, 'Device'):
     self.device=hid.Device(path=devices[0]['path'])
    else:
