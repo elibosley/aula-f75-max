@@ -97,6 +97,7 @@ def handle(handler):
    if body['action']!='clock':
     result['host_status']=keyboard.host_status()
     result['document']['indicator_supported']=bool((result['host_status'] or {}).get('indicator_supported') or getattr(keyboard,'indicator_support',False))
+    result['document']['bluetooth_clock_supported']=bool((result['host_status'] or {}).get('bluetooth_clock_supported') or getattr(keyboard,'clock_support',False))
   result['transport']=transport;result['board_identity']=identity
   if tracked:PROGRESS.finish(tracked,True)
   respond(result)

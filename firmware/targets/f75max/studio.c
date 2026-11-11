@@ -279,7 +279,7 @@ static void bluetooth_display_receive(uint8_t led, uint32_t now) {
     if (operation == 1) host_display_set(data + 3, length, seconds, now, true);
     else if (operation == 3) bluetooth_reply_probe(seconds);
     else if (operation == 4) {
-        bool accepted=f75_bluetooth_receive(&bluetooth_settings,&transfer,data+3,length,now,&state.config,&f75_custom_config);
+        bool accepted=f75_bluetooth_receive(&bluetooth_settings,&transfer,data+3,length,now,&state.config,&f75_custom_config,&clock_state);
         if(accepted&&!bluetooth_settings.response[5]){
             uint8_t command=data[11];unsigned offset=(unsigned)data[12]|((unsigned)data[13]<<8);
             unsigned count=(unsigned)data[14]|((unsigned)data[15]<<8);
@@ -419,7 +419,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
         response[16]=state.config.caps_swap;response[17]=os_evidence_mask;response[18]=1;
         response[19]=(uint8_t)f75_radio_connected()|((uint8_t)clock_state.valid<<1);
 #ifndef F75_USB_ONLY
-        response[19]|=1u<<2;
+        response[19]|=(1u<<2)|(1u<<3);
 #endif
         memcpy(response+20,&state.transaction,4);memcpy(response+24,&host_os_accepted,4);memcpy(response+28,&host_os_rejected,4);
         raw_hid_send(response,sizeof(response));return;

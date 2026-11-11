@@ -26,6 +26,7 @@ class BluetoothKeyboard:
         self.session = False
         self.progress = lambda *args: None
         self.indicator_support = False
+        self.clock_support = False
         self.expected_board = None
 
     def __enter__(self):
@@ -35,9 +36,11 @@ class BluetoothKeyboard:
             if info != struct.pack('<BHHB', 3, BUNDLE_BYTES, 256, 48):
                 raise RuntimeError('This Bluetooth settings protocol is unsupported.')
             capability = self.request(6, allow_unsupported=True)['payload']
-            if capability not in (b'', b'\x01'):
-                raise RuntimeError('Unknown Bluetooth indicator capability.')
-            self.indicator_support = capability == b'\x01'
+            if len(capability) > 1 or (capability and capability[0] & ~3):
+                raise RuntimeError('Unknown Bluetooth capability.')
+            flags = capability[0] if capability else 0
+            self.indicator_support = bool(flags & 1)
+            self.clock_support = bool(flags & 2)
             return self
         except BaseException:
             self.lock.__exit__()
@@ -195,4 +198,11 @@ class BluetoothKeyboard:
         return None
 
     def sync_clock(self, seconds):
-        raise RuntimeError('Bluetooth clock sync is not implemented yet. Use USB for clock sync.')
+        if type(seconds) is not int or not 0 <= seconds < 86400:
+            raise ValueError('Clock needs seconds since local midnight')
+        if not self.clock_support:
+            raise RuntimeError('Update the keyboard firmware for Bluetooth clock sync.')
+        expected = struct.pack('<I', seconds)
+        if self.request(7, count=4, body=expected)['payload'] != expected:
+            raise RuntimeError('Bluetooth clock synchronization not confirmed.')
+        return {'clock_synced': True, 'seconds': seconds, 'transport': 'bluetooth'}

@@ -129,6 +129,7 @@ def main():
                     'info-signs': 'test_info_signs_system.py',
                     'indicators': 'test_indicators_system.py',
                     'bluetooth-settings': 'test_bluetooth_settings_system.py',
+                    'bluetooth-clock': 'test_bluetooth_clock_system.py',
                     'bluetooth-consumer': 'test_bluetooth_consumer_system.py',
                 }
                 for name, script in scripts.items():

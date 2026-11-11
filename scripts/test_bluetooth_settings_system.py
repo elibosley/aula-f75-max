@@ -22,7 +22,7 @@ class ReplyState(ctypes.Structure):
                 ('started', ctypes.c_uint32), ('owns', ctypes.c_bool), ('replying', ctypes.c_bool)]
 
 
-def run(image, consumer_only=False):
+def run(image, consumer_only=False, clock_only=False):
     with System(image) as m:
         m.until('housekeeping_task_user')
 
@@ -104,7 +104,31 @@ def run(image, consumer_only=False):
             return decoded[5], decoded[6], bytes(decoded[11:-4])
 
         assert rpc(0) == (0, 0, struct.pack('<BHHB', 3, BUNDLE_BYTES, 256, 48))
-        assert rpc(6) == (0, 0, b'\x01')
+        assert rpc(6) == (0, 0, b'\x03')
+        config_before = m.read(m.symbols['state'], 116)
+        assert rpc(7, 0, 4, struct.pack('<I', 45240)) == (0, 0, struct.pack('<I', 45240))
+        assert m.read(m.symbols['clock_state'] + 8, 1) == b'\1'
+        assert rpc(7, 0, 4, struct.pack('<I', 86400))[0] == 3
+        assert rpc(7, 1, 4, struct.pack('<I', 0))[0] == 3
+        assert rpc(7, 0, 3, bytes(3))[0] == 3
+        assert m.read32(m.symbols['clock_state']) // 60 == 754
+        assert m.read(m.symbols['state'], 116) == config_before
+        assert m.read32(HOST + 0x5c) == 0, 'Clock sync wrote flash'
+        if clock_only:
+            from display_types import View
+            step(1100)
+            assert m.read(m.symbols['frame'] + View.clock.offset, 6) == b'12:34\0'
+            assert rpc(7, 0, 4, struct.pack('<I', 86399))[0] == 0
+            step(1800)
+            assert m.read32(m.symbols['clock_state']) < 5, 'Clock did not wrap at midnight'
+            assert rpc(1)[0] == 0
+            assert rpc(7, 0, 4, bytes(4))[0] == 1, 'Clock changed during settings session'
+            assert rpc(5)[0] == 0
+            assert not m.endpoint_in(1)
+            return dict(status='passed', candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),
+                        uart_clock_to_home=True, crc_checked_time_echo=True, invalid_time_rejected=True,
+                        midnight_rollover=True, settings_session_isolation=True, settings_unchanged=True,
+                        flash_writes=0, usb_not_enumerated=True, physical_bluetooth_link_tested=False)
         status, phase, snapshot_identity = rpc(1)
         assert (status, phase) == (0, 2)
         if consumer_only:

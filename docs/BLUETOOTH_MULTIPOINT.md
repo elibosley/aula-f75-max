@@ -66,7 +66,13 @@ USB settings transfers are excluded while Bluetooth owns the buffer. Physical ro
 
 With USB unplugged, the packaged helper read all 3232 bytes, saved unchanged settings and verified readback. A separate test saved a temporary wheel change. After the operator cut power using the selector, BT2 reconnected without pairing, and the saved core and complete content fingerprint matched. The original wheel mode was then restored and saved over Bluetooth. Private evidence is under `analysis/completion/multipoint/padding-carrier-install-70fryshf/bluetooth-only-settings-sjol3932/`. This is physical transport and persistence evidence. The preview window reported Input Monitoring access as unknown and sent no settings request; its app-level permission and window transfer remain pending.
 
-The installed USB desktop app retains its existing backend. A local Mac Bluetooth preview can be built with `scripts/build_desktop.py --local-bluetooth-preview`; its native helper refuses settings requests without the qualification record. Windows and Linux direct Bluetooth settings are not implemented. Clock synchronization still requires USB. Neither radio firmware nor bonds are part of the settings payload.
+The regular local Mac app includes the Bluetooth helper when built with `scripts/build_desktop.py --with-bluetooth`; its native helper refuses settings requests without the qualification record. Windows and Linux direct Bluetooth settings are not implemented. Neither radio firmware nor bonds are part of the settings payload.
+
+### Bluetooth clock candidate
+
+Capability command 6 returns one flags byte: bit 0 enables Caps/Fn settings; bit 1 enables clock sync. The protocol-3 Info payload stays unchanged. Command 7 uses the existing nonce/session/command/offset/count envelope, offset zero, count four, and a little-endian u32 seconds-since-local-midnight body. It accepts 0–86399 and returns those four bytes in the existing CRC-checked reply. It rejects malformed requests and active USB or Bluetooth settings sessions. Clock state is RAM-only; it does not open a transfer session, write settings, or change the radio. USB host-status bit 3 advertises the same Bluetooth clock capability.
+
+Studio routes the clock action through its selected connection and requires the time echo before showing success. Older firmware leaves Bluetooth clock sync disabled. The linked ARM test exercises UART request/reply, Home clock text, midnight rollover, invalid values, session isolation, unchanged settings and zero flash writes without enumerating USB. These are modeled checks; installation, the new image's Constant-padding qualification, and a real Bluetooth-only clock test are still required.
 
 The stock application also has a separate 34-byte vendor configuration path for the 2.4 GHz receiver. An offline stock-code test entered that handler only in receiver mode. This does not establish a Bluetooth path or test the physical receiver.
 

@@ -27,6 +27,7 @@ def fixture():
 class BluetoothHostTest(unittest.TestCase):
     def setUp(self):
         self.live = fixture(); self.staged = None; self.phase = 0; self.calls = []; self.corrupt = False; self.indicator_capability = True
+        self.capabilities = 3; self.clock_echo = None
         self.patches = [patch('keyboard_bluetooth.subprocess.run', side_effect=self.helper),
                         patch('keyboard_bluetooth.TransportLock', side_effect=lambda _: contextlib.nullcontext())]
         for item in self.patches: item.start()
@@ -41,8 +42,11 @@ class BluetoothHostTest(unittest.TestCase):
         self.calls.append(command); payload = b''; status = 0
         if command == 0: payload = struct.pack('<BHHB', 3, 3232, 256, 48)
         elif command == 6:
-            if self.indicator_capability: payload = b'\x01'
+            if self.indicator_capability: payload = bytes([self.capabilities])
             else: status = 3
+        elif command == 7:
+            self.assertEqual((offset, count, len(q)), (0, 4, 17))
+            payload = q[13:] if self.clock_echo is None else self.clock_echo
         elif command == 1:
             self.staged = bytearray(self.live); self.phase = 2
             payload = struct.pack('<I', snapshot_crc(self.staged))
@@ -113,6 +117,42 @@ class BluetoothHostTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'changed since'):
                 keyboard.apply(baseline, baseline=baseline)
             self.assertEqual(self.calls.count(4), before, 'Stale edit reached Commit')
+
+    def test_clock_acknowledges_exact_time_without_a_settings_session(self):
+        original = self.live
+        with BluetoothKeyboard('probe') as keyboard:
+            self.assertTrue(keyboard.clock_support)
+            self.assertEqual(keyboard.sync_clock(86399)['seconds'], 86399)
+        self.assertEqual(self.calls, [0, 6, 7])
+        self.assertEqual(self.live, original)
+        self.assertIsNone(self.staged)
+
+    def test_clock_rejects_bad_values_and_legacy_firmware_without_sending(self):
+        with BluetoothKeyboard('probe') as keyboard:
+            for value in [-1, 86400, True, '123', 1.5]:
+                with self.assertRaises(ValueError): keyboard.sync_clock(value)
+        self.assertNotIn(7, self.calls)
+        for capability in [0, 1]:
+            self.capabilities = capability
+            with BluetoothKeyboard('probe') as keyboard:
+                self.assertFalse(keyboard.clock_support)
+                with self.assertRaisesRegex(RuntimeError, 'Update'): keyboard.sync_clock(0)
+        self.assertNotIn(7, self.calls)
+
+    def test_clock_requires_exact_verified_reply_and_never_retries(self):
+        with BluetoothKeyboard('probe') as keyboard:
+            self.clock_echo = struct.pack('<I', 11)
+            with self.assertRaisesRegex(RuntimeError, 'not confirmed'): keyboard.sync_clock(12)
+            self.assertEqual(self.calls.count(7), 1)
+            self.clock_echo = None; self.corrupt = True
+            with self.assertRaisesRegex(RuntimeError, 'CRC'): keyboard.sync_clock(12)
+            self.assertEqual(self.calls.count(7), 2)
+
+    def test_unknown_capability_stops_before_clock(self):
+        self.capabilities = 4
+        with self.assertRaisesRegex(RuntimeError, 'Unknown Bluetooth capability'):
+            with BluetoothKeyboard('probe'): self.fail('Unknown capability accepted')
+        self.assertNotIn(7, self.calls)
 
     def test_missing_permission_stops_before_a_settings_session(self):
         reply = subprocess.CompletedProcess(['probe'], 0, json.dumps({'access':'unknown'}), '')

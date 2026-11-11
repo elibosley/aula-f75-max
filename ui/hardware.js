@@ -70,7 +70,9 @@ function updateButtons(){
  $('#settings-transport').disabled=busy;
  $('#bluetooth-allow').disabled=busy;$('#bluetooth-recheck').disabled=busy;
  $('#settings-connection-note').hidden=resolvedTransport!=='bluetooth';
- $('#sync-clock').disabled=busy||!ready||!settings||resolvedTransport!=='usb';
+ const clockSupported=resolvedTransport==='usb'||!!settings?.bluetooth_clock_supported;
+ $('#sync-clock').disabled=busy||!ready||!sameBoard||!settings||!clockSupported;
+ $('#sync-clock').title=resolvedTransport==='bluetooth'&&!clockSupported?'Update the keyboard firmware for Bluetooth clock sync.':'';
 }
 async function checkBluetoothAccess(request=false){
  if(busy)return;busy=true;updateButtons();
@@ -89,7 +91,7 @@ async function send(action){
  const fields=connectionFields(action);
  const operation_id=transferProgress.start(action,resolvedTransport,csrf);
  busy=true;updateButtons();$('#message').textContent=action==='clock'?'Synchronizing clock…':action==='read'?'Reading keyboard…':action==='save'?'Applying and saving to keyboard…':'Applying settings…';
- if(resolvedTransport==='bluetooth')$('#message').textContent+=' Bluetooth may take a few minutes. Keep the keyboard connected.';
+ if(resolvedTransport==='bluetooth')$('#message').textContent+=action==='clock'?' Keep the keyboard connected.':' Bluetooth may take a few minutes. Keep the keyboard connected.';
  try{
   const time=new Date();const seconds=time.getHours()*3600+time.getMinutes()*60+time.getSeconds();
   const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action,operation_id,document:settings,seconds,...fields})});

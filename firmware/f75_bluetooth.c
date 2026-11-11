@@ -36,7 +36,7 @@ void f75_bluetooth_tick(f75_bluetooth *b, f75_transfer *t, uint32_t now) {
 
 bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,
     const uint8_t *q, unsigned size, uint32_t now,
-    const f75_config *config, const f75_custom *custom) {
+    const f75_config *config, const f75_custom *custom, f75_clock *clock) {
     f75_bluetooth_tick(b, t, now);
     if (size < 13 || size > F75_BT_REQUEST_MAX || b->replying) return false;
     uint32_t session = get32(q + 4);
@@ -45,15 +45,22 @@ bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,
     uint8_t *r = b->response;
     memset(r, 0, sizeof(b->response)); memcpy(r, q, 4);
     r[4] = command; put16(r + 7, offset);
-    bool body = command == 3 || command == 4;
-    if (size != 13u + (body ? count : 0u) || command > 6) status = 3;
+    bool body = command == 3 || command == 4 || command == 7;
+    if (size != 13u + (body ? count : 0u) || command > 7) status = 3;
     else if (command == 0) {
         if (count || offset) status = 3;
         else { r[11] = 3; put16(r + 12, F75_BUNDLE_BYTES);
             put16(r + 14, F75_BT_READ_MAX); r[16] = F75_BT_PATCH_MAX; length = 6; }
     } else if (command == 6) {
         if (count || offset) status = 3;
-        else { r[11] = 1; length = 1; } /* Caps/Fn indicator settings. Info v3 stays unchanged. */
+        else { r[11] = 1 | (clock ? 2 : 0); length = 1; } /* Indicators, clock. Info v3 unchanged. */
+    } else if (command == 7) {
+        if (offset || count != 4 || !clock || get32(q + 13) >= 86400u) status = 3;
+        else if (b->owns_transfer || t->phase == 1 || t->phase == 2 || t->phase == 3) status = 1;
+        else {
+            f75_clock_set(clock, get32(q + 13), now);
+            put32(r + 11, clock->seconds); length = 4;
+        }
     } else if (command == 1) {
         if (!session || count || offset) status = 3;
         else if (t->phase == 1 || t->phase == 2 || t->phase == 3 || b->owns_transfer) status = 1;

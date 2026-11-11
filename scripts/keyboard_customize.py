@@ -55,7 +55,7 @@ class Keyboard:
   r=self.raw_request(b'F75o')
   if r[:4]!=b'F75p':raise RuntimeError('Invalid host status reply')
   return {'usb_detected':r[8],'auto_mask':r[9],'active_slot':r[10],'os':list(r[11:16]),'caps_swap':bool(r[16]),
-          'evidence_mask':r[17],'helper_protocol':r[18],'radio_connected':bool(r[19]&1),'clock_synced':bool(r[19]&2),'indicator_supported':bool(r[19]&4),'transaction':struct.unpack_from('<I',r,20)[0],
+          'evidence_mask':r[17],'helper_protocol':r[18],'radio_connected':bool(r[19]&1),'clock_synced':bool(r[19]&2),'indicator_supported':bool(r[19]&4),'bluetooth_clock_supported':bool(r[19]&8),'transaction':struct.unpack_from('<I',r,20)[0],
           'hints_accepted':struct.unpack_from('<I',r,24)[0],'hints_rejected':struct.unpack_from('<I',r,28)[0]}
  def report_host_os(self,slot,os,transaction):
   if not 1<=slot<=4 or os not in (0,1) or not 0<transaction<2**32:raise ValueError('Invalid host evidence')

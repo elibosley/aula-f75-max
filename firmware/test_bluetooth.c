@@ -8,6 +8,7 @@ static f75_bluetooth b;
 static f75_transfer t;
 static f75_config c;
 static f75_custom custom;
+static f75_clock clock;
 static uint32_t now = 100;
 
 static void put32(uint8_t *p, uint32_t n) { for (unsigned i = 0; i < 4; ++i) p[i] = n >> (8 * i); }
@@ -17,7 +18,7 @@ static uint8_t request(unsigned command, unsigned offset, unsigned count, const 
     q[11] = count; q[12] = count >> 8;
     unsigned size = 13;
     if (body) { assert(count <= 51); memcpy(q + 13, body, count); size += count; }
-    assert(f75_bluetooth_receive(&b, &t, q, size, ++now, &c, &custom));
+    assert(f75_bluetooth_receive(&b, &t, q, size, ++now, &c, &custom, &clock));
     uint8_t decoded[F75_BT_RESPONSE_MAX] = {0}, symbol, previous = 0;
     unsigned groups = 0, bit = 0;
     assert(f75_bluetooth_reply_next(&b, &symbol) && symbol == 0);
@@ -39,10 +40,24 @@ static uint8_t request(unsigned command, unsigned offset, unsigned count, const 
 int main(void) {
     f75_defaults(&c); f75_custom_defaults(&custom);
     assert(request(0, 0, 0, NULL, 0) == 0 && b.response[11] == 3);
-    assert(request(6, 0, 0, NULL, 0) == 0 && b.response[11] == 1);
+    assert(request(6, 0, 0, NULL, 0) == 0 && b.response[11] == 3);
     assert(request(6, 1, 0, NULL, 0) == 3);
+    uint8_t seconds[4]; put32(seconds, 86399);
+    assert(request(7, 0, 4, seconds, 0) == 0 && clock.valid && clock.seconds == 86399);
+    assert(!memcmp(b.response + 11, seconds, 4) && !b.owns_transfer && t.phase == 0);
+    put32(seconds, 86400);
+    assert(request(7, 0, 4, seconds, 0) == 3 && clock.seconds == 86399);
+    put32(seconds, 0);
+    assert(request(7, 1, 4, seconds, 0) == 3 && clock.seconds == 86399);
+    assert(request(7, 0, 3, seconds, 0) == 3 && clock.seconds == 86399);
+    assert(request(7, 0, 4, NULL, 0) == 3 && clock.seconds == 86399);
+    t.phase = 1;
+    assert(request(7, 0, 4, seconds, 0) == 1 && clock.seconds == 86399);
+    t.phase = 0;
+    assert(request(7, 0, 4, seconds, 0) == 0 && clock.seconds == 0);
     assert(request(1, 0, 0, NULL, 0) == 3);
     assert(request(1, 0, 0, NULL, 21) == 0 && t.phase == 2);
+    assert(request(7, 0, 4, seconds, 21) == 1 && t.phase == 2 && b.owns_transfer);
     uint8_t initial[F75_BUNDLE_BYTES]; memcpy(initial, t.bytes, sizeof(initial));
     f75_config other_config=c; other_config.wheel=1;
     uint8_t other[F75_BUNDLE_BYTES]; f75_bundle_encode(&other_config,&custom,other);
@@ -76,6 +91,6 @@ int main(void) {
     f75_bluetooth_reset(&b, &t); assert(t.phase == 5);
     t.phase = 1; assert(request(1, 0, 0, NULL, 51) == 1); t.phase = 0;
     uint8_t short_request[12] = {0};
-    assert(!f75_bluetooth_receive(&b, &t, short_request, sizeof(short_request), ++now, &c, &custom));
+    assert(!f75_bluetooth_receive(&b, &t, short_request, sizeof(short_request), ++now, &c, &custom, &clock));
     puts("Bluetooth settings sessions, bounds, commit guard, cancellation and reply framing passed.");
 }
