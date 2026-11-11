@@ -12,11 +12,14 @@ BOARD_MAP = ROOT / 'firmware' / 'targets' / 'f75max' / 'board-map.json'
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--with-bluetooth', action='store_true',
+                        help='Include the Mac Bluetooth helper for this checkout’s enrolled keyboard')
     parser.add_argument('--local-bluetooth-preview', action='store_true',
                         help='Build a Mac preview using this checkout’s enrolled keyboard')
     args = parser.parse_args()
-    if args.local_bluetooth_preview and sys.platform != 'darwin':
-        parser.error('The local Bluetooth preview requires macOS.')
+    with_bluetooth = args.with_bluetooth or args.local_bluetooth_preview
+    if with_bluetooth and sys.platform != 'darwin':
+        parser.error('The Bluetooth helper requires macOS.')
     subprocess.run([sys.executable, str(ROOT / 'scripts' / 'build_preview.py')], check=True)
     suffix = '-bluetooth-preview' if args.local_bluetooth_preview else ''
     work = ROOT / '.runtime' / ('desktop-build' + suffix)
@@ -31,7 +34,7 @@ def main():
         command.extend(('--osx-bundle-identifier', 'com.f75studio.desktop' + suffix.replace('-', '.', 1)))
     command.append(str(ROOT / 'scripts' / 'desktop.py'))
     subprocess.run(command, cwd=ROOT, check=True)
-    if args.local_bluetooth_preview:
+    if with_bluetooth:
         subprocess.run([sys.executable, str(ROOT / 'scripts' / 'build_mac_wireless_probe.py')], check=True)
         app = dist / 'F75 Studio.app'
         helper = ROOT / '.runtime/F75 Wireless Probe.app'
