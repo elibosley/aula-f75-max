@@ -134,8 +134,12 @@ def main():
                 for name, script in scripts.items():
                     print(f'Checking {name} on the exact full_ui image...', flush=True)
                     target = b / (name + '-tests.json')
+                    # The exhaustive UART snapshot test takes ~200s on the
+                    # owner Mac; hosted emulation can exceed the default 300s.
+                    # Keep its assertions and finite deadline unchanged in scope.
+                    timeout = 600 if name == 'bluetooth-settings' else 300
                     run([sys.executable, 'scripts/' + script, str(b / 'f75max-wired-test.bin'),
-                         '--output', str(target)], b / (name + '-tests.log'))
+                         '--output', str(target)], b / (name + '-tests.log'), timeout=timeout)
                     check = json.loads(target.read_text())
                     assert check['status'] == 'passed' and check['candidate_sha256'] == compared['bin']
                     assert sha(b / 'f75max-wired-test.bin') == compared['bin'], 'Test modified the input image'

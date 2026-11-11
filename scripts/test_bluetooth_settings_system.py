@@ -132,6 +132,7 @@ def run(image, consumer_only=False):
             status, phase, payload = rpc(2, offset, count)
             assert (status, phase) == (0, 2) and len(payload) == count
             parts.append(payload)
+            print(f'Bluetooth snapshot: {offset + count}/{BUNDLE_BYTES} bytes verified', flush=True)
         original = b''.join(parts); validate(original)
         assert snapshot_crc(original) == struct.unpack('<I', snapshot_identity)[0]
         assert rpc(2, BUNDLE_BYTES - 1, 2)[0] == 3
@@ -142,6 +143,7 @@ def run(image, consumer_only=False):
         assert m.read(m.symbols['state'] + 107, 1) == bytes((original[119],))
         assert rpc(4, 0, 5, bytes(5))[0] == 2
         assert rpc(4, 0, 5, struct.pack('<IB', snapshot_crc(desired), 0))[0] == 0
+        print('Bluetooth RAM Apply verified', flush=True)
         assert rpc(0)[1] == 4
         assert m.read(m.symbols['state'] + 107, 1) == desired[119:120]
         assert m.read(m.symbols['active_slot'], 1) == b'\1'
@@ -155,6 +157,7 @@ def run(image, consumer_only=False):
         assert rpc(0)[1] == 5
         assert m.read32(HOST + 0x5c) > 0, 'Explicit Save did not write reserved records'
         assert m.read32(HOST + 0x60) == 0, 'Save touched protected code'
+        print('Bluetooth Save and protected code verified', flush=True)
         assert m.read(m.symbols['state'] + 107, 1) == original[119:120]
         assert rpc(5)[0] == 0
         assert rpc(1)[0] == 0
