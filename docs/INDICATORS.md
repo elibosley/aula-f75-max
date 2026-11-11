@@ -1,4 +1,4 @@
-# Connection, charging, and key indicators
+# Connection, charging, and lock indicators
 
 This source adds indicators to the Home header and configurable Caps/Fn feedback to key RGB. Building or passing model tests does not install the firmware or confirm physical LED placement and charge-input polarity.
 
@@ -9,6 +9,8 @@ A lightning bolt beside the battery percentage means the debounced charging inpu
 The charging input follows the preserved supplier application (`a7d45875…`): routine `0x2184` reads active-low B17 into the flag at `0x20000059`. The stock Home painter at `0xfd8c` uses that flag to select display command `0x0e`, which draws the lightning-bolt battery bitmap from external asset offset `0xbd10`. The new driver only reads B17 and waits 50 ms for a stable level. It does not reconfigure the pin, change charger settings, or infer charging from battery percentage.
 
 Under **Studio → Lighting → Lock and Fn lights**, choose the Caps Lock and Fn-held colors or disable either indication. Caps Lock follows the active host's LED output, not a physical key press. This supports the permanent Caps/Control/Command remapping. USB LED updates cannot alter the active Bluetooth host's indicator. A radio disconnect or route change clears the old radio lock state.
+
+The separate Caps indicator on the keyboard case follows the same active-host Caps Lock state. Supplier routine `0xb48c` drives GPIO B1 high for Caps on and low for Caps off; initialization routine `0xb470` configures B1 as an output. This is a separate on/off output, not a key RGB color channel. It remains useful when key RGB is disabled or dimmed, and Fn-held colors do not override it. Studio's configurable colors and enable switches affect the key RGB overlays only.
 
 The physical Caps key is key-matrix position 3, RGB position 45. While Caps Lock is on, its color overrides the normal palette. Holding Fn overrides Caps and the physical Fn key (matrix 71, RGB 86) with the Fn-held color. Releasing Fn restores Caps feedback or the current lighting layer. These overlays use the completed RGB buffer and obey brightness and sleep limits; they do not change PWM timing or the LED row interrupt.
 

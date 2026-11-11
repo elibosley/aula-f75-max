@@ -20,6 +20,9 @@ def run(image):
    for value in [a,b,(a+b)&255]:m.write32(HOST+0x44,value)
    step(80)
   def view():return View.from_buffer_copy(m.read(m.symbols['frame'],ctypes.sizeof(View)))
+  def board_caps(on):
+   assert m.read32(0x40046004)&2, "Dedicated Caps pin is not an output"
+   assert bool(m.read32(0x40046000)&2)==on, "Dedicated Caps indicator disagrees with active host"
   def caps_pwm():
    active=m.read(m.symbols['active_buffer'],1)[0];base=m.symbols['duties']+active*270
    return tuple(m.read(base+ch*90+45,1)[0] for ch in range(3))
@@ -27,12 +30,15 @@ def run(image):
   # Desk, 100%, red Still base makes both indicator colors unambiguous.
   state=m.symbols['state'];m.write(state+103,b'\x02\x64');m.write(state+106,b'\0');m.write(state+110,b'\xff\0\0')
   step(200);assert (view().link_state,view().power_state)==(3,2),(view().link_state,view().power_state)
-  assert caps_pwm()==(127,0,0),caps_pwm()
+  assert caps_pwm()==(127,0,0),caps_pwm();board_caps(False)
   m.control_out(0x21,9,b'\x02',value=0x200,index=0);step(100)
   mint=tuple(c*127//255 for c in (168,234,212));lilac=tuple(c*127//255 for c in (200,170,246))
-  assert caps_pwm()==mint,caps_pwm()
-  key(11,5,True);assert caps_pwm()==lilac;key(11,5,False);assert caps_pwm()==mint
-  m.control_out(0x21,9,b'\0',value=0x200,index=0);step(80);assert caps_pwm()==(127,0,0)
+  assert caps_pwm()==mint,caps_pwm();board_caps(True)
+  key(11,5,True);assert caps_pwm()==lilac;board_caps(True);key(11,5,False);assert caps_pwm()==mint;board_caps(True)
+  # The board light remains useful with all key lighting disabled.
+  m.write(state+104,b'\0');step(100);assert caps_pwm()==(0,0,0);board_caps(True)
+  m.write(state+104,b'\x64');step(100)
+  m.control_out(0x21,9,b'\0',value=0x200,index=0);step(80);assert caps_pwm()==(127,0,0);board_caps(False)
   m.write32(HOST+0x204,1<<2);step(100);assert view().power_state==3 and bytes(view().status_right)==b'--%'
   m.write32(HOST+0x204,(1<<2)|(1<<17));step(20);assert view().power_state==3
   step(80);assert view().power_state==2
@@ -41,13 +47,13 @@ def run(image):
   key(11,5,True);key(2,1,True);key(2,1,False);key(11,5,False);step(100)
   assert m.read(m.symbols['active_slot'],1)==b'\2'
   uart(0x5b,0x32);assert bytes(view().status_left)==b'BT2' and view().link_state==3
-  uart(0x5a,2);assert caps_pwm()==mint
-  uart(0x5a,0xe2);assert caps_pwm()==mint,'Status symbols changed Caps LED state'
-  uart(0x5a,0);assert caps_pwm()==(127,0,0)
-  m.control_out(0x21,9,b'\x02',value=0x200,index=0);step(80);assert caps_pwm()==(127,0,0),'Inactive USB host changed BT indicator'
-  uart(0x5a,2);uart(0x5b,0x33);assert view().link_state==1 and caps_pwm()==(127,0,0)
-  m.write32(HOST+0x204,(1<<2)|(1<<17));step(160);assert bytes(view().status_left)==b'USB' and caps_pwm()==mint
-  return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),real_arm_image=True,usb_caps_reports=True,bluetooth_led_packets=True,fn_priority_and_release=True,inactive_host_isolation=True,disconnect_clears_caps=True,header_tracks_link_and_gpio_charge=True,unknown_percent_preserved=True,physical_hardware_tested=False)
+  uart(0x5a,2);assert caps_pwm()==mint;board_caps(True)
+  uart(0x5a,0xe2);assert caps_pwm()==mint,'Status symbols changed Caps LED state';board_caps(True)
+  uart(0x5a,0);assert caps_pwm()==(127,0,0);board_caps(False)
+  m.control_out(0x21,9,b'\x02',value=0x200,index=0);step(80);assert caps_pwm()==(127,0,0),'Inactive USB host changed BT indicator';board_caps(False)
+  uart(0x5a,2);uart(0x5b,0x33);assert view().link_state==1 and caps_pwm()==(127,0,0);board_caps(False)
+  m.write32(HOST+0x204,(1<<2)|(1<<17));step(160);assert bytes(view().status_left)==b'USB' and caps_pwm()==mint;board_caps(True)
+  return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),real_arm_image=True,dedicated_caps_gpio='B1 active high',dedicated_caps_independent_of_rgb=True,usb_caps_reports=True,bluetooth_led_packets=True,fn_priority_and_release=True,inactive_host_isolation=True,disconnect_clears_caps=True,header_tracks_link_and_gpio_charge=True,unknown_percent_preserved=True,physical_hardware_tested=False)
 
 def charge_debounce(image):
  os.environ['F75_IMAGE']=str(image.resolve())
