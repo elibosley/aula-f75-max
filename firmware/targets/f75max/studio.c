@@ -886,9 +886,11 @@ static void make_frame(uint32_t now) {
     if (notice && (int32_t)(notice_until - now) > 0) snprintf(frame.footer, sizeof(frame.footer), "%s", notice);
     if(frame.home&&frame.face==3&&!focus.running&&state.pairing==F75_PAIR_IDLE){
         frame.info_progress=255;
+#ifndef F75_USB_ONLY
         if(transfer_info&&(int32_t)(transfer_info_until-now)>0){
             snprintf(frame.footer,sizeof(frame.footer),"%s",transfer_info);frame.info_progress=transfer_info_progress;
         }
+#endif
         frame.pet_info=frame.footer[0]!=0;
     }
     f75_motion_update(&motion, (uint16_t)(page|((uint16_t)menu_start<<8)), frame.selected, direction, now, quiet);
