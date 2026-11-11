@@ -385,6 +385,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
     }
 #endif
     if(f75_transfer_receive(&transfer,data,reply,timer_read32(),&state.config,&f75_custom_config)){
+#ifndef F75_USB_ONLY
         if(!reply[12]){
             uint32_t now=timer_read32();unsigned offset=(unsigned)data[13]|((unsigned)data[14]<<8);
             if(data[12]==4)transfer_note("Reading settings",0,now);
@@ -394,6 +395,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
             else if(data[12]==3)transfer_note(transfer.save?"Saving settings":"Applying changes",254,now);
             else if(data[12]==6)transfer_info_until=now+1800u;
         }
+#endif
         raw_hid_send(reply,sizeof(reply));return;
     }
     if(!memcmp(data,"F75j",4)&&data[8]<2){
@@ -940,8 +942,16 @@ void housekeeping_task_user(void) {
             ++state.release_epoch;release_epoch=state.release_epoch;
             if(usb_detected<2)f75_detect_os(&state,0,(f75_os)usb_detected);
             f75_activity(&state,now);memset(tile_valid,0,sizeof(tile_valid));frame_pending=false;
-            transfer.phase=4;if(transfer.save)pending_save=true;else transfer_note("Changes applied",100,now);
-        }else{transfer.phase=6;transfer_note("Invalid settings",255,now);}
+            transfer.phase=4;if(transfer.save)pending_save=true;
+#ifndef F75_USB_ONLY
+            else transfer_note("Changes applied",100,now);
+#endif
+        }else{
+            transfer.phase=6;
+#ifndef F75_USB_ONLY
+            transfer_note("Invalid settings",255,now);
+#endif
+        }
     }
     if(pending_save){
         pending_save=false;release_keys();f75_rgb_suspend(true);
@@ -949,7 +959,9 @@ void housekeeping_task_user(void) {
         if(transfer.phase==4&&transfer.save)transfer.phase=saved?5:7;
         if(!diagnostic_rgb_off){f75_rgb_suspend(false);if(diagnostic_rgb_blank)f75_rgb_pause();}
         show_notice(saved?"Settings saved":"Save failed");
+#ifndef F75_USB_ONLY
         transfer_note(saved?"Settings saved":"Save failed",saved?100:255,now);
+#endif
     }
     if (pending_boot && now - pending_boot_at >= 50) { pending_boot = false; release_keys(); f75_rgb_suspend(true); bootloader_jump(); }
 #ifndef F75_USB_ONLY
