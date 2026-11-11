@@ -25,6 +25,11 @@ from recovery_image import verify_recovery
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / 'analysis/UNFLASHED/f75max-wired-test.bin'
 STOCK = ROOT / 'analysis/firmware/supplier-f75max-firmware/application.bin'
+HARDWARE_REJECTED_IMAGES = {
+    '03b4110600203831d35eaad0f0d83e2d53d7dc05cf5f4f8d0d8372d7c78dfc6c',
+    'f1d2333605f3565211db8ee1b3684854357754d6319651767b46190b54d87820',
+    'db506b84499b529052427afdc0d637fb5e189044e4cc0ea9d002063972182b9c',
+}
 
 
 def checksum(data):
@@ -61,6 +66,8 @@ def preserve_settings(image,backup,expected_current):
 
 
 def load_candidate(expected):
+    if expected in HARDWARE_REJECTED_IMAGES:
+        raise ValueError('Hardware-rejected image: Bluetooth replies alias the Apple Fn input field')
     data = IMAGE.read_bytes()
     actual = hashlib.sha256(data).hexdigest()
     build = json.loads(IMAGE.with_suffix('.json').read_text())

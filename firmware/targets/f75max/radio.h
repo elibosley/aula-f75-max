@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 void f75_radio_init(void);
-void f75_radio_task(uint32_t now);
+void f75_radio_task(uint32_t now, void (*receive_led)(uint8_t value, uint32_t now));
 bool f75_radio_select(uint8_t slot);
 bool f75_radio_pair(void);
 enum { F75_RADIO_SELECT_IDLE, F75_RADIO_SELECT_PENDING, F75_RADIO_SELECT_ACKED, F75_RADIO_SELECT_FAILED };

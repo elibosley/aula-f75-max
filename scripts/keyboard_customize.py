@@ -17,7 +17,7 @@ def hid_backend():
  return hid
 
 class Keyboard:
- def __init__(self,lock_timeout=1.0):self.lock=TransportLock(lock_timeout)
+ def __init__(self,lock_timeout=1.0):self.lock=TransportLock(lock_timeout);self.progress=lambda *args:None
  def __enter__(self):
   try:
    hid=hid_backend()
@@ -68,14 +68,19 @@ class Keyboard:
    time.sleep(.02)
   raise RuntimeError('Host OS hint completion not confirmed')
  def read(self):
-  self.exchange(4)
-  try:return b''.join(self.exchange(5,offset)[15:32] for offset in range(0,BUNDLE_BYTES,17))[:BUNDLE_BYTES]
+  self.progress('reading');self.exchange(4)
+  try:
+   blocks=[]
+   for offset in range(0,BUNDLE_BYTES,17):
+    blocks.append(self.exchange(5,offset)[15:32]);self.progress('reading',min(offset+17,BUNDLE_BYTES),BUNDLE_BYTES)
+   self.progress('checking');return b''.join(blocks)[:BUNDLE_BYTES]
   finally:self.exchange(6)
  def apply(self,data,save=False):
-  validate(data);self.exchange(1,BUNDLE_BYTES,struct.pack('<I',zlib.crc32(data)))
+  self.progress('preparing');validate(data);self.exchange(1,BUNDLE_BYTES,struct.pack('<I',zlib.crc32(data)))
   try:
-   for offset in range(0,len(data),17):self.exchange(2,offset,data[offset:offset+17])
-   self.exchange(3,BUNDLE_BYTES,bytes([bool(save)]))
+   for offset in range(0,len(data),17):
+    self.exchange(2,offset,data[offset:offset+17]);self.progress('sending',min(offset+17,len(data)),len(data))
+   self.progress('saving' if save else 'applying');self.exchange(3,BUNDLE_BYTES,bytes([bool(save)]))
    deadline=time.monotonic()+4
    while time.monotonic()<deadline:
     phase=self.exchange(0)[18]

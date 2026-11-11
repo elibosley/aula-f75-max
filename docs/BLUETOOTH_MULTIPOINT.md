@@ -34,6 +34,42 @@ The recovered application sends `A6 31 D7`, `A6 32 D8`, or `A6 33 D9` to select 
 
 No recovered command has been verified to enable simultaneous links. Commands whose meaning is unqualified must not be relabeled as a multipoint feature. The main MCU image and its recovery stub do not contain or replace the supplier radio firmware. A tested main-MCU recovery path does not prove radio recovery.
 
+## Studio over Bluetooth
+
+Temporary Home messages have been physically verified over direct Bluetooth with USB unplugged. Full Studio settings are experimental. The replacement reply channel has passed its hardware qualification and direct Bluetooth Read, Apply, Save and power-cycle checks on the enrolled Mac. The packaged app still needs its own macOS Input Monitoring permission before its window can use the channel. Neither feature requires multiple simultaneous Bluetooth links.
+
+### Requests and temporary status
+
+The enrolled BT2 descriptor is 361 bytes, SHA-256 `34af33fd6776d8cdd456c5d2bd51d40025dd3141564a91333f35b0265e2db584`. Its output report describes keyboard LEDs and padding. The main controller receives changes in that padding through the supplier radio. The experimental sender frames requests with changing two-bit symbols, a start marker and CRC-32. The normal Caps Lock, Num Lock and Scroll Lock bits are preserved.
+
+The operator confirmed a “Bluetooth check” Home message with USB unplugged. Private evidence is retained at `analysis/completion/multipoint/reply-install.Wy8VHmm7/bluetooth-display-confirmation-20261111.json`. Messages require an awake Home screen and expire after their requested duration. Timer and keyboard notices take priority. A successful OS write alone does not prove that a message appeared.
+
+### Retired Fn reply channel
+
+Earlier probes and settings candidates returned bytes in the last field of input report 2, usage page `0x00ff`, usage 3. This was incorrectly treated as a vendor data field. It is the Apple TopCase Fn input. The operator reported unexplained key events during settings tests, so successful data checks from those tests do not establish a usable settings transport.
+
+The main-image hashes beginning `03b41106`, `f1d23336` and `db506b84` are rejected by the flasher. Their immutable failure evidence is retained. Do not reinstall them or use the old reply probes. Radio firmware and saved bonds were not changed.
+
+The [Apple HID event implementation](https://github.com/apple-oss-distributions/IOHIDFamily/blob/main/IOHIDFamily/IOHIDEventService.cpp) handles Apple TopCase keyboard Fn as keyboard input. The [Linux Apple HID driver](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-apple.c) also maps this usage to Fn. A matching data CRC does not make this field safe for arbitrary replies.
+
+### Settings candidate
+
+The installed main-controller candidate is BIN SHA-256 `7409f73279e9e982ad46b2f0535320e22ab855c762c3c359b22d4ad827a99416`, ELF SHA-256 `68cf1ebdf5605a1641470919f3a5600721fded9f2cb43e06e255f21006525f21`. Two clean builds match. Recovery remains `e947b6697eac0759c414416babed8a70212ce501a4d4358ea4396ff47f78a983`. Private admission is `analysis/completion/multipoint/padding-carrier-admission.json`, and installation evidence is `analysis/completion/multipoint/padding-carrier-install-70fryshf/installation.json`. Saved records were preserved. No radio programming was performed.
+
+Protocol 3 replies use byte 1 of input report 2, which the captured descriptor marks Constant. Byte 7, the Fn input, stays zero. Ordinary keys and modifiers are preserved while a reply is sent. A separate bounded probe sends one fixed value and clears it after 50 ms. The host checks raw reports and counts keyboard, modifier and system-key events without recording key codes or typed text. Full settings requests require a private qualification record for the enrolled serial, descriptor and protocol, after all 16 fixed-value probes pass with zero keyboard events.
+
+One earlier Constant-byte probe forwarded its value with clear key fields but observed five global key-down events. The operator confirmed that they were not typing. Its result remains failed and unexplained. A five-second passive control and a later fixed-value probe with additional source diagnostics observed zero keyboard events. These later observations do not erase the earlier failure. A subsequent 16-pattern sweep passed with zero key events. The complete 3232-byte settings read and a reversible RAM change then passed across 32 verified RPCs with zero key, modifier, system-key or raw Fn events. The operator confirmed normal typing, Caps-as-Command, display and lighting without unexplained presses.
+
+`f75_bluetooth` shares the existing settings staging buffer. A session snapshots the complete 3232-byte bundle. Reads return up to 256 bytes, and patches change at most 48 bytes. Commit checks a content fingerprint and both record validators before application. The fingerprint excludes the embedded record CRC fields because complete valid records have a constant CRC residue. An explicit Save flag controls persistence. A stale editor snapshot is rejected, and an unconfirmed Commit is never automatically repeated.
+
+USB settings transfers are excluded while Bluetooth owns the buffer. Physical route changes, disconnects and session timeouts cancel pending work. Replies include the nonce, command, offset, result, phase, length and CRC. Portable and linked ARM checks cover the protocol, ordinary typing preservation, settings, selector failures and power behavior. These checks are separate from physical acceptance.
+
+With USB unplugged, the packaged helper read all 3232 bytes, saved unchanged settings and verified readback. A separate test saved a temporary wheel change. After the operator cut power using the selector, BT2 reconnected without pairing, and the saved core and complete content fingerprint matched. The original wheel mode was then restored and saved over Bluetooth. Private evidence is under `analysis/completion/multipoint/padding-carrier-install-70fryshf/bluetooth-only-settings-sjol3932/`. This is physical transport and persistence evidence. The preview window reported Input Monitoring access as unknown and sent no settings request; its app-level permission and window transfer remain pending.
+
+The installed USB desktop app retains its existing backend. A local Mac Bluetooth preview can be built with `scripts/build_desktop.py --local-bluetooth-preview`; its native helper refuses settings requests without the qualification record. Windows and Linux direct Bluetooth settings are not implemented. Clock synchronization still requires USB. Neither radio firmware nor bonds are part of the settings payload.
+
+The stock application also has a separate 34-byte vendor configuration path for the 2.4 GHz receiver. An offline stock-code test entered that handler only in receiver mode. This does not establish a Bluetooth path or test the physical receiver.
+
 ## Open-source lead
 
 The [AJAZZ AK820 Pro port](https://github.com/fpb/ajazz-ak820-pro) identifies a CH582F radio and a similar Sonix main MCU. That is evidence about the AK820 Pro, not a verified chip identification for this F75 Max revision.

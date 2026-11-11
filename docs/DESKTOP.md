@@ -6,15 +6,19 @@ Connect the AULA F75 Max by USB. Studio reads the current settings when it opens
 
 On Linux, if your desktop user cannot open the keyboard, install the included `70-f75-studio.rules` in `/etc/udev/rules.d/`, reload udev rules, and reconnect the cable. The rule targets USB ID `feed:f750` and grants access to the active desktop user.
 
-## Show computer status
+## Keyboard notifications
 
-With firmware that supports computer status, select the USB route on the keyboard. In Studio, open **Screen → Computer status**, enter up to 20 printable ASCII characters, and choose **Show on keyboard**. The message appears in the Home footer when the screen is awake. Timers and keyboard notices have priority. A message expires after its selected duration, clears on USB suspend or route changes, and lives in RAM.
+In Studio, open **Notifications**, enter up to 20 printable ASCII characters, choose USB or the local Mac Bluetooth preview, then choose **Show on keyboard**. The installed firmware displays messages in the Home footer. The sign-mode firmware candidate makes all four companions hold the notification on a small sign instead. This candidate is not installed yet.
+
+Use notifications for build results, downloads, meeting reminders, music changes, or other app events. The channel accepts text from any integration; Studio does not automatically collect operating-system notifications. Messages appear on an awake Home screen, expire after 1–60 seconds, and live only in RAM. A new message replaces the previous message. Menus, pairing, active timers, and settings transfers keep priority. Messages do not wake a sleeping keyboard. USB messages clear on suspend or route changes; Bluetooth messages clear on disconnection or route changes.
 
 Scripts can use the same channel. For example, a build script can run the following command after its tests finish.
 
 ```sh
-python scripts/host_display.py set 'Build passed' --seconds 20
+python scripts/host_display.py notify 'Build passed' --seconds 20
 ```
+
+For the local macOS Bluetooth preview, add `--transport bluetooth --probe '/absolute/path/to/F75 Wireless Probe.app/Contents/MacOS/F75 Wireless Probe'` before `notify`. Use the enrolled helper executable from the local preview. Bluetooth status sends are output-only: success confirms reports were sent, not that the panel was observed.
 
 Use `info` to check availability and `clear` to remove the current status. Run the CLI in the desktop environment or the existing firmware tools environment.
 
@@ -23,3 +27,15 @@ The 32-byte USB report starts with `F75y` and a four-byte nonce. Bytes 8–11 ho
 ## Build locally
 
 Create a separate Python environment and install `requirements-desktop.txt`. Run `python scripts/build_desktop.py` from that environment on the target operating system. The output is under `dist/desktop/`. The [pywebview installation guide](https://pywebview.flowrl.com/guide/installation.html) lists desktop runtime prerequisites. For source development, run `python scripts/build_preview.py` and `python scripts/desktop.py` in the same environment. Use `--check` to verify the bundled assets and editor API, or `--check-keyboard` to read a connected keyboard through the desktop API.
+
+## Local Mac Bluetooth preview
+
+Run `python scripts/build_desktop.py --local-bluetooth-preview` in the desktop environment. Open `dist/desktop-bluetooth-preview/F75 Studio.app`. The preview uses this checkout's enrolled Bluetooth keyboard identity. It is separate from the published desktop archives.
+
+The **Status connection → Bluetooth preview** option sends temporary Home messages over Bluetooth. Status delivery and challenge replies have been physically verified with USB unplugged. Messages expire after the selected duration and appear only on an awake Home screen, subject to timer and notice priority.
+
+The **Settings connection → Bluetooth preview** option is experimental. Its native helper refuses settings transfers until the enrolled keyboard passes the Constant-padding qualification described in [the Bluetooth investigation](BLUETOOTH_MULTIPOINT.md#settings-candidate). Earlier replies used the Apple Fn field and produced unwanted key events. Those images are retired. The new candidate passed a 16-pattern zero-key-event sweep, physical full Read, reversible Apply, explicit Save and power-cycle persistence with USB unplugged. The packaged preview window still needs macOS Input Monitoring permission; its actual native-window Bluetooth Read also loaded the real keyboard settings after permission was granted. Use **Request Input Monitoring** only when you want to grant that access. Enable F75 Studio in **System Settings > Privacy & Security > Input Monitoring**, then quit and reopen it. Checks alone never request permission. Windows and Linux retain USB settings. Clock synchronization requires USB. Radio firmware and Bluetooth bonds are outside this settings channel.
+
+## Transfer progress
+
+The working-tree Studio build displays Read, Apply, Save, and verification progress. Byte percentages describe the current transfer step, not the whole operation. Save is complete only after readback verification. An interrupted or failed request retains editor changes and requires reading the keyboard before retrying; Studio never automatically repeats a Save. The sign-mode firmware candidate shows transfer progress on the selected companion’s sign.

@@ -17,6 +17,8 @@ typedef struct {
     uint16_t accent;
     bool custom_accent;
     uint8_t pet_character;
+    bool pet_info;
+    uint8_t info_progress; /* 0..100 acknowledged work, 254 waiting, 255 no bar */
 } f75_view;
 
 /* Q8 springs. Selection changes synchronously; only its visual position lags.

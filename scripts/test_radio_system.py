@@ -50,7 +50,19 @@ def run(image):
   chord(0x1e);assert slot()==0
   auto_ack=True
   selector(1);assert slot()==1
-  settle();inject(bytes([0x5b,0x32,0x8d]));settle()
+  settle()
+  # The live BLE radio forwards LED padding with an eight-bit checksum.
+  # These packets must be acknowledged without claiming a new RF connection.
+  errors_before=m.read32(m.symbols['errors']);offset=len(trace())
+  for value in (0xc0,0xe0):
+   inject(bytes([0x5a,value,(0x5a+value)&0xff]));settle()
+   assert m.read32(m.symbols['last_event'])==(0x5a00|value)
+   assert m.read(m.symbols['connected'],1)==b'\0'
+  assert m.read32(m.symbols['errors'])==errors_before
+  assert trace()[offset:].count(b'\x61\x0d\x0a')==2
+  inject(bytes([0x5a,0xe0,0x3b]));settle()
+  assert m.read32(m.symbols['errors'])==errors_before+1
+  inject(bytes([0x5b,0x32,0x8d]));settle()
   assert b'\xa6\x31\xd7' in trace()
   assert m.read(m.symbols['connected'],1)==b'\1', {'trace':trace().hex(),'state':{n:m.read(m.symbols[n],4).hex() for n in ['route_acked','seen','waiting','last_event','errors','rx_errors','rx_head','rx_tail','head','tail','last_command']}}
   offset=len(trace());key(4,True);settle();key(4,False);settle()
@@ -111,7 +123,7 @@ def run(image):
   assert m.read32(HOST+8)==0
   return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),
    uart_bytes=m.read32(HOST+0x40),hardware_writes=False,real_arm_image=True,function_stubs=[],
-   no_usb_startup=True,stock_framing=True,bluetooth_press_and_release=True,bluetooth_caps_ctrl_swap=True,
+   no_usb_startup=True,stock_framing=True,led_checksum_wrap=True,bluetooth_press_and_release=True,bluetooth_caps_ctrl_swap=True,
    release_before_switch=True,report_ack_timeout_is_not_rf_disconnect=True,wireless_idle_uart_and_first_key_without_usb=True,usb_cable_does_not_replace_wireless=True,
    unavailable_requests_preserve_route=True,physical_selector_clears_override=True,
    switching_never_pairs=True,fn_wheel_toggles_previous_bluetooth=True,separate_pair_confirmation=True,stuck_uart_bounded=True,

@@ -65,7 +65,7 @@ void f75_radio_init(void){
     NVIC_ClearPendingIRQ(UART2_IRQn);NVIC_SetPriority(UART2_IRQn,2);NVIC_EnableIRQ(UART2_IRQn);
     command(0x11,COMMAND_SELECT);
 }
-static void receive_packet(void){
+static void receive_packet(uint32_t now, void (*receive_led)(uint8_t, uint32_t)){
     uint8_t a=input[0],b=input[1];
     if(a==0x61){
         if(b!=0x0d||input[2]!=0x0a){++errors;return;}
@@ -77,7 +77,7 @@ static void receive_packet(void){
         }
         return;
     }
-    if((a!=0x5a&&a!=0x5b&&a!=0x5c)||(unsigned)a+b!=input[2]){++errors;return;}
+    if((a!=0x5a&&a!=0x5b&&a!=0x5c)||(uint8_t)(a+b)!=input[2]){++errors;return;}
     seen=true;++rx_packets;last_event=((uint32_t)a<<8)|b;
     if(a==0x5b&&b==0x43)return; // stock discards this acknowledgment
     ack_pending=true;
@@ -86,6 +86,8 @@ static void receive_packet(void){
     if(a==0x5a&&b<8&&route_started&&selected)connected=true;
     if(a==0x5b&&b==0x32&&route_started&&selected)connected=true;
     if(a==0x5b&&b==0x33)connected=false;
+    if(receive_led&&a==0x5a&&connected&&selected>=1&&selected<=3)receive_led(b,now);
+    if(receive_led&&a==0x5b&&b==0x33)receive_led(0,now);
 }
 static bool transmit(const uint8_t *bytes,uint8_t length,uint8_t *position){
     uint16_t start=SN_CT16B4->TC;
@@ -96,12 +98,12 @@ static bool transmit(const uint8_t *bytes,uint8_t length,uint8_t *position){
     }
     return true;
 }
-void f75_radio_task(uint32_t now){
+void f75_radio_task(uint32_t now, void (*receive_led)(uint8_t, uint32_t)){
     for(unsigned n=0;n<128&&rx_tail!=rx_head;++n){
         uint8_t value=rx[rx_tail];rx_tail=(rx_tail+1u)&127u;
         if(!input_length&&value!=0x61&&value!=0x5a&&value!=0x5b&&value!=0x5c)continue;
         input[input_length++]=value;
-        if(input_length==3){receive_packet();input_length=0;}
+        if(input_length==3){receive_packet(now,receive_led);input_length=0;}
     }
     /* The supplier retries twice, at 5ms intervals. A bounded retry cannot
      * wedge USB, rendering, or recovery when the radio is powered off. */

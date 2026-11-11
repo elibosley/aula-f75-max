@@ -13,11 +13,11 @@ info = {'CFBundleIdentifier': 'com.elibosley.f75-wireless-probe',
         'CFBundleExecutable': binary.name, 'CFBundlePackageType': 'APPL',
         'CFBundleVersion': '1', 'CFBundleShortVersionString': '0.1',
         'LSUIElement': True, 'F75ProjectRoot': str(ROOT),
-        'NSInputMonitoringUsageDescription': 'Test Bluetooth output reports for this enrolled F75 keyboard. This probe does not monitor typing.'}
+        'NSInputMonitoringUsageDescription': 'Exchange configuration data with this enrolled keyboard. Probe checks count key events without recording key codes or text.'}
 (contents / 'Info.plist').write_bytes(plistlib.dumps(info))
 source = ROOT / 'scripts/mac_wireless_probe.m'
 subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-Wall', '-Wextra', '-Werror',
-                '-Wno-deprecated-declarations', '-framework', 'Foundation', '-framework', 'IOKit',
+                '-Wno-deprecated-declarations', '-framework', 'Foundation', '-framework', 'IOKit', '-framework', 'CoreGraphics', '-framework', 'AppKit',
                 str(source), '-o', str(binary)], check=True)
 binary.chmod(0o700)
 subprocess.run(['codesign', '--force', '--sign', '-', '--identifier', info['CFBundleIdentifier'], str(app)], check=True)
@@ -26,6 +26,6 @@ receipt = {'app': str(app.relative_to(ROOT)), 'bundle_id': info['CFBundleIdentif
            'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
            'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
            'hardware_accessed': False, 'permission_requested': False,
-           'scope': 'Check access by default; explicit modes request permission, open an enrolled Bluetooth HID device, or toggle and restore its Num Lock output'}
+           'scope': 'Check access by default. Explicit modes can request access, open an enrolled Bluetooth device, test Num Lock output, or send temporary display text.'}
 (ROOT / '.runtime/mac-wireless-probe-build.json').write_text(json.dumps(receipt, indent=2) + '\n')
 print(json.dumps(receipt))

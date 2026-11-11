@@ -126,6 +126,9 @@ def main():
                     'storage': 'test_storage_probe.py',
                     'companions': 'test_companion_system.py',
                     'host-display': 'test_host_display_system.py',
+                    'info-signs': 'test_info_signs_system.py',
+                    'bluetooth-settings': 'test_bluetooth_settings_system.py',
+                    'bluetooth-consumer': 'test_bluetooth_consumer_system.py',
                 }
                 for name, script in scripts.items():
                     print(f'Checking {name} on the exact full_ui image...', flush=True)

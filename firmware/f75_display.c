@@ -1,3 +1,4 @@
+#include <string.h>
 #include "f75_display.h"
 #include "font_data.h"
 #include "f75_icons.h"
@@ -121,14 +122,14 @@ static void pet_sprite(tile *t,const f75_view *v,uint16_t accent){
     static uint8_t sprite[4800],cached_frame=255,cached_character=255;
     static f75_sprite_decoder decoder;
     static bool valid;
-    unsigned frame=v->pet_frame<F75_COMPANION_FRAMES?v->pet_frame:0;
+    unsigned frame=v->pet_info?(v->motion&&v->animation_phase%48==0?3:0):(v->pet_frame<F75_COMPANION_FRAMES?v->pet_frame:0);
     unsigned character=v->pet_character<F75_COMPANION_COUNT?v->pet_character:3;
     if(cached_frame!=frame||cached_character!=character){
         valid=f75_sprite_begin(&decoder,f75_companion_streams[character][frame],f75_companion_lengths[character][frame],sprite,sizeof(sprite),6400);
         cached_frame=(uint8_t)frame;cached_character=(uint8_t)character;
     }
     if(!valid)return;
-    int bob=v->pet_bob< -2?-2:v->pet_bob>2?2:v->pet_bob;
+    int bob=v->pet_info?0:(v->pet_bob< -2?-2:v->pet_bob>2?2:v->pet_bob);
     int top=(int)t->y-24-bob,bottom=(int)t->y+t->rows-24-bob;
     if(top<0)top=0;
     if(bottom>80)bottom=80;
@@ -147,6 +148,36 @@ static void pet_sprite(tile *t,const f75_view *v,uint16_t accent){
         if(v->pet_effect==3)rect(t,x,y,i%2?2:1,i%2?1:3,i%3?0xf632:0xb55f);
         if(v->pet_effect==4)rect(t,x-3,y,6,1,accent);
     }
+}
+/* Each companion grips the same readable placard with its own paws/mittens.
+ * It is rendered directly, so text stays sharp at the panel's native size. */
+static void info_sign(tile *t,const f75_view *v,uint16_t accent){
+    const uint16_t rim=0x3946,paper=0xff7c,ink=0x2124;
+    static const uint16_t hands[]={0xff5b,0xaf5a,0xfdd5,0xfdd5};
+    uint16_t hand=hands[v->pet_character<4?v->pet_character:3];
+    line(t,39,75,16,88,rim);line(t,88,75,111,88,rim);
+    line(t,39,76,16,89,hand);line(t,88,76,111,89,hand);
+    soft_rect(t,11,77,106,34,rim);soft_rect(t,13,79,102,30,paper);
+    char first[21]={0},second[21]={0};unsigned n=0;
+    while(n<20&&v->footer[n])++n;
+    unsigned split=n;
+    while(split&&text_width(v->footer,split,0)>90)--split;
+    if(split<n){unsigned word=split;while(word&&v->footer[word]!=' ')--word;if(word)split=word;}
+    memcpy(first,v->footer,split);
+    unsigned next=split;while(next<n&&v->footer[next]==' ')++next;
+    if(next<n)memcpy(second,v->footer+next,n-next);
+    bool bar=v->info_progress!=255;
+    int y=second[0]?81:bar?84:88;
+    centered(t,first,20,y,0,ink);
+    if(second[0])centered(t,second,20,y+10,0,ink);
+    if(bar){
+        rect(t,23,103,82,3,0xd6b4);
+        if(v->info_progress<=100)rect(t,23,103,(unsigned)v->info_progress*82/100,3,ink);
+        else{unsigned offset=v->motion?(v->animation_phase%24)*3:29;rect(t,23+(int)offset,103,12,3,ink);}
+    }
+    soft_rect(t,8,86,9,9,rim);soft_rect(t,10,87,6,6,hand);
+    soft_rect(t,111,86,9,9,rim);soft_rect(t,112,87,6,6,hand);
+    (void)accent;
 }
 static void spring(int32_t *position,int32_t *velocity,int32_t target,bool fast){
     *velocity=fast?(*velocity+(target-*position)/3)/2:(*velocity+(target-*position)/5)*3/5;
@@ -216,9 +247,10 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
         pet_sprite(&t,v,ACCENT);char rate[]="000 WPM";unsigned wpm=v->pet_wpm>999?999:v->pet_wpm;
         rate[0]=wpm>=100?(char)('0'+wpm/100):' ';rate[1]=wpm>=10?(char)('0'+wpm/10%10):' ';rate[2]=(char)('0'+wpm%10);
         const char *pace=rate+(wpm>=100?0:wpm>=10?1:2);
-        text(&t,pace,7,6,105,0,MUTED);static const char *moods[]={"Idle","Typing","Flow","Zoom!","Sleepy","Sip","Stretch","Groove","Yay!"};
+        if(!v->pet_info){text(&t,pace,7,6,105,0,MUTED);}
+        static const char *moods[]={"Idle","Typing","Flow","Zoom!","Sleepy","Sip","Stretch","Groove","Yay!"};
         const char *mood=moods[v->pet_mode<9?v->pet_mode:0];
-        text(&t,mood,6,121-text_width(mood,6,0),105,0,ACCENT);
+        if(v->pet_info)info_sign(&t,v,ACCENT);else text(&t,mood,6,121-text_width(mood,6,0),105,0,ACCENT);
     }else if(v->home){
         centered(&t,v->clock,5,34,3,INK);centered(&t,v->host_label,18,65,1,MUTED);
         static const int8_t wave[]={0,1,2,3,3,3,2,1,0,-1,-2,-3,-3,-3,-2,-1};
@@ -236,5 +268,6 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
             text(&t,v->rows[i],19,9+x,30+(int)i*15,1,covered&&!v->editing?BG:INK);
         }
     }
-    centered(&t,v->footer,20,117,0,MUTED);return true;
+    if(!(companion&&v->pet_info)){centered(&t,v->footer,20,117,0,MUTED);}
+    return true;
 }

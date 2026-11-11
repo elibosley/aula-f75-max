@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
+from pathlib import Path
 import sys
 from threading import Thread
 from urllib.request import urlopen
@@ -13,6 +14,15 @@ import webview
 
 import hardware_api
 from keyboard_customize import hid_backend
+
+
+def bluetooth_status_probe():
+    if sys.platform != 'darwin':
+        return None
+    directory = (Path(sys.executable).resolve().parent.parent / 'Helpers'
+                 if getattr(sys, 'frozen', False) else hardware_api.ROOT / '.runtime')
+    executable = directory / 'F75 Wireless Probe.app/Contents/MacOS/F75WirelessProbe'
+    return executable if executable.is_file() else None
 
 
 class EditorRequest(SimpleHTTPRequestHandler):
@@ -51,6 +61,7 @@ def editor_server():
     handler = partial(EditorRequest, directory=hardware_api.ROOT / 'ui')
     with ThreadingHTTPServer(('127.0.0.1', 0), handler) as server:
         server.desktop = True
+        server.bluetooth_status_probe = bluetooth_status_probe()
         server.daemon_threads = False
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -83,7 +94,7 @@ def check(origin, use_keyboard):
     hid = hid_backend()
     if sys.platform == 'linux' and hid.__name__ != 'hidraw':
         raise RuntimeError('The Linux desktop package requires the hidraw backend.')
-    for asset in ('hardware.html', 'hardware.js', 'hardware.css', 'studio.js', 'companions.html'):
+    for asset in ('hardware.html', 'hardware.js', 'hardware.css', 'transfer-progress.js', 'studio.js', 'companions.html'):
         with urlopen(f'{origin}/{asset}', timeout=5) as response:
             if not response.read():
                 raise RuntimeError(f'Missing desktop asset: {asset}')
@@ -100,7 +111,7 @@ def check(origin, use_keyboard):
             raise RuntimeError('Keyboard settings read failed')
     if sys.stdout is not None:
         print(json.dumps({'desktop': 'passed', 'keyboard_read': use_keyboard,
-                          'hid_backend': hid.__name__}))
+                          'hid_backend': hid.__name__, 'bluetooth_status': metadata['bluetooth_status']}))
 
 
 if __name__ == '__main__':

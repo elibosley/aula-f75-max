@@ -1,17 +1,17 @@
-header>a:last-child{margin-left:auto;text-decoration:none}fieldset{border:0;margin:0;padding:0;min-width:0}fieldset:disabled{opacity:.45}.hardware-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.hardware-toolbar button{min-height:44px}#state-label{color:var(--muted);margin-left:auto;font-size:12px}#message{margin:14px 0 24px;min-height:22px}.hardware-card{padding:24px;margin-top:22px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}aside .hardware-card{border:0;margin:0}aside{min-height:0}.board-heading{margin-top:0}.board-heading .field{margin:0;min-width:130px}#keyboard{width:960px;min-width:960px}.key{font-size:12px}.key[aria-pressed=true]{background:var(--accent);color:#12231b;outline:2px solid var(--warm);outline-offset:1px}.color-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}.color-tools button{min-height:44px}#profiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;margin:8px 0 20px}#profiles .field{margin:8px 0}.macro-step{border-top:1px solid var(--line);padding:14px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}.macro-step label{font-size:12px;color:var(--muted);display:grid;gap:7px}.macro-step select,.macro-step input{width:100%;min-width:0;min-height:42px;background:var(--raised);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:7px}.macro-step button{min-height:42px}.macro-step .step-key{grid-column:1/-1}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media(max-width:800px){header{padding:0 20px}.hardware-toolbar{gap:8px}.hardware-toolbar button{flex:1;padding:9px 8px}#state-label{flex-basis:100%;margin:4px 0 0}.hardware-card{padding:20px}.workspace{display:flex;flex-direction:column;gap:24px}.preview,aside{width:100%}.board-heading{gap:14px}.intro>p{max-width:32ch}#profiles{grid-template-columns:1fr 1fr}main{padding-top:28px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+header>a:last-child{margin-left:auto;text-decoration:none}fieldset{border:0;margin:0;padding:0;min-width:0}fieldset:disabled{opacity:1}.hardware-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.hardware-toolbar button{min-height:44px}#state-label{color:var(--muted);margin-left:auto;font-size:12px}#message{margin:14px 0 24px;min-height:22px}.hardware-card{padding:24px;margin-top:22px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}aside .hardware-card{border:0;margin:0}aside{min-height:0}.board-heading{margin-top:0}.board-heading .field{margin:0;min-width:130px}#keyboard{width:960px;min-width:960px}.key{font-size:12px}.key[aria-pressed=true]{background:var(--accent);color:var(--on-accent);outline:2px solid var(--warm);outline-offset:1px}.color-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}.color-tools button{min-height:44px}#profiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;margin:8px 0 20px}#profiles .field{margin:8px 0}.macro-step{border-top:1px solid var(--line);padding:14px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}.macro-step label{font-size:12px;color:var(--muted);display:grid;gap:7px}.macro-step select,.macro-step input{width:100%;min-width:0;min-height:42px;background:var(--raised);border:1px solid var(--control-line);border-radius:7px;color:var(--text);padding:7px}.macro-step button{min-height:42px}.macro-step .step-key{grid-column:1/-1}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media(max-width:800px){header{padding:0 20px}.hardware-toolbar{gap:8px}.hardware-toolbar button{flex:1;padding:9px 8px}#state-label{flex-basis:100%;margin:4px 0 0}.hardware-card{padding:20px}.workspace{display:flex;flex-direction:column;gap:24px}.preview,aside{width:100%}.board-heading{gap:14px}.intro>p{max-width:32ch}#profiles{grid-template-columns:1fr 1fr}main{padding-top:28px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 @media(max-width:480px){#profiles{grid-template-columns:1fr}}
 
 .os-profile-icon{width:14px;height:14px;vertical-align:-2px;margin-right:7px;color:var(--accent)}
 
 /* Extend the existing palette controls without changing other preview swatches. */
 .hardware-card .swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(44px,1fr));gap:6px;max-width:480px}
-.hardware-card .swatch{width:100%;min-width:44px;height:44px;border-radius:8px;background:var(--raised);border:1px solid var(--line);display:grid;place-items:center}
+.hardware-card .swatch{width:100%;min-width:44px;height:44px;border-radius:8px;background:var(--raised);border:1px solid var(--control-line);display:grid;place-items:center}
 .hardware-card .swatch::before{content:"";width:24px;height:24px;border-radius:50%;background:var(--swatch);border:1px solid #ffffff80}
 .hardware-card .swatch[aria-pressed=true]{border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-3px;background:var(--raised)}
 .color-entry{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:14px 0}
-.color-entry input[type=color]{width:44px;min-height:44px;padding:3px;border:1px solid var(--line);border-radius:8px;background:var(--raised)}
+.color-entry input[type=color]{width:44px;min-height:44px;padding:3px;border:1px solid var(--control-line);border-radius:8px;background:var(--raised)}
 .hex-entry{display:flex;align-items:center;gap:8px;font-size:12px}
-.hex-entry input{width:105px;min-height:44px;padding:8px;background:var(--raised);color:var(--text);border:1px solid var(--line);border-radius:8px}
+.hex-entry input{width:105px;min-height:44px;padding:8px;background:var(--raised);color:var(--text);border:1px solid var(--control-line);border-radius:8px}
 .hex-entry input:invalid{border-color:var(--danger)}
 
 .color-error{flex-basis:100%;color:var(--danger);font-size:12px}.color-error:empty{display:none}
@@ -25,5 +25,98 @@ header>a:last-child{margin-left:auto;text-decoration:none}fieldset{border:0;marg
 .desktop-sections a { color: var(--accent); padding: 8px 0; text-decoration: none; }
 .desktop-sections a:hover { text-decoration: underline; }
 .desktop #keyboard { width: 100%; min-width: 580px; }
-.display-controls { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 18px; }
-.display-controls h3 { margin: 0 0 6px; }
+.display-controls { max-width: 720px; margin: 0 0 24px; }
+#display-connection[hidden] { display: none; }
+
+/* Disabled editors retain readable labels and layout. */
+.field>span,.note,.board-heading p,.macro-step label,.hex-entry,#message,#state-label{font-size:13px}
+.hardware-card h2,.board-heading h2{font-weight:600}
+.key:disabled{background:#d6dbcb;color:#1a241c;border-color:#e8eddf;border-bottom-color:#a1ae97}
+.key.modifier:disabled{background:#9daf9f;border-color:#b1c4b3;border-bottom-color:#657b68}
+.key.accent:disabled{background:#c8a87f;border-color:#dfc29b;border-bottom-color:#907250}
+
+/* A compact settings shell, shared by the desktop app and browser editor. */
+.studio-shell{--radius:12px}
+.studio-shell header{height:56px;max-width:none;padding:0 24px;gap:20px;background:var(--surface);position:sticky;top:0;z-index:5}
+.studio-shell .wordmark{font-size:18px;letter-spacing:-.5px}
+.studio-shell .wordmark span{font-size:10px;letter-spacing:1.5px}
+.studio-shell header .prototype,.studio-shell header>a:last-child{display:none}
+.studio-shell header .text-button{margin-left:auto;font-size:13px;text-decoration:none}
+.studio-shell main{max-width:1200px;margin:0 0 0 184px;padding:28px 32px 40px}
+.studio-shell .intro{display:block;margin:0 0 22px}
+.studio-shell h1{font-size:24px;line-height:1.25;letter-spacing:-.6px;font-weight:650}
+.studio-shell .intro>p{font-size:13px;max-width:none;margin:6px 0 0}
+.studio-shell .desktop-sections{display:flex;flex-direction:column;flex-wrap:nowrap;position:fixed;top:56px;bottom:0;left:0;width:184px;margin:0;padding:20px 12px;gap:4px;background:var(--surface);border:0;border-right:1px solid var(--line);overflow-y:auto}
+.studio-shell .sidebar-label{font-size:12px;font-weight:600;margin:0 10px 10px;color:var(--muted)}
+.studio-shell .desktop-sections a{display:block;color:var(--text);font-size:13px;font-weight:500;border-radius:7px;padding:10px 12px;text-decoration:none}
+.studio-shell .desktop-sections a:hover{background:var(--hover)}
+.studio-shell .desktop-sections a[aria-current=page]{background:var(--accent);color:var(--on-accent);font-weight:650}
+.studio-shell .hardware-toolbar{gap:8px;padding:0 0 16px;border-bottom:1px solid var(--line)}
+.studio-shell .hardware-toolbar button{min-height:34px;font-size:13px;padding:7px 12px}
+.studio-shell #message{margin:12px 0 20px;line-height:1.5;min-height:20px}
+.studio-shell .workspace{display:block}
+.studio-shell .board-heading{margin:0 0 16px;flex-direction:row;align-items:center}
+.studio-shell .hardware-card{padding:22px;margin:0 0 20px}
+.studio-shell .keyboard-scroll{margin-bottom:22px}
+.studio-shell #keyboard{width:100%;min-width:580px}
+.studio-shell .key{font-size:11px}
+.studio-shell aside{min-height:0;max-width:760px}
+.studio-shell aside .hardware-card{margin:0}
+.studio-shell .display-controls{max-width:760px}
+.studio-shell .field{margin:18px 0;max-width:640px}
+.studio-shell .field select,.studio-shell .field input[type=text]{min-height:36px}
+.studio-shell .note{padding:0;max-width:76ch}
+.studio-shell .check{margin:16px 0}
+.studio-shell #profiles{margin-bottom:22px}
+.studio-shell #profiles .field{margin:8px 0}
+.studio-shell #settings-connection{max-width:320px;margin:0 0 14px}
+.studio-shell .swatches{max-width:480px}
+@media(max-width:800px){
+ .studio-shell main{margin-left:156px;padding:24px 20px}
+ .studio-shell .desktop-sections{width:156px;padding:18px 10px}
+ .studio-shell .hardware-toolbar button{flex:initial}
+ .studio-shell #state-label{flex-basis:100%}
+ .studio-shell .key{font-size:10px}
+}
+@media(max-width:600px){
+ .studio-shell header{height:52px;padding:0 16px}
+ .studio-shell main{margin:0;padding:18px 16px}
+ .studio-shell .intro{margin-bottom:16px}
+ .studio-shell .desktop-sections{position:static;width:auto;flex-direction:row;overflow-x:auto;flex-wrap:nowrap;padding:0 0 12px;margin:0 0 18px;gap:4px;border-right:0;border-bottom:1px solid var(--line);background:transparent}
+ .studio-shell .desktop-sections a{white-space:nowrap;padding:9px 12px}
+ .studio-shell .sidebar-label{display:none}
+ .studio-shell .hardware-card{padding:18px}
+ .studio-shell .hardware-toolbar button{flex:1;font-size:12px;padding:8px}
+ .studio-shell .board-heading{align-items:flex-start}
+}
+
+.bluetooth-access{padding:16px 18px;margin:0 0 20px;border:1px solid var(--control-line);border-radius:10px;background:var(--surface);max-width:760px}
+.bluetooth-access h2{font-size:15px;font-weight:600}
+.bluetooth-access p{font-size:13px;margin:8px 0;max-width:70ch}
+
+.transfer-progress{padding:16px 18px;margin:16px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface);max-width:760px}
+.transfer-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.transfer-title{font-size:13px;font-weight:600;color:var(--text)}
+.transfer-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.transfer-progress progress{display:block;appearance:none;width:100%;height:6px;border:0;border-radius:4px;overflow:hidden;background:var(--line);color:var(--accent);accent-color:var(--accent);margin:12px 0 10px}
+.transfer-progress progress::-webkit-progress-bar{background:var(--line);border-radius:4px}
+.transfer-progress progress::-webkit-progress-value{background:var(--accent);border-radius:4px}
+.transfer-progress progress::-moz-progress-bar{background:var(--accent);border-radius:4px}
+.transfer-progress progress:indeterminate{background:linear-gradient(90deg,var(--line) 0 35%,var(--accent) 45% 55%,var(--line) 65%);background-size:200% 100%;animation:transfer-wait 1.8s linear infinite}
+.transfer-progress progress:indeterminate::-webkit-progress-bar{background:transparent}
+.transfer-detail{font-size:12px;margin:0;color:var(--muted);line-height:1.5}
+.transfer-progress[data-state=error]{border-color:var(--danger)}
+.transfer-progress[data-state=error] progress{display:none}
+.transfer-progress[data-state=error] .transfer-title{color:var(--danger)}
+@keyframes transfer-wait{to{background-position:-200% 0}}
+@media(max-width:600px){.transfer-heading{align-items:flex-start;flex-direction:column;gap:4px}}
+@media(prefers-reduced-motion:reduce){.transfer-progress progress:indeterminate{animation:none;background:var(--line)}}
+
+.transfer-meter{position:relative;height:6px;margin:12px 0 10px;background:var(--line);border-radius:4px;overflow:hidden}
+.transfer-meter progress{margin:0}
+.transfer-sweep{display:none}
+.transfer-progress[data-indeterminate=true] progress{opacity:0;animation:none}
+.transfer-progress[data-indeterminate=true] .transfer-sweep{display:block;position:absolute;inset:0 auto 0 -22%;width:22%;border-radius:4px;background:var(--accent);animation:transfer-sweep 1.5s ease-in-out infinite}
+.transfer-progress[data-state=error] .transfer-meter{display:none}
+@keyframes transfer-sweep{to{transform:translateX(560%)}}
+@media(prefers-reduced-motion:reduce){.transfer-progress[data-indeterminate=true] .transfer-sweep{animation:none;left:39%}}

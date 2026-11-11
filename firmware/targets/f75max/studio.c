@@ -14,6 +14,7 @@
 #include "battery.h"
 #include "settings.h"
 #include "f75_transfer.h"
+#include "f75_bluetooth.h"
 #include "f75_clock.h"
 #include "os_detection.h"
 #include "power.h"
@@ -70,18 +71,28 @@ static bool benchmark_active;
 static bool diagnostic_rgb_off;
 static bool diagnostic_rgb_blank;
 static uint8_t active_slot, last_bt_slot=1,previous_bt_slot=2;
+#ifndef F75_USB_ONLY
+static uint8_t bluetooth_report_data;
+#endif
 static bool radio_switch_pending;
 static uint8_t pending_radio_slot;
 static uint32_t pending_radio_since;
 static void request_host(uint8_t slot,bool physical);
 static bool usb_selected(void);
+static uint8_t selector(void);
 static void radio_report(void){
     uint8_t report[8]={0};unsigned count=0;
+    unsigned capacity=active_slot>=1&&active_slot<=3?5:6;
     for(unsigned usage=4;usage<=0xe7;++usage)if(key_owners[usage]){
         if(usage>=0xe0&&usage<=0xe7)report[0]|=1u<<(usage-0xe0);
-        else if(usage&&usage<=0xff){if(count<6)report[2+count]=usage;++count;}
+        else if(usage&&usage<=0xff){if(count<capacity)report[2+count]=usage;++count;}
     }
-    if(count>6)memset(report+2,1,6);
+    if(count>capacity)memset(report+2,1,capacity);
+#ifndef F75_USB_ONLY
+    // Report 2 byte 1 is Constant padding. Byte 7 is Apple TopCase Fn and
+    // must remain zero; it is not a vendor data channel.
+    if(capacity==5)report[1]=bluetooth_report_data;
+#endif
     f75_radio_keyboard(report);
 }
 uint8_t f75_custom_layer(void){return state.control_layer?2:fn?1:0;}
@@ -121,18 +132,165 @@ static uint32_t tile_signature(void) {
 #ifndef F75_USB_ONLY
 static virtual_timer_t startup_timer;
 extern uint32_t __ram0_end__;
+static const char *transfer_info;
+static uint32_t transfer_info_until;
+static uint8_t transfer_info_progress=255;
+static void transfer_note(const char *text,uint8_t progress,uint32_t now){
+    transfer_info=text;transfer_info_progress=progress;transfer_info_until=now+20000u;
+    f75_activity(&state,now);
+}
+static uint8_t transfer_percent(unsigned completed){
+    return (uint8_t)((completed>F75_BUNDLE_BYTES?F75_BUNDLE_BYTES:completed)*100u/F75_BUNDLE_BYTES);
+}
 static char host_display_text[21];
 static uint32_t host_display_started;
 static uint32_t host_display_duration;
+static bool host_display_bluetooth;
+static f75_bluetooth bluetooth_settings;
+static uint32_t bluetooth_reply_at;
+static bool bluetooth_probe_clear;
+static bool bluetooth_read_reply;
+static uint16_t bluetooth_read_offset,bluetooth_read_count;
+static uint32_t bluetooth_probe_at;
+static struct {
+    uint8_t bytes[3 + F75_BT_REQUEST_MAX + 4];
+    uint8_t count, bits, previous, value;
+    uint32_t last_symbol;
+    bool active;
+} bluetooth_display;
 
 static bool host_display_ready(void) {
     return panel_ready && usb_selected() && USB_DRIVER.state == USB_ACTIVE;
 }
 
+static bool bluetooth_display_ready(void) {
+    return panel_ready && selector() == 1 && selector_stable == 1 &&
+           active_slot >= 1 && active_slot <= 3 && f75_radio_connected() &&
+           !radio_switch_pending && state.pairing == F75_PAIR_IDLE;
+}
+
 static void host_display_expire(uint32_t now) {
-    if (!host_display_ready() || now - host_display_started >= host_display_duration) {
+    bool ready = host_display_bluetooth ? bluetooth_display_ready() : host_display_ready();
+    if (!ready || now - host_display_started >= host_display_duration) {
         host_display_duration = 0;
     }
+}
+
+static void host_display_set(const uint8_t *text, uint8_t length, uint8_t seconds, uint32_t now, bool bluetooth) {
+    memcpy(host_display_text, text, length);
+    memset(host_display_text + length, 0, sizeof(host_display_text) - length);
+    host_display_started = now;
+    host_display_duration = (uint32_t)seconds * 1000u;
+    host_display_bluetooth = bluetooth;
+}
+
+static void bluetooth_reply_probe(uint8_t challenge) {
+    if (f75_radio_busy()) return;
+    for (unsigned usage = 0; usage < sizeof(key_owners); ++usage) {
+        if (key_owners[usage]) return;
+    }
+    // A bounded forwarding probe uses only the report's Constant padding.
+    // The host must qualify forwarding and absence of key events before use.
+    uint8_t report[8] = {0};
+    static const uint8_t probes[16]={0x80,0x40,0x20,0x10,8,4,2,1,0x55,0xaa,0xfe,0xff,0x7f,0x81,0x5a,0xa5};
+    report[1] = probes[challenge];
+    f75_radio_keyboard(report);
+    bluetooth_probe_clear=true;bluetooth_probe_at=timer_read32();
+}
+
+static void bluetooth_settings_reply(uint32_t now) {
+    if (!bluetooth_settings.replying) return;
+    // Apply/Save emits its own key releases. Drain those before the start
+    // marker, so they cannot be mistaken for bytes of a settings response.
+    if (transfer.phase == 3 || pending_save) return;
+    if (f75_radio_busy() || now - bluetooth_reply_at < 10u) return;
+    // Preserve every key and modifier. Only the Constant byte carries data;
+    // the Apple Fn field is never used for replies.
+    uint8_t value;
+    unsigned acknowledged=bluetooth_settings.symbol_index;
+    bool more=f75_bluetooth_reply_next(&bluetooth_settings, &value);
+    if(bluetooth_read_reply){
+        unsigned bytes=acknowledged>2?(acknowledged-2)*7u/8u:0;
+        unsigned payload=bytes>11?bytes-11:0;
+        if(payload>bluetooth_read_count)payload=bluetooth_read_count;
+        transfer_info_progress=transfer_percent(bluetooth_read_offset+payload);
+        if(!more)bluetooth_read_reply=false;
+    }
+    bluetooth_report_data=more?value:0;
+    radio_report(); bluetooth_reply_at = now;
+}
+
+static void bluetooth_display_receive(uint8_t led, uint32_t now) {
+    uint8_t symbol = led >> 5;
+    if (!bluetooth_display_ready() || symbol == 0) {
+        bluetooth_display.active = false;
+        if (!f75_radio_connected() && host_display_bluetooth) host_display_duration = 0;
+        return;
+    }
+    if (symbol == 7) {
+        bluetooth_display.count = 0;
+        bluetooth_display.bits = 0;
+        bluetooth_display.previous = 7;
+        bluetooth_display.value = 0;
+        bluetooth_display.last_symbol = now;
+        bluetooth_display.active = true;
+        return;
+    }
+    if (!bluetooth_display.active || symbol == bluetooth_display.previous) return;
+    if (now - bluetooth_display.last_symbol > 1500u) {
+        bluetooth_display.active = false;
+        return;
+    }
+    uint8_t step = bluetooth_display.previous == 7 ? symbol : (symbol + 6 - bluetooth_display.previous) % 6;
+    if (step < 1 || step > 4) {
+        bluetooth_display.active = false;
+        return;
+    }
+    bluetooth_display.previous = symbol;
+    bluetooth_display.last_symbol = now;
+    bluetooth_display.value = (bluetooth_display.value << 2) | (step - 1);
+    bluetooth_display.bits += 2;
+    if (bluetooth_display.bits != 8) return;
+    uint8_t *data = bluetooth_display.bytes;
+    data[bluetooth_display.count++] = bluetooth_display.value;
+    bluetooth_display.bits = 0;
+    bluetooth_display.value = 0;
+    if (bluetooth_display.count < 3) return;
+    uint8_t operation = data[0], seconds = data[1], length = data[2];
+    if (!((operation == 1 && seconds >= 1 && seconds <= 60 && length >= 1 && length <= 20) ||
+          (operation == 2 && seconds == 0 && length == 0) ||
+          (operation == 3 && seconds <= 15 && length == 0) ||
+          (operation == 4 && seconds == 1 && length >= 13 && length <= F75_BT_REQUEST_MAX))) {
+        bluetooth_display.active = false;
+        return;
+    }
+    if (bluetooth_display.count < 3 + length + 4) return;
+    bluetooth_display.active = false;
+    uint32_t checksum;
+    memcpy(&checksum, data + 3 + length, sizeof(checksum));
+    if (f75_crc32(data, 3 + length) != checksum) return;
+    for (unsigned i = 0; operation == 1 && i < length; ++i) {
+        if (data[3 + i] < 32 || data[3 + i] > 126) return;
+    }
+    if (operation == 1) host_display_set(data + 3, length, seconds, now, true);
+    else if (operation == 3) bluetooth_reply_probe(seconds);
+    else if (operation == 4) {
+        bool accepted=f75_bluetooth_receive(&bluetooth_settings,&transfer,data+3,length,now,&state.config,&f75_custom_config);
+        if(accepted&&!bluetooth_settings.response[5]){
+            uint8_t command=data[11];unsigned offset=(unsigned)data[12]|((unsigned)data[13]<<8);
+            unsigned count=(unsigned)data[14]|((unsigned)data[15]<<8);
+            bluetooth_read_reply=command==2;
+            if(command==1)transfer_note("Reading settings",0,now);
+            else if(command==2){
+                bluetooth_read_offset=offset;bluetooth_read_count=count;
+                transfer_note("Sending settings",transfer_percent(offset),now);
+            }
+            else if(command==3)transfer_note("Receiving changes",254,now);
+            else if(command==4)transfer_note(transfer.save?"Saving settings":"Applying changes",254,now);
+            else if(command==5){transfer_info_until=now+1800u;}
+        }
+    }
+    else if (host_display_bluetooth) host_display_duration = 0;
 }
 
 static void host_display_receive(const uint8_t data[32]) {
@@ -159,15 +317,12 @@ static void host_display_receive(const uint8_t data[32]) {
         if (operation == 1 && !response[10]) {
             response[9] = 2; // USB is not the active route
         } else if (operation == 1) {
-            memcpy(host_display_text, data + 12, length);
-            memset(host_display_text + length, 0, sizeof(host_display_text) - length);
-            host_display_started = now;
-            host_display_duration = (uint32_t)seconds * 1000u;
-        } else if (operation == 2) {
+            host_display_set(data + 12, length, seconds, now, false);
+        } else if (operation == 2 && !host_display_bluetooth) {
             host_display_duration = 0;
         }
     }
-    response[11] = host_display_duration != 0;
+    response[11] = !host_display_bluetooth && host_display_duration != 0;
     raw_hid_send(response, sizeof(response));
 }
 
@@ -222,7 +377,23 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
         raw_hid_send(response,sizeof(response));return;
     }
     uint8_t reply[32];
+#ifndef F75_USB_ONLY
+    if (bluetooth_settings.owns_transfer && !memcmp(data, "F75u", 4)) {
+        memset(reply, 0, sizeof(reply)); memcpy(reply, "F75t", 4);
+        memcpy(reply + 4, data + 4, 4); reply[12] = 1;
+        raw_hid_send(reply, sizeof(reply)); return;
+    }
+#endif
     if(f75_transfer_receive(&transfer,data,reply,timer_read32(),&state.config,&f75_custom_config)){
+        if(!reply[12]){
+            uint32_t now=timer_read32();unsigned offset=(unsigned)data[13]|((unsigned)data[14]<<8);
+            if(data[12]==4)transfer_note("Reading settings",0,now);
+            else if(data[12]==5)transfer_note("Sending settings",transfer_percent(offset+17u),now);
+            else if(data[12]==1)transfer_note("Receiving changes",0,now);
+            else if(data[12]==2)transfer_note("Receiving changes",transfer_percent(transfer.next),now);
+            else if(data[12]==3)transfer_note(transfer.save?"Saving settings":"Applying changes",254,now);
+            else if(data[12]==6)transfer_info_until=now+1800u;
+        }
         raw_hid_send(reply,sizeof(reply));return;
     }
     if(!memcmp(data,"F75j",4)&&data[8]<2){
@@ -428,7 +599,12 @@ static void release_keys(void) {
 static void show_notice(const char *text) { notice = text; notice_until = timer_read32() + 2200; }
 static void commit_host(uint8_t slot,bool physical,bool select_radio){
 #ifndef F75_USB_ONLY
-    if (slot != active_slot) host_display_duration = 0;
+    if (slot != active_slot || host_display_bluetooth) host_display_duration = 0;
+    transfer_info=NULL;
+    bluetooth_display.active = false;
+    f75_bluetooth_reset(&bluetooth_settings, &transfer);
+    bluetooth_report_data=0;
+    bluetooth_probe_clear=false;
 #endif
     radio_switch_pending=false;
     f75_pair_cancel(&state);release_keys();
@@ -708,6 +884,13 @@ static void make_frame(uint32_t now) {
         snprintf(frame.rows[1],20,"on your device");snprintf(frame.footer,sizeof(frame.footer),"Fn+Esc: Cancel");
     }else if(state.pairing==F75_PAIR_TIMEOUT)snprintf(frame.footer,sizeof(frame.footer),"Pairing timed out");
     if (notice && (int32_t)(notice_until - now) > 0) snprintf(frame.footer, sizeof(frame.footer), "%s", notice);
+    if(frame.home&&frame.face==3&&!focus.running&&state.pairing==F75_PAIR_IDLE){
+        frame.info_progress=255;
+        if(transfer_info&&(int32_t)(transfer_info_until-now)>0){
+            snprintf(frame.footer,sizeof(frame.footer),"%s",transfer_info);frame.info_progress=transfer_info_progress;
+        }
+        frame.pet_info=frame.footer[0]!=0;
+    }
     f75_motion_update(&motion, (uint16_t)(page|((uint16_t)menu_start<<8)), frame.selected, direction, now, quiet);
     f75_motion_apply(&motion, &frame);
     if (benchmark_active) {
@@ -729,6 +912,10 @@ void housekeeping_task_user(void) {
     uint32_t now = timer_read32();
 #ifndef F75_USB_ONLY
     host_display_expire(now);
+    f75_bluetooth_tick(&bluetooth_settings, &transfer, now);
+    if (!bluetooth_display_ready()) {
+        f75_bluetooth_reset(&bluetooth_settings, &transfer); bluetooth_report_data=0;bluetooth_read_reply=false;
+    }
 #endif
     f75_clock_tick(&clock_state,now);
     uint32_t activity=f75_matrix_activity_epoch;
@@ -751,8 +938,8 @@ void housekeeping_task_user(void) {
             ++state.release_epoch;release_epoch=state.release_epoch;
             if(usb_detected<2)f75_detect_os(&state,0,(f75_os)usb_detected);
             f75_activity(&state,now);memset(tile_valid,0,sizeof(tile_valid));frame_pending=false;
-            transfer.phase=4;if(transfer.save)pending_save=true;
-        }else transfer.phase=6;
+            transfer.phase=4;if(transfer.save)pending_save=true;else transfer_note("Changes applied",100,now);
+        }else{transfer.phase=6;transfer_note("Invalid settings",255,now);}
     }
     if(pending_save){
         pending_save=false;release_keys();f75_rgb_suspend(true);
@@ -760,13 +947,25 @@ void housekeeping_task_user(void) {
         if(transfer.phase==4&&transfer.save)transfer.phase=saved?5:7;
         if(!diagnostic_rgb_off){f75_rgb_suspend(false);if(diagnostic_rgb_blank)f75_rgb_pause();}
         show_notice(saved?"Settings saved":"Save failed");
+        transfer_note(saved?"Settings saved":"Save failed",saved?100:255,now);
     }
     if (pending_boot && now - pending_boot_at >= 50) { pending_boot = false; release_keys(); f75_rgb_suspend(true); bootloader_jump(); }
-    f75_radio_task(now);
+#ifndef F75_USB_ONLY
+    f75_radio_task(now, bluetooth_display_receive);
+    if(bluetooth_probe_clear&&now-bluetooth_probe_at>=50u&&!f75_radio_busy()){
+        bluetooth_probe_clear=false;radio_report();
+    }
+    if (!bluetooth_display_ready()) bluetooth_display.active = false;
+#else
+    f75_radio_task(now, NULL);
+#endif
     bool linked=usb_selected()?USB_DRIVER.state==USB_ACTIVE:f75_radio_connected();
     if(macro_linked&&!linked)release_keys();
     macro_linked=linked;
     if(linked&&(!active_slot||!f75_radio_busy()))f75_macro_tick(&macro_player,&f75_custom_config,now,active_slot?10:2,send_action,NULL);
+#ifndef F75_USB_ONLY
+    bluetooth_settings_reply(now);
+#endif
     f75_battery_task(now);
     if(usb_detected<2){f75_detect_os(&state,0,(f75_os)usb_detected);if(release_epoch!=state.release_epoch)release_keys();}
     if(usb_detected<2&&USB_DRIVER.state==USB_ACTIVE&&(state.config.os_auto_mask&1u))os_evidence_mask|=1u;
@@ -878,7 +1077,7 @@ void housekeeping_task_user(void) {
 
 void suspend_power_down_user(void) {
 #ifndef F75_USB_ONLY
-    host_display_duration = 0;
+    if (!host_display_bluetooth) host_display_duration = 0;
 #endif
     if (usb_selected()) f75_rgb_suspend(true);
 }
