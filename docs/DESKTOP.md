@@ -18,7 +18,7 @@ Scripts can use the same channel. For example, a build script can run the follow
 python scripts/host_display.py notify 'Build passed' --seconds 20
 ```
 
-For the local macOS Bluetooth preview, add `--transport bluetooth --probe '/absolute/path/to/F75 Wireless Probe.app/Contents/MacOS/F75 Wireless Probe'` before `notify`. Use the enrolled helper executable from the local preview. Bluetooth status sends are output-only: success confirms reports were sent, not that the panel was observed.
+For the local macOS Bluetooth preview, add `--transport bluetooth --probe '/absolute/path/to/F75 Wireless Probe.app/Contents/MacOS/F75WirelessProbe'` before `notify`. Use the enrolled helper executable from the local preview. Bluetooth status sends are output-only: success confirms reports were sent, not that the panel was observed.
 
 Use `info` to check availability and `clear` to remove the current status. Run the CLI in the desktop environment or the existing firmware tools environment.
 

@@ -325,7 +325,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Set-Cookie',f'f75sid={session.sid}; HttpOnly; SameSite=Strict; Path=/')
         self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
     def do_GET(self):
-        if self.path=='/api/hardware':
+        if self.path=='/api/hardware' or self.path.startswith('/api/hardware/progress/'):
             from hardware_api import handle
             handle(self);return
         if self.path=='/api/state':
@@ -333,7 +333,7 @@ class Handler(SimpleHTTPRequestHandler):
             with session.lock:self.respond(session.snapshot(),session)
         else:super().do_GET()
     def do_POST(self):
-        if self.path=='/api/hardware':
+        if self.path=='/api/hardware' or self.path.startswith('/api/hardware/progress/'):
             from hardware_api import handle
             handle(self);return
         origin=self.headers.get('Origin')
