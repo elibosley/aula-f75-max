@@ -8,6 +8,7 @@ from test_system_emulator import enumerate_usb
 
 def run(image):
  with System(image) as m:
+  m.write32(HOST+0x204,(1<<2)|(1<<17))
   enumerate_usb(m)
   def step(ms=20):
    for n in range(0,ms,2):
@@ -25,7 +26,7 @@ def run(image):
   def key(row,col,down):m.write32(HOST+0x100+row*4,(1<<col) if down else 0);step(60)
   # Desk, 100%, red Still base makes both indicator colors unambiguous.
   state=m.symbols['state'];m.write(state+103,b'\x02\x64');m.write(state+106,b'\0');m.write(state+110,b'\xff\0\0')
-  step(200);assert view().link_state==3 and view().power_state==2
+  step(200);assert (view().link_state,view().power_state)==(3,2),(view().link_state,view().power_state)
   assert caps_pwm()==(127,0,0),caps_pwm()
   m.control_out(0x21,9,b'\x02',value=0x200,index=0);step(100)
   mint=tuple(c*127//255 for c in (168,234,212));lilac=tuple(c*127//255 for c in (200,170,246))

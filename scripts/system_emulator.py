@@ -65,7 +65,7 @@ class System:
             self.write32(HOST + 0x10, ahbcp)
             self.write32(HOST + 0x204, (1 << 2) | (0 if held else 1 << 17))
             if 'f75_wheel_matrix_row' in self.symbols:
-                self.write32(HOST + 0x204, 1 << 2)  # unused P1.17 stays low on the physical board
+                self.write32(HOST + 0x204, 1 << 2)  # wired fixture asserts active-low charging; wheel uses the matrix
                 self.write32(HOST + 0x100 + self.symbols['f75_wheel_matrix_row'] * 4,
                              (1 << self.symbols['f75_wheel_matrix_col']) if held else 0)
             self.write(0x20007ffc, struct.pack('<I', 0xdeadbeef if magic else 0))
