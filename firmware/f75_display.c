@@ -318,13 +318,15 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
         sparkle(&t,15,48,LINE);sparkle(&t,112,77,LINE);
         rect(&t,10,101,108,1,0xe5d7);rect(&t,8,102,112,2,0xc494);rect(&t,10,104,108,1,0x9b91);
         desk_clock(&t,v,ROSE);
-        pet_sprite(&t,v,ACCENT);visitor_sprite(&t,v);char rate[]="000 WPM";unsigned wpm=v->pet_wpm>999?999:v->pet_wpm;
+        pet_sprite(&t,v,ACCENT);visitor_sprite(&t,v);char rate[]="000";unsigned wpm=v->pet_wpm>999?999:v->pet_wpm;
         rate[0]=wpm>=100?(char)('0'+wpm/100):' ';rate[1]=wpm>=10?(char)('0'+wpm/10%10):' ';rate[2]=(char)('0'+wpm%10);
         const char *pace=rate+(wpm>=100?0:wpm>=10?1:2);
-        if(!v->pet_info){text(&t,pace,7,6,105,0,MUTED);}
-        static const char *moods[]={"Idle","Typing","Flow","Zoom!","Sleepy","Sip","Stretch","Groove","Yay!"};
-        const char *mood=moods[v->pet_mode<9?v->pet_mode:0];
-        if(v->pet_info)info_sign(&t,v,ACCENT);else text(&t,mood,6,121-text_width(mood,6,0),105,0,ACCENT);
+        if(v->pet_info)info_sign(&t,v,ACCENT);
+        else if(wpm&&v->pet_mode>=1&&v->pet_mode<=3){
+            int width=text_width(pace,3,0)+17,x=(128-width)/2;
+            soft_rect(&t,x,106,width,10,LINE);heart(&t,x+3,108,ROSE);
+            text(&t,pace,3,x+13,107,0,INK);
+        }
     }else if(v->home){
         centered(&t,v->clock,5,34,3,INK);centered(&t,v->host_label,18,65,1,MUTED);
         static const int8_t wave[]={0,1,2,3,3,3,2,1,0,-1,-2,-3,-3,-3,-2,-1};

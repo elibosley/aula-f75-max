@@ -258,7 +258,7 @@ def health_test(usb_only):
     assert len(replies) == 1 and len(replies[0]) == 32
     assert replies[0][:8] == b'F75!' + struct.pack('<I', 0x12345678)
     assert struct.unpack_from('<I', replies[0], 8)[0] == fw.now
-    expected_flags = (10 | (1 << 5)) if usb_only else 10 | (1 << 4) | (1 << 5)
+    expected_flags = (10 | (1 << 5)) if usb_only else 10 | (1 << 4) | (1 << 5) | (1 << 6)
     assert replies[0][24] == expected_flags and replies[0][28:31] == bytes([1, 1, 0])
     fw.cpu.mem_write(address, b'BAD!' + bytes(28)); fw.call('raw_hid_receive', address, 32)
     assert len(replies) == 1

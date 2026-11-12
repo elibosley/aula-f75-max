@@ -33,7 +33,7 @@ def exchange(boot=False):
                 wheel_gpio_high=bool(response[26] & 1), selector_gpio_bits=response[26] >> 1,
                 encoder_gpio_bits=response[27],
                 caps_swap=bool(response[29]), os=['Mac','Windows','Android'][response[30]] if response[30]<3 else 'Unknown',
-                wheel_pressed=bool(response[31]),route_memory_supported=bool(flags&32))
+                wheel_pressed=bool(response[31]),route_memory_supported=bool(flags&32),fast_settings_supported=bool(flags&64))
 
 
 def gpio_snapshot():

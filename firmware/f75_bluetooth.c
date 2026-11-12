@@ -47,7 +47,7 @@ void f75_bluetooth_reset(f75_bluetooth *b, f75_transfer *t) {
     if (b->owns_transfer && (t->phase == 2 || t->phase == 3)) {
         t->phase = 0; t->token = 0; t->next = 0;
     }
-    b->owns_transfer = false; b->replying = false;
+    b->owns_transfer = false; b->replying = false; b->fast = false; b->commit_wait = false;
 }
 
 void f75_bluetooth_tick(f75_bluetooth *b, f75_transfer *t, uint32_t now) {
@@ -60,6 +60,7 @@ bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,
     const f75_config *config, const f75_custom *custom, f75_clock *clock) {
     f75_bluetooth_tick(b, t, now);
     if (size < 13 || size > F75_BT_REQUEST_MAX || b->replying) return false;
+    b->fast = false; b->commit_wait = false;
     uint32_t session = get32(q + 4);
     uint8_t command = q[8], status = 0;
     uint16_t offset = get16(q + 9), count = get16(q + 11), length = 0;
@@ -126,6 +127,78 @@ bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,
     b->response_length = 15 + length; b->symbol_index = 0;
     b->reply_started = now; b->replying = true;
     return true;
+}
+
+static void finish_reply(f75_bluetooth *b, f75_transfer *t, uint8_t status, unsigned length) {
+    uint8_t *r=b->response;
+    r[5]=status;r[6]=t->phase;put16(r+9,(uint16_t)length);
+    put32(r+11+length,f75_crc32(r,11+length));
+    b->response_length=(uint16_t)(15+length);b->symbol_index=0;b->replying=true;
+}
+
+bool f75_bluetooth_fast_receive(f75_bluetooth *b, f75_transfer *t,
+    const uint8_t nonce[4], uint8_t command, uint16_t offset,
+    const uint8_t *body, unsigned length, uint32_t now,
+    const f75_config *config, const f75_custom *custom) {
+    f75_bluetooth_tick(b,t,now);
+    if(b->replying||length>F75_BT_PATCH_MAX)return false;
+    uint32_t token=get32(nonce);uint8_t status=0;unsigned payload=0;
+    memset(b->response,0,sizeof(b->response));memcpy(b->response,nonce,4);
+    b->response[4]=command;put16(b->response+7,offset);b->fast=true;b->commit_wait=false;
+    if(!token)status=3;
+    else if(command==9) {
+        if(length||offset>=F75_BUNDLE_BYTES)status=3;
+        else if(!offset) {
+            if(t->phase==1||t->phase==2||t->phase==3||b->owns_transfer)status=1;
+            else {
+                f75_bundle_encode(config,custom,t->bytes);t->token=token;t->phase=2;
+                t->next=0;t->save=false;b->owns_transfer=true;
+            }
+        } else if(!b->owns_transfer||t->token!=token)status=4;
+        else if(t->phase!=2||offset!=t->next)status=3;
+        if(!status) {
+            unsigned consumed;
+            uint8_t *r=b->response+11;r[0]=1;r[1]=7;
+            put32(r+2,f75_bluetooth_snapshot_crc(t->bytes));
+            payload=8+pack_snapshot(t->bytes+offset,F75_BUNDLE_BYTES-offset,r+8,F75_BT_READ_MAX-8,&consumed);
+            put16(r+6,(uint16_t)consumed);t->next=(uint16_t)(offset+consumed);
+            t->touched=now;b->touched=now;
+            if(t->next==F75_BUNDLE_BYTES){t->phase=0;t->token=0;b->owns_transfer=false;}
+        }
+    } else if(command==10) {
+        if(offset>1||length<4)status=3;
+        else if(t->phase==1||t->phase==2||t->phase==3||b->owns_transfer)status=1;
+        else {
+            f75_bundle_encode(config,custom,t->bytes);
+            if(f75_bluetooth_snapshot_crc(t->bytes)!=get32(body))status=2;
+            unsigned at=4,end=0;
+            while(!status&&at<length) {
+                if(length-at<4){status=3;break;}
+                unsigned position=get16(body+at),count=body[at+2];at+=3;
+                if(!count||count>length-at||position<end||position>F75_BUNDLE_BYTES-count||
+                   (position<F75_RECORD_BYTES&&position+count>F75_RECORD_BYTES-4)||
+                   position+count>F75_BUNDLE_BYTES-4){status=3;break;}
+                memcpy(t->bytes+position,body+at,count);at+=count;end=position+count;
+            }
+            if(!status) {
+                put32(t->bytes+F75_RECORD_BYTES-4,f75_crc32(t->bytes,F75_RECORD_BYTES-4));
+                put32(t->bytes+F75_BUNDLE_BYTES-4,f75_crc32(t->bytes+F75_RECORD_BYTES,F75_BUNDLE_BYTES-F75_RECORD_BYTES-4));
+                t->token=token;t->phase=3;t->save=offset!=0;t->touched=now;
+                b->owns_transfer=true;b->touched=now;b->commit_wait=true;
+            }
+        }
+    } else status=3;
+    finish_reply(b,t,status,payload);b->reply_started=now;return true;
+}
+
+void f75_bluetooth_fast_complete(f75_bluetooth *b, f75_transfer *t,
+    const f75_config *config, const f75_custom *custom) {
+    if(!b->commit_wait||t->phase==3)return;
+    uint8_t status=t->phase==7?5:t->phase==6?2:0;
+    if(t->phase!=4&&t->phase!=5&&!status)status=4;
+    if(!status){f75_bundle_encode(config,custom,t->bytes);put32(b->response+11,f75_bluetooth_snapshot_crc(t->bytes));}
+    finish_reply(b,t,status,status?0:4);
+    b->commit_wait=false;b->owns_transfer=false;t->phase=0;t->token=0;t->next=0;
 }
 
 bool f75_bluetooth_reply_next(f75_bluetooth *b, uint8_t *symbol) {

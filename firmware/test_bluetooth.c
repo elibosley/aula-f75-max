@@ -114,5 +114,40 @@ int main(void) {
     t.phase = 1; assert(request(1, 0, 0, NULL, 51) == 1); t.phase = 0;
     uint8_t short_request[12] = {0};
     assert(!f75_bluetooth_receive(&b, &t, short_request, sizeof(short_request), ++now, &c, &custom, &clock));
+    /* Atomic fast requests use the same guarded transfer and reply framing. */
+    f75_bluetooth_reset(&b,&t);t.phase=0;
+    uint8_t nonce[4]={0x12,0x34,0x56,0x78};unsigned position=0;
+    f75_bundle_encode(&c,&custom,initial);
+    do {
+        assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,position,NULL,0,++now,&c,&custom));
+        assert(b.fast&&!b.response[5]&&b.response[11]==1&&b.response[12]==7);
+        unsigned count=b.response[17]|((unsigned)b.response[18]<<8),at=19,decoded=0;
+        assert(count&&count<=F75_BUNDLE_BYTES-position);
+        while(at<b.response_length-4u){
+            unsigned token=b.response[at++],length=(token&127u)+1;
+            assert(length<=count-decoded);
+            if(token&128u){for(unsigned i=0;i<length;++i)assert(initial[position+decoded++]==b.response[at]);++at;}
+            else for(unsigned i=0;i<length;++i)assert(initial[position+decoded++]==b.response[at++]);
+        }
+        assert(decoded==count);position+=count;b.replying=false;
+    }while(position<F75_BUNDLE_BYTES);
+    assert(!b.owns_transfer&&t.phase==0);
+    uint8_t atomic[8]={0};put32(atomic,f75_bluetooth_snapshot_crc(initial));atomic[4]=119;atomic[6]=1;atomic[7]=1;
+    uint8_t stale[8];memcpy(stale,atomic,8);stale[0]^=1;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,0,stale,8,++now,&c,&custom)&&b.response[5]==2&&t.phase==0);b.replying=false;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,0,atomic,8,++now,&c,&custom)&&!b.response[5]&&t.phase==3&&b.commit_wait);
+    f75_bluetooth_fast_complete(&b,&t,&c,&custom);assert(b.commit_wait&&t.phase==3);
+    assert(f75_bundle_decode(t.bytes,&c,&custom)&&c.wheel==1);t.phase=4;
+    f75_bluetooth_fast_complete(&b,&t,&c,&custom);assert(!b.commit_wait&&!b.owns_transfer&&t.phase==0&&b.response[6]==4&&b.response_length==19);
+    f75_bundle_encode(&c,&custom,other);uint32_t actual;memcpy(&actual,b.response+11,4);assert(actual==f75_bluetooth_snapshot_crc(other));b.replying=false;
+    put32(atomic,actual);atomic[4]=156;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,0,atomic,8,++now,&c,&custom)&&b.response[5]==3&&t.phase==0);b.replying=false;
+    atomic[4]=119;atomic[7]=0;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,1,atomic,8,++now,&c,&custom)&&t.save&&b.commit_wait);
+    t.phase=7;f75_bluetooth_fast_complete(&b,&t,&c,&custom);assert(b.response[5]==5&&b.response[6]==7&&!b.owns_transfer);b.replying=false;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,2,atomic,8,++now,&c,&custom)&&b.response[5]==3);b.replying=false;
+    t.phase=2;t.token=100;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,0,NULL,0,++now,&c,&custom)&&b.response[5]==1);b.replying=false;t.phase=0;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,1,NULL,0,++now,&c,&custom)&&b.response[5]==4);b.replying=false;
     puts("Bluetooth settings sessions, bounds, commit guard, cancellation and reply framing passed.");
 }

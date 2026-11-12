@@ -165,7 +165,7 @@ static struct {
     uint8_t bytes[3 + F75_BT_REQUEST_MAX + 4];
     uint8_t count, bits, previous, value;
     uint32_t last_symbol;
-    bool active;
+    bool active, fast;
 } bluetooth_display;
 
 static bool host_display_ready(void) {
@@ -212,7 +212,8 @@ static void bluetooth_settings_reply(uint32_t now) {
     // Apply/Save emits its own key releases. Drain those before the start
     // marker, so they cannot be mistaken for bytes of a settings response.
     if (transfer.phase == 3 || pending_save) return;
-    if (f75_radio_busy() || now - bluetooth_reply_at < 10u) return;
+    f75_bluetooth_fast_complete(&bluetooth_settings,&transfer,&state.config,&f75_custom_config);
+    if (f75_radio_busy() || now - bluetooth_reply_at < (bluetooth_settings.fast?2u:10u)) return;
     // Preserve every key and modifier. Only the Constant byte carries data;
     // the Apple Fn field is never used for replies.
     uint8_t value;
@@ -231,13 +232,20 @@ static void bluetooth_settings_reply(uint32_t now) {
 
 static void bluetooth_display_receive(uint8_t led, uint32_t now) {
     radio_caps_lock=f75_radio_connected()&&(led&2u)!=0;
-    uint8_t symbol = led >> 5;
+    if(!bluetooth_display.active)bluetooth_display.fast=false;
+    uint8_t wide=led>>3;
+    if(bluetooth_display_ready()&&wide==27){
+        bluetooth_display.count=0;bluetooth_display.bits=0;bluetooth_display.value=0;
+        bluetooth_display.previous=27;bluetooth_display.last_symbol=now;
+        bluetooth_display.active=true;bluetooth_display.fast=true;return;
+    }
+    uint8_t symbol = bluetooth_display.fast?wide:led>>5;
     if (!bluetooth_display_ready() || symbol == 0) {
         bluetooth_display.active = false;
         if (!f75_radio_connected() && host_display_bluetooth) host_display_duration = 0;
         return;
     }
-    if (symbol == 7) {
+    if (!bluetooth_display.fast && symbol == 7) {
         bluetooth_display.count = 0;
         bluetooth_display.bits = 0;
         bluetooth_display.previous = 7;
@@ -251,15 +259,17 @@ static void bluetooth_display_receive(uint8_t led, uint32_t now) {
         bluetooth_display.active = false;
         return;
     }
-    uint8_t step = bluetooth_display.previous == 7 ? symbol : (symbol + 6 - bluetooth_display.previous) % 6;
-    if (step < 1 || step > 4) {
+    unsigned alphabet=bluetooth_display.fast?26:6;
+    uint8_t step = bluetooth_display.previous == (bluetooth_display.fast?27:7) ? symbol : (symbol + alphabet - bluetooth_display.previous) % alphabet;
+    if (step < 1 || step > (bluetooth_display.fast?16:4) || symbol>alphabet) {
         bluetooth_display.active = false;
         return;
     }
     bluetooth_display.previous = symbol;
     bluetooth_display.last_symbol = now;
-    bluetooth_display.value = (bluetooth_display.value << 2) | (step - 1);
-    bluetooth_display.bits += 2;
+    unsigned width=bluetooth_display.fast?4:2;
+    bluetooth_display.value = (bluetooth_display.value << width) | (step - 1);
+    bluetooth_display.bits += width;
     if (bluetooth_display.bits != 8) return;
     uint8_t *data = bluetooth_display.bytes;
     data[bluetooth_display.count++] = bluetooth_display.value;
@@ -270,7 +280,9 @@ static void bluetooth_display_receive(uint8_t led, uint32_t now) {
     if (!((operation == 1 && seconds >= 1 && seconds <= 60 && length >= 1 && length <= 20) ||
           (operation == 2 && seconds == 0 && length == 0) ||
           (operation == 3 && seconds <= 15 && length == 0) ||
-          (operation == 4 && seconds == 1 && length >= 13 && length <= F75_BT_REQUEST_MAX))) {
+          (operation == 4 && seconds == 1 && length >= 13 && length <= F75_BT_REQUEST_MAX) ||
+          (operation == 5 && bluetooth_display.fast && (seconds==9||seconds==10) && length>=6 && length<=54)) ||
+          (bluetooth_display.fast&&operation!=5)) {
         bluetooth_display.active = false;
         return;
     }
@@ -284,6 +296,11 @@ static void bluetooth_display_receive(uint8_t led, uint32_t now) {
     }
     if (operation == 1) host_display_set(data + 3, length, seconds, now, true);
     else if (operation == 3) bluetooth_reply_probe(seconds);
+    else if(operation==5){
+        unsigned offset=(unsigned)data[7]|((unsigned)data[8]<<8);
+        bool accepted=f75_bluetooth_fast_receive(&bluetooth_settings,&transfer,data+3,seconds,offset,data+9,length-6,now,&state.config,&f75_custom_config);
+        if(accepted&&!bluetooth_settings.response[5])transfer_note(seconds==9?"Sending settings":transfer.save?"Saving settings":"Applying changes",254,now);
+    }
     else if (operation == 4) {
         bool accepted=f75_bluetooth_receive(&bluetooth_settings,&transfer,data+3,length,now,&state.config,&f75_custom_config,&clock_state);
         if(accepted&&!bluetooth_settings.response[5]){
@@ -574,6 +591,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
     response[24] |= 1u << 5;
 #ifndef F75_USB_ONLY
     response[24] |= 1u << 4;
+    response[24] |= 1u << 6;
 #endif
     response[25] = navigation.page;
     response[26] = (uint8_t)gpio_read_pin(B17) | ((uint8_t)gpio_read_pin(A10) << 1) | ((uint8_t)gpio_read_pin(B2) << 2);

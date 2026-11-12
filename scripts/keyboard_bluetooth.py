@@ -39,7 +39,7 @@ def unpack_snapshot(data, expected):
 
 
 class BluetoothKeyboard:
-    def __init__(self, probe, lock_timeout=1.0):
+    def __init__(self, probe, lock_timeout=1.0, *, fast=False):
         self.probe = str(probe)
         self.lock = TransportLock(lock_timeout)
         self.token = secrets.randbits(32) or 1
@@ -49,10 +49,21 @@ class BluetoothKeyboard:
         self.clock_support = False
         self.compressed_read_support = False
         self.expected_board = None
+        self.prefer_fast=fast; self.fast_mode=False; self._verified=None
 
     def __enter__(self):
         self.lock.__enter__()
         try:
+            if self.prefer_fast:
+                check=subprocess.run([self.probe,'--check'],capture_output=True,text=True,timeout=5)
+                if check.returncode: raise RuntimeError('Bluetooth capability check failed.')
+                value=json.loads(check.stdout)
+                if value.get('access')!='granted': raise RuntimeError('Allow F75 Studio in Mac Input Monitoring to use Bluetooth.')
+                version=value.get('fast_settings_version',0)
+                if type(version) is not int or version not in (0,1): raise RuntimeError('Unknown fast Bluetooth capability.')
+                if version==1:
+                    self.fast_mode=True;self.indicator_support=True;self.clock_support=True;self.compressed_read_support=True
+                    return self
             info = self.request(0)['payload']
             if info != struct.pack('<BHHB', 3, BUNDLE_BYTES, 256, 48):
                 raise RuntimeError('This Bluetooth settings protocol is unsupported.')
@@ -81,8 +92,18 @@ class BluetoothKeyboard:
         request = nonce + struct.pack('<IBHH', self.token, command, offset, count) + body
         if len(request) > 64:
             raise ValueError('Bluetooth request exceeds its fixed limit.')
+        return self._exchange([self.probe,'--settings-request'],request,command,offset,allow_unsupported)
+
+    def request_fast(self, command, offset=0, body=b'', nonce=None):
+        if command not in (9,10) or len(body)>48: raise ValueError('Invalid fast Bluetooth request.')
+        nonce=nonce or struct.pack('<I',secrets.randbits(32) or 1)
+        request=nonce+bytes([command])+struct.pack('<H',offset)+body
+        return self._exchange([self.probe,'--fast-settings-request'],request,command,offset,False)
+
+    def _exchange(self, arguments, request, command, offset, allow_unsupported):
+        self._verified=None
+        nonce=request[:4]
         try:
-            arguments=[self.probe, '--settings-request']
             if self.expected_board:arguments.extend(('--board',self.expected_board))
             completed = subprocess.run(arguments,
                 input=request.hex() + '\n', capture_output=True, text=True, timeout=30)
@@ -113,7 +134,8 @@ class BluetoothKeyboard:
             if allow_unsupported and command == 6 and reply[5] == 3:
                 return {'phase': reply[6], 'payload': b''}
             reasons = {1: 'Keyboard settings are busy.', 2: 'Settings snapshot CRC did not match.',
-                       3: 'Keyboard rejected the settings request.', 4: 'Bluetooth settings session expired or changed.'}
+                       3: 'Keyboard rejected the settings request.', 4: 'Bluetooth settings session expired or changed.',
+                       5: 'Settings applied, but Save failed.'}
             raise RuntimeError(reasons.get(reply[5], 'Unknown Bluetooth settings error.'))
         return {'phase': reply[6], 'payload': reply[11:-4]}
 
@@ -169,8 +191,26 @@ class BluetoothKeyboard:
             raise RuntimeError('Bluetooth settings snapshot changed during download.')
         return data
 
+    def read_fast(self):
+        self.token=secrets.randbits(32) or 1;nonce=struct.pack('<I',self.token)
+        data=bytearray();identity=None;self.session=True
+        while len(data)<BUNDLE_BYTES:
+            reply=self.request_fast(9,len(data),nonce=nonce);payload=reply['payload']
+            if len(payload)<10 or payload[0]!=1 or payload[1]&~7: raise RuntimeError('Fast Bluetooth snapshot format is unsupported.')
+            crc,count=struct.unpack_from('<IH',payload,2)
+            if identity is not None and identity!=crc: raise RuntimeError('Fast Bluetooth snapshot changed.')
+            identity=crc
+            if not 0<count<=BUNDLE_BYTES-len(data): raise RuntimeError('Invalid fast Bluetooth window size.')
+            data.extend(unpack_snapshot(payload[8:],count));self.progress('reading',len(data),BUNDLE_BYTES)
+            if reply['phase']!=(0 if len(data)==BUNDLE_BYTES else 2): raise RuntimeError('Fast Bluetooth snapshot phase is invalid.')
+        result=bytes(data);validate(result)
+        if snapshot_crc(result)!=identity: raise RuntimeError('Fast Bluetooth snapshot CRC differs.')
+        self.session=False
+        return result
+
     def read(self):
         self.progress('reading')
+        if self.fast_mode:return self.read_fast()
         crc = self.begin()
         try:
             data = self.read_snapshot(crc)
@@ -184,6 +224,9 @@ class BluetoothKeyboard:
     def verify(self, data):
         """Check the live, encoded snapshot without downloading unchanged blocks."""
         validate(data)
+        if self._verified==data:
+            self._verified=None
+            return data
         self.progress('verifying')
         actual_crc = self.begin()
         try:
@@ -198,6 +241,22 @@ class BluetoothKeyboard:
         validate(data)
         if baseline is not None:
             validate(baseline)
+        if self.fast_mode:
+            if baseline is None: baseline=self.read_fast()
+            patch=bytearray(struct.pack('<I',snapshot_crc(baseline)));at=0
+            while at<BUNDLE_BYTES-4:
+                if 156<=at<160 or baseline[at]==data[at]: at+=1;continue
+                end=at+1;limit=min(BUNDLE_BYTES-4,156 if at<156 else BUNDLE_BYTES-4)
+                while end<limit and data[end]!=baseline[end] and end-at<40:end+=1
+                patch.extend(struct.pack('<HB',at,end-at));patch.extend(data[at:end]);at=end
+            if len(patch)<=48:
+                self.progress('saving' if save else 'applying')
+                # An uncertain atomic commit is never retried or sent on USB.
+                reply=self.request_fast(10,int(bool(save)),bytes(patch))
+                if reply['phase']!=(5 if save else 4) or reply['payload']!=struct.pack('<I',snapshot_crc(data)):
+                    raise RuntimeError('Fast Apply/Save result is unconfirmed. Read before trying again.')
+                self._verified=bytes(data)
+                return {'applied':True,'saved':bool(save),'transport':'bluetooth'}
         crc = self.begin()
         commit_started = False
         try:

@@ -9,7 +9,7 @@ typedef struct {
     uint8_t response[F75_BT_RESPONSE_MAX];
     uint16_t response_length, symbol_index;
     uint32_t touched, reply_started;
-    bool owns_transfer, replying;
+    bool owns_transfer, replying, fast, commit_wait;
 } f75_bluetooth;
 
 /* Requests contain nonce32, session32, command8, offset16, count16, then
@@ -32,3 +32,11 @@ bool f75_bluetooth_reply_next(f75_bluetooth *b, uint8_t *symbol);
 /* Skip embedded record CRC words. CRC(data || CRC(data)) has a fixed residue
  * and therefore cannot identify a particular valid settings snapshot. */
 uint32_t f75_bluetooth_snapshot_crc(const uint8_t data[F75_BUNDLE_BYTES]);
+/* Compact, qualified carrier. 9 reads a frozen compressed snapshot; 10
+ * applies bounded byte patches with an expected baseline CRC. */
+bool f75_bluetooth_fast_receive(f75_bluetooth *b, f75_transfer *t,
+    const uint8_t nonce[4], uint8_t command, uint16_t offset,
+    const uint8_t *body, unsigned length, uint32_t now,
+    const f75_config *config, const f75_custom *custom);
+void f75_bluetooth_fast_complete(f75_bluetooth *b, f75_transfer *t,
+    const f75_config *config, const f75_custom *custom);

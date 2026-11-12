@@ -1,0 +1,19 @@
+# Fast Bluetooth settings candidate
+
+This extends the main MCU and the enrolled Mac helper. It does not change the supplier radio, Bluetooth descriptor, bonds or recovery code. The target is a fresh typical-settings read and a small verified Apply in 1–2 seconds. Hardware timing is not yet verified. Dense configurations and large edits may take longer.
+
+The measured baseline was 18.331 seconds for five RPCs. Every request sent 80 LED output symbols. Four setup/cleanup calls consumed 13.146 seconds; the actual compressed snapshot reply was 167 bytes. The radio was physically observed forwarding output bits 3 and 4, in addition to the existing high three bits. The lowest three Num/Caps/Scroll output bits were restored.
+
+The qualified fast carrier uses output bits 3–7. A reset symbol zero precedes start 27. Data symbols are 1–26. Each nibble advances the preceding symbol by 1–16 modulo 26. No fast symbol has the legacy top-three-bit start value 7, so an old legacy decoder cannot interpret a fast frame as a command after the reset. Every frame still has a CRC32. The lowest three LED state bits are retained. Replies still use only report 2 Constant byte 1, never Apple Fn byte 7 or a key field. Fast replies have a proposed 2 ms floor and remain serialized behind UART acknowledgments.
+
+A fast frame is `[5, command, length, nonce32, offset16, body, CRC32]`, with length equal to six plus the body length. Command 9 freezes and returns compressed settings immediately. The offset is the decoded cursor. Its reply payload is protocol 1, capabilities 7, snapshot CRC32, consumed u16, then bounded PackBits tokens. Continuations retain the same nonce/session and frozen snapshot. The final window releases ownership. An interrupted snapshot times out or is released by the existing route/disconnect cleanup.
+
+Command 10 is an atomic small edit. Offset 0 means RAM Apply; offset 1 explicitly requests Save. The body starts with the expected current snapshot CRC32, followed by ordered `[offset16, count8, changed bytes]` patches, within 48 total body bytes. Record CRC words cannot be patched. The firmware rebuilds both record CRCs, validates through the existing commit path, and waits for Apply or flash Save completion. Its response carries the terminal phase and a CRC from the live configuration. A stale baseline, malformed patch, failed Save or unknown result never causes a retry or another transport.
+
+The host uses the fast carrier only when its per-device zero-event qualification receipt explicitly has `fast_settings_version: 1` and `fast_capability_verified: true`. The latter is issued only after guarded installation and the new main MCU's USB health capability bit 6 is checked. Existing qualification files select the unchanged legacy protocol. An unrecognized fast response is an error, not a reason to retry on the old carrier. Old Info v3 and capability flags 7 are unchanged. Large edits that do not fit one atomic request are selected before transmission for the existing staged transaction.
+
+The faster path is not admitted by compilation alone. Required proof includes the linked ARM carrier, snapshot CRC, stale baseline, atomic RAM Apply, completed Save, held-key preservation, corrupt-frame rejection and route cancellation checks. Installation still needs fresh zero-key-event probes and physical timing/round-trip tests. A 1–2 second claim requires the latter.
+
+## Home refinement
+
+The companion Home screen removes its redundant mood text. A compact heart-and-speed badge appears below the desk only during typing, Flow or Zoom, and disappears when idle. Notification signs keep priority. Existing font, palette, contrast, light/dark themes and dirty-tile invalidation remain in use.

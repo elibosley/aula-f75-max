@@ -277,8 +277,45 @@ static uint32_t packet_crc(const uint8_t *data, size_t length) {
     return ~value;
 }
 
+static BOOL fast_qualified(IOHIDDeviceRef device) {
+    NSString *root=[[NSBundle mainBundle] objectForInfoDictionaryKey:@"F75ProjectRoot"];
+    NSData *data=[NSData dataWithContentsOfFile:[root stringByAppendingPathComponent:@".runtime/ble-padding-qualified.json"]];
+    NSDictionary *q=data?[NSJSONSerialization JSONObjectWithData:data options:0 error:NULL]:nil;
+    return [q isKindOfClass:[NSDictionary class]] && [q[@"fast_settings_version"] isEqual:@1] &&
+        [q[@"fast_capability_verified"] isEqual:@YES] && [q[@"protocol"] isEqual:@3] &&
+        [q[@"probe_count"] isEqual:@16] && [q[@"all_bit_patterns_passed"] isEqual:@YES] &&
+        [q[@"key_events_observed"] isEqual:@0] &&
+        [q[@"descriptor_sha256"] isEqual:@"34af33fd6776d8cdd456c5d2bd51d40025dd3141564a91333f35b0265e2db584"] &&
+        [q[@"serial_sha256"] isEqual:identity(property(device,@"SerialNumber"))];
+}
+
+static BOOL send_fast(IOHIDDeviceRef device,const uint8_t *data,size_t length,uint8_t flags,NSMutableDictionary *receipt) {
+    uint32_t checksum=packet_crc(data,length);unsigned sent=0;uint8_t previous=27;
+    uint8_t report[2]={2,(uint8_t)(flags|(previous<<3))};
+    IOReturn result=write_symbol(device,flags,0);
+    if(result==kIOReturnSuccess)result=IOHIDDeviceSetReport(device,kIOHIDReportTypeOutput,2,report,sizeof(report));
+    for(size_t at=0;result==kIOReturnSuccess&&!interrupted&&at<length+4;++at){
+        uint8_t byte=at<length?data[at]:(uint8_t)(checksum>>(8*(at-length)));
+        for(int shift=4;shift>=0&&result==kIOReturnSuccess&&!interrupted;shift-=4){
+            uint8_t digit=(byte>>shift)&15;
+            previous=previous==27?digit+1:(previous+digit)%26+1;
+            report[1]=(uint8_t)(flags|(previous<<3));
+            result=IOHIDDeviceSetReport(device,kIOHIDReportTypeOutput,2,report,sizeof(report));
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode,0,true);
+            if(result==kIOReturnSuccess)++sent;
+        }
+    }
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode,0.02,false);
+    uint8_t latest;if(read_leds(device,&latest)==kIOReturnSuccess)flags=latest;
+    IOReturn restored=write_symbol(device,flags,0);
+    receipt[@"display_send_status"]=status(result);receipt[@"display_led_restore_status"]=status(restored);
+    receipt[@"display_symbols_sent"]=@(sent);receipt[@"output_bits_per_symbol"]=@4;
+    return result==kIOReturnSuccess&&restored==kIOReturnSuccess&&sent==2*(length+4);
+}
+
 static BOOL settings_request(IOHIDDeviceRef device, const uint8_t *data, size_t length,
                              uint8_t flags, NSMutableDictionary *receipt) {
+    BOOL fast=data[0]==5;
     NSString *root=[[NSBundle mainBundle] objectForInfoDictionaryKey:@"F75ProjectRoot"];
     NSData *qualificationData=[NSData dataWithContentsOfFile:[root stringByAppendingPathComponent:@".runtime/ble-padding-qualified.json"]];
     NSDictionary *qualification=qualificationData?[NSJSONSerialization JSONObjectWithData:qualificationData options:0 error:NULL]:nil;
@@ -291,7 +328,7 @@ static BOOL settings_request(IOHIDDeviceRef device, const uint8_t *data, size_t 
         [qualification[@"descriptor_sha256"] isEqual:@"34af33fd6776d8cdd456c5d2bd51d40025dd3141564a91333f35b0265e2db584"] &&
         serial && [qualification[@"serial_sha256"] isEqual:serial];
     receipt[@"padding_transport_qualified"]=@(qualified);
-    if(!qualified) {
+    if(!qualified || (fast&&!fast_qualified(device))) {
         receipt[@"settings_reply_verified"]=@NO;
         receipt[@"settings_reply_failure"]=@"Constant padding transport not qualified";
         return NO;
@@ -318,7 +355,7 @@ static BOOL settings_request(IOHIDDeviceRef device, const uint8_t *data, size_t 
     unsigned received = 0, completedBytes = 0, duplicates = 0;
     padding_start(device,&capture,receipt);
     {
-        if (send_display(device, data, length, flags, receipt)) {
+        if (fast?send_fast(device,data,length,flags,receipt):send_display(device, data, length, flags, receipt)) {
             failure = @"Reply timed out";
             uint8_t response[271] = {0};
             unsigned groups = 0, bits = 0, bytes = 0, expected = 0;
@@ -350,8 +387,8 @@ static BOOL settings_request(IOHIDDeviceRef device, const uint8_t *data, size_t 
                 if (!expected || bytes < expected) continue;
                 uint32_t checksum = 0;
                 for (unsigned i = 0; i < 4; ++i) checksum |= (uint32_t)response[expected - 4 + i] << (i * 8);
-                verified = !memcmp(response, data + 3, 4) && response[4] == data[11] &&
-                    response[7] == data[12] && response[8] == data[13] &&
+                verified = !memcmp(response, data + 3, 4) && response[4] == data[fast?1:11] &&
+                    response[7] == data[fast?7:12] && response[8] == data[fast?8:13] &&
                     packet_crc(response, expected - 4) == checksum;
                 failure = verified ? @"" : @"Reply CRC or identity mismatch";
                 if (verified) {
@@ -414,6 +451,16 @@ int main(int argc, const char **argv) {
         else if (!strcmp(argv[i], "--led-test")) ledTest = openCheck = YES;
         else if (!strcmp(argv[i], "--status-info")) displayInfo = openCheck = YES;
         else if (!strcmp(argv[i], "--observe-padding")) observePadding = openCheck = YES;
+        else if (!strcmp(argv[i], "--fast-settings-request") && !displayLength) {
+            char hex[131];if(!fgets(hex,sizeof(hex),stdin))return 2;
+            size_t size=strcspn(hex,"\r\n");if(size<14||size>110||size%2)return 2;
+            uint8_t raw[55]={0};
+            for(size_t j=0;j<size;j+=2){int a=hex_digit(hex[j]),b=hex_digit(hex[j+1]);if(a<0||b<0)return 2;raw[j/2]=(a<<4)|b;}
+            if(raw[4]!=9&&raw[4]!=10)return 2;
+            display[0]=5;display[1]=raw[4];display[2]=(uint8_t)(size/2-1);
+            memcpy(display+3,raw,4);memcpy(display+7,raw+5,size/2-5);
+            displayLength=3+display[2];openCheck=YES;
+        }
         else if (!strcmp(argv[i], "--settings-request") && !displayLength) {
             char hex[131];
             if (!fgets(hex, sizeof(hex), stdin)) return 2;
@@ -488,8 +535,8 @@ int main(int argc, const char **argv) {
         @"input_callbacks_registered": @NO, @"writes_flash": @NO,
         @"open_requested": @(openCheck), @"open_attempted": @NO, @"led_write_attempted": @NO
     } mutableCopy];
-    if (display[0] == 4) {
-        BOOL save = displayLength == 21 && display[11] == 4 && display[20] == 1;
+    if (display[0] == 4 || display[0] == 5) {
+        BOOL save = display[0]==5?(display[1]==10&&display[7]==1&&display[8]==0):(displayLength == 21 && display[11] == 4 && display[20] == 1);
         result[@"settings_save_requested"] = @(save);
         result[@"writes_flash"] = @(save);
         result[@"writes_radio_flash"] = @NO;
@@ -520,6 +567,7 @@ int main(int argc, const char **argv) {
     }
     result[@"candidate_metadata"] = candidates;
     result[@"local_wireless_devices"] = matches;
+    result[@"fast_settings_version"]=@(target&&![result[@"ambiguous"] boolValue]&&fast_qualified(target)?1:0);
     if (displayInfo) result[@"display_ready"] = @NO;
     if (openCheck && access == kIOHIDAccessTypeGranted && target && ![result[@"ambiguous"] boolValue]) {
         result[@"open_attempted"] = @YES;
@@ -533,7 +581,7 @@ int main(int argc, const char **argv) {
             if (displayInfo) result[@"display_ready"] = @(display_preflight(target, &flags, result));
             if (displayLength && !interrupted && display_preflight(target, &flags, result)) {
                 displaySent = display[0] == 3 ? test_reply(target, display, flags, result) :
-                    display[0] == 4 ? settings_request(target, display, displayLength, flags, result) :
+                    (display[0] == 4 || display[0] == 5) ? settings_request(target, display, displayLength, flags, result) :
                     send_display(target, display, displayLength, flags, result);
             }
             if (ledTest && !interrupted) {

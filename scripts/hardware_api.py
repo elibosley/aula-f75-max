@@ -73,7 +73,7 @@ def handle(handler):
   if body.get('operation_id') is not None:
    PROGRESS.begin(body['operation_id'],action);tracked=body['operation_id']
   transport,identity=resolve_connection(body,probe)
-  if transport=='bluetooth' and probe is not None:connection=BluetoothKeyboard(probe)
+  if transport=='bluetooth' and probe is not None:connection=BluetoothKeyboard(probe,fast=True)
   elif transport=='usb':connection=Keyboard()
   else:raise ValueError('This settings connection is unavailable.')
   verifying=False
