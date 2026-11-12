@@ -4,6 +4,8 @@ Mochi is a keyboard dog, Pip is a small robot, and Ren is an anime guy. The down
 
 Each character has twelve poses. The six base poses are idle, blink, type-left, type-right, cheer, and sleep. Six bonus poses make three paired scenes: a drink break, a stretch, and a headphone groove. Normal typing alternates the hands every 180 ms. Flow uses 120 ms and Zoom uses 85 ms, matching the existing firmware animation timing.
 
+The animation-efficiency candidate also includes a visiting calico cat with sixteen walk, blink and wave frames. It visits all four companions, respects reduced motion and stays behind notification signs. The generated source and exact built-in image-generation prompt are in `visiting-cat/`; `scripts/build_visitor_assets.py` produces the native 20×20 atlas and bounded run-length data. See [animation and transfer efficiency](../../docs/ANIMATION_AND_TRANSFER.md) for build and verification boundaries.
+
 Living desk mode chooses short idle scenes with a 12–28 second cooldown between scenes and a 5–11 second delay after typing and no immediate repeats. The characters have independent random sequences. Typing in the demo field interrupts a scene immediately. A typing streak can trigger a short celebration after typing stops. Reduced motion holds the idle pose. Demo text and timing remain in the page and are not sent to the keyboard or server.
 
 Build the packs from the repository root:

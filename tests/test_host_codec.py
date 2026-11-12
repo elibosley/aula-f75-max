@@ -49,7 +49,7 @@ def library(name,*args,**kwargs):
 ctypes.CDLL=library
 import test_clock_system
 from display_types import View
-assert ctypes.sizeof(View)==218
+assert ctypes.sizeof(View)==224
 assert 'serve_native' not in sys.modules
 """
         result = subprocess.run([sys.executable, '-c', program], cwd=ROOT,

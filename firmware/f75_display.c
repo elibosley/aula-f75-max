@@ -3,9 +3,31 @@
 #include "font_data.h"
 #include "f75_icons.h"
 #include "companion_assets.h"
+#include "f75_visitor_assets.h"
 #include "f75_sprite.h"
 
 typedef struct { uint8_t y,rows;uint16_t *pixels; } tile;
+uint16_t f75_changed_tiles(const f75_view *a,const f75_view *b){
+    if(!a||!b||!a->home||!b->home||a->face!=3||b->face!=3||a->timer||b->timer)return 0xffff;
+    f75_view fixed=*b;
+    fixed.pet_frame=a->pet_frame;fixed.pet_character=a->pet_character;
+    fixed.pet_bob=a->pet_bob;fixed.pet_effect=a->pet_effect;fixed.pet_phase=a->pet_phase;
+    fixed.pet_wpm=a->pet_wpm;fixed.pet_mode=a->pet_mode;fixed.pet_info=a->pet_info;
+    fixed.info_progress=a->info_progress;fixed.animation_phase=a->animation_phase;
+    fixed.visitor=a->visitor;fixed.visitor_flip=a->visitor_flip;fixed.visitor_frame=a->visitor_frame;fixed.visitor_x=a->visitor_x;
+    memcpy(fixed.clock,a->clock,sizeof(fixed.clock));
+    if(memcmp(&fixed,a,sizeof(fixed)))return 0xffff;
+    uint16_t dirty=0;
+    if(a->pet_frame!=b->pet_frame||a->pet_character!=b->pet_character||a->pet_bob!=b->pet_bob||a->pet_effect!=b->pet_effect||
+       ((a->pet_effect||b->pet_effect)&&a->pet_phase!=b->pet_phase)||
+       ((a->pet_info||b->pet_info)&&a->animation_phase!=b->animation_phase))dirty|=0x3ffcu;
+    if(a->visitor!=b->visitor||a->visitor_flip!=b->visitor_flip||a->visitor_frame!=b->visitor_frame||a->visitor_x!=b->visitor_x)dirty|=0x1c00u;
+    if(memcmp(a->clock,b->clock,sizeof(a->clock)))dirty|=0x1e00u;
+    if(a->pet_wpm!=b->pet_wpm||a->pet_mode!=b->pet_mode)dirty|=0xe000u;
+    if(a->pet_info!=b->pet_info||a->info_progress!=b->info_progress)dirty|=0xfffcu;
+    if(a->link_state==F75_LINK_CONNECTING||a->link_state==F75_LINK_PAIRING)dirty|=7u;
+    return dirty;
+}
 static void dot(tile *t,int x,int y,uint16_t color){if(x>=0&&x<128&&y>=t->y&&y<t->y+t->rows)t->pixels[(y-t->y)*128+x]=color;}
 static void rect(tile *t,int x,int y,int w,int h,uint16_t color){
     int right=x+w,bottom=y+h;
@@ -168,7 +190,13 @@ static void pet_sprite(tile *t,const f75_view *v,uint16_t accent){
     if(bottom>top&&!f75_sprite_step(&decoder,sprite,sizeof(sprite),(size_t)bottom*80)){valid=false;return;}
     for(int y=top;y<bottom;y++){
         uint16_t *out=t->pixels+(24+y+bob-t->y)*128+24;
-        for(int x=0;x<80;x++){uint16_t color=f75_companion_palette[character][f75_sprite_index(sprite,(size_t)y*80+x)];if(color)out[x]=color;}
+        const uint8_t *row=sprite+(size_t)y*60;
+        const uint16_t *palette=f75_companion_palette[character];
+        for(int x=0;x<80;x+=4,row+=3){
+            uint8_t a=row[0],b=row[1],c=row[2];
+            uint16_t colors[4]={palette[a&63u],palette[(a>>6)|((b&15u)<<2)],palette[(b>>4)|((c&3u)<<4)],palette[c>>2]};
+            for(unsigned i=0;i<4;++i)if(colors[i])out[x+i]=colors[i];
+        }
     }
     for(unsigned i=0;v->pet_effect&&i<8;i++){
         int x=i%2?108+(int)(i%3)*4:8+(int)(i%3)*4;
@@ -177,6 +205,19 @@ static void pet_sprite(tile *t,const f75_view *v,uint16_t accent){
         if(v->pet_effect==2){rect(t,x,y,2,2,0xf2b6);rect(t,x+3,y,2,2,0xf2b6);rect(t,x,y+2,5,1,0xf2b6);rect(t,x+1,y+3,3,1,0xf2b6);dot(t,x+2,y+4,0xf2b6);}
         if(v->pet_effect==3)rect(t,x,y,i%2?2:1,i%2?1:3,i%3?0xf632:0xb55f);
         if(v->pet_effect==4)rect(t,x-3,y,6,1,accent);
+    }
+}
+static void visitor_sprite(tile *t,const f75_view *v){
+    if(!v->visitor||v->pet_info||v->visitor_frame>=16||t->y>=104||t->y+t->rows<=84)return;
+    const uint8_t *data=f75_visitor_frames[v->visitor_frame];
+    unsigned pixel=0;
+    for(unsigned at=0;at<f75_visitor_lengths[v->visitor_frame];++at){
+        unsigned count=(data[at]>>4)+1,index=data[at]&15;
+        for(unsigned i=0;i<count&&pixel<400;++i,++pixel){
+            int x=(int)(pixel%20),y=84+(int)(pixel/20);
+            if(v->visitor_flip)x=19-x;
+            if(index)dot(t,v->visitor_x+x,y,f75_visitor_palette[index]);
+        }
     }
 }
 /* Each companion grips the same readable placard with its own paws/mittens.
@@ -277,7 +318,7 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
         sparkle(&t,15,48,LINE);sparkle(&t,112,77,LINE);
         rect(&t,10,101,108,1,0xe5d7);rect(&t,8,102,112,2,0xc494);rect(&t,10,104,108,1,0x9b91);
         desk_clock(&t,v,ROSE);
-        pet_sprite(&t,v,ACCENT);char rate[]="000 WPM";unsigned wpm=v->pet_wpm>999?999:v->pet_wpm;
+        pet_sprite(&t,v,ACCENT);visitor_sprite(&t,v);char rate[]="000 WPM";unsigned wpm=v->pet_wpm>999?999:v->pet_wpm;
         rate[0]=wpm>=100?(char)('0'+wpm/100):' ';rate[1]=wpm>=10?(char)('0'+wpm/10%10):' ';rate[2]=(char)('0'+wpm%10);
         const char *pace=rate+(wpm>=100?0:wpm>=10?1:2);
         if(!v->pet_info){text(&t,pace,7,6,105,0,MUTED);}

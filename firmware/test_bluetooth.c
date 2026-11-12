@@ -40,7 +40,7 @@ static uint8_t request(unsigned command, unsigned offset, unsigned count, const 
 int main(void) {
     f75_defaults(&c); f75_custom_defaults(&custom);
     assert(request(0, 0, 0, NULL, 0) == 0 && b.response[11] == 3);
-    assert(request(6, 0, 0, NULL, 0) == 0 && b.response[11] == 3);
+    assert(request(6, 0, 0, NULL, 0) == 0 && b.response[11] == 7);
     assert(request(6, 1, 0, NULL, 0) == 3);
     uint8_t seconds[4]; put32(seconds, 86399);
     assert(request(7, 0, 4, seconds, 0) == 0 && clock.valid && clock.seconds == 86399);
@@ -69,6 +69,28 @@ int main(void) {
     assert(b.response_length == F75_BT_RESPONSE_MAX && !memcmp(b.response + 11, initial, 256));
     assert(request(2, F75_BUNDLE_BYTES - 1, 256, NULL, 21) == 3);
     assert(request(2, 0, 257, NULL, 21) == 3);
+    /* Decode the actual framed compressed replies, including a dense worst
+     * case. Existing raw Read remains available to explicitly older clients. */
+    for(unsigned pattern=0;pattern<5;++pattern){
+        if(pattern)for(unsigned i=0;i<F75_BUNDLE_BYTES;++i)t.bytes[i]=(uint8_t)(pattern==1?0:pattern==2?i:pattern==3?i/127:i*73u+(i>>3));
+        unsigned offset=0,windows=0;
+        while(offset<F75_BUNDLE_BYTES){
+            assert(request(8,offset,F75_BUNDLE_BYTES-offset,NULL,21)==0);
+            unsigned count=b.response[11]|((unsigned)b.response[12]<<8),at=13,decoded=0,end=b.response_length-4;
+            assert(count && count<=F75_BUNDLE_BYTES-offset && end<=267);
+            while(at<end){
+                unsigned token=b.response[at++],length=(token&127u)+1;
+                assert(length<=count-decoded);
+                if(token&128u){assert(at<end);for(unsigned i=0;i<length;i++)assert(t.bytes[offset+decoded++]==b.response[at]);++at;}
+                else {assert(length<=end-at);for(unsigned i=0;i<length;i++)assert(t.bytes[offset+decoded++]==b.response[at++]);}
+            }
+            assert(decoded==count);offset+=count;++windows;
+        }
+        if(pattern==1)assert(windows==1);
+    }
+    assert(request(8,0,0,NULL,21)==3);
+    assert(request(8,F75_BUNDLE_BYTES,1,NULL,21)==3);
+    memcpy(t.bytes,initial,sizeof(initial));
     assert(request(3, F75_BUNDLE_BYTES - 1, 2, (uint8_t[]){1, 2}, 21) == 3);
     uint8_t patch = 1;
     assert(request(3, 119, 1, &patch, 21) == 0 && t.bytes[119] == 1);

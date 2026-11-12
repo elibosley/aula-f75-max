@@ -18,7 +18,7 @@ fw.byte(SYMBOLS['USBD1'],0)
 def budget():return struct.pack('<I',fw.call('f75_board_power_budget',SYMBOLS['state'],1000))
 stage,rgb,screen,fps=budget();assert rgb==0 and screen==10 and fps==0,(stage,rgb,screen,fps)
 percent=10;assert budget()[1:]==bytes([8,25,0])
-fw.byte(SYMBOLS['USBD1'],4);assert budget()[1:]==bytes([28,65,12])
+fw.byte(SYMBOLS['USBD1'],4);assert budget()[1:]==bytes([28,65,24])
 percent=100;fw.callback('f75_radio_task',lambda args:0);fw.callback('f75_battery_task',lambda args:0);fw.callback('f75_panel_tile',lambda args:1)
 fw.byte(SYMBOLS['panel_ready'],1);fw.now=46000;fw.call('housekeeping_task_user')
 assert not fw.word(GPIO[0])&(1<<16),'Idle display backlight stayed on'

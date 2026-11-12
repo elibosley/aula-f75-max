@@ -36,5 +36,16 @@ int main(void){
     assert(p.mode==F75_PET_ZOOM&&p.streak_pending);
     f75_pet_tick(&p,4120);assert(p.bonus==4&&!p.streak_pending);
     f75_pet_tick(&p,5220);assert(!p.bonus);
+    f75_pet_init(&p,0,75);p.next_visit=1000;f75_pet_tick(&p,1000);assert(p.visiting);
+    uint16_t visitor_frames=0;
+    for(uint32_t at=1000;at<9000;at+=20){
+        f75_pet_tick(&p,at);f75_pet_frame visit=f75_pet_get_frame(&p,at,false);
+        assert(visit.visitor&&visit.visitor_frame<16&&visit.visitor_x>=79&&visit.visitor_x<=128);
+        assert(visit.visitor_flip==(at>=7000));visitor_frames|=(uint16_t)(1u<<visit.visitor_frame);
+        assert(!f75_pet_get_frame(&p,at,true).visitor);
+    }
+    assert(visitor_frames==0xffff);f75_pet_tick(&p,9000);assert(!p.visiting&&p.next_visit>=34000);
+    f75_pet_init(&p,UINT32_MAX-2000,75);p.next_visit=UINT32_MAX-1000;
+    f75_pet_tick(&p,UINT32_MAX-1000);assert(p.visiting);f75_pet_tick(&p,6999);assert(!p.visiting);
     printf("C pet checks passed. state=%zu bytes; pace, reactions, cooldown, quiet mode, sleep, bounds and timer wrap passed.\n",sizeof(p));
 }

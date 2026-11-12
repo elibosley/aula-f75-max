@@ -2,6 +2,15 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "f75_visitor_assets.h"
+
+static void dirty_mask_covers_pixels(f75_view a,f75_view b){
+    uint16_t first[128*128],second[128*128];
+    uint16_t dirty=f75_changed_tiles(&a,&b);
+    for(unsigned y=0;y<128;y+=8)assert(f75_render_tile(&a,y,8,first+y*128,1024));
+    for(unsigned y=0;y<128;y+=8)assert(f75_render_tile(&b,y,8,second+y*128,1024));
+    for(unsigned y=0;y<128;y++)for(unsigned x=0;x<128;x++)if(first[y*128+x]!=second[y*128+x])assert(dirty&(1u<<(y/8)));
+}
 
 int main(int argc,char **argv){
     f75_motion motion={0};
@@ -38,6 +47,24 @@ int main(int argc,char **argv){
     view.light_mode=false;assert(f75_render_tile(&view,0,8,buffer,128*8)&&buffer[0]==0x2349);
     for(unsigned y=0;y<128;y+=8)assert(f75_render_tile(&view,(uint8_t)y,8,buffer,128*8));
     view.timer=false;view.home=true;view.face=3;
+    f75_view changed=view;assert(f75_changed_tiles(&view,&view)==0);
+    for(unsigned i=0;i<16;i++){
+        unsigned pixels=0;
+        for(unsigned at=0;at<f75_visitor_lengths[i];++at){pixels+=(f75_visitor_frames[i][at]>>4)+1;assert((f75_visitor_frames[i][at]&15)<8);}
+        assert(pixels==400);
+        changed=view;changed.visitor=true;changed.visitor_frame=(uint8_t)i;changed.visitor_x=79;
+        dirty_mask_covers_pixels(view,changed);
+        changed.visitor_x=95;changed.visitor_flip=true;dirty_mask_covers_pixels(view,changed);
+    }
+    changed=view;changed.pet_bob=2;dirty_mask_covers_pixels(view,changed);
+    changed=view;changed.pet_character=1;dirty_mask_covers_pixels(view,changed);
+    changed=view;changed.pet_frame=2;dirty_mask_covers_pixels(view,changed);
+    changed=view;changed.pet_effect=1;changed.pet_phase=4;dirty_mask_covers_pixels(view,changed);
+    changed=view;changed.pet_wpm=100;changed.pet_mode=2;dirty_mask_covers_pixels(view,changed);
+    changed=view;strcpy(changed.clock,"08:00");dirty_mask_covers_pixels(view,changed);
+    changed=view;changed.light_mode=!view.light_mode;dirty_mask_covers_pixels(view,changed);
+    changed=view;changed.pet_info=true;changed.info_progress=50;dirty_mask_covers_pixels(view,changed);
+    changed=view;strcpy(changed.status_left,"BT2");dirty_mask_covers_pixels(view,changed);
     for(unsigned frame=0;frame<6;frame++)for(unsigned effect=0;effect<=4;effect++)for(unsigned theme=0;theme<2;theme++){
         view.pet_frame=(uint8_t)frame;view.pet_effect=(uint8_t)effect;view.pet_phase=15;view.pet_bob= -1;view.pet_wpm=999;view.pet_mode=3;view.light_mode=theme!=0;
         for(unsigned y=0;y<128;y+=8){buffer[0]=0xa55a;buffer[128*8+1]=0x5aa5;assert(f75_render_tile(&view,(uint8_t)y,8,buffer+1,128*8));assert(buffer[0]==0xa55a&&buffer[128*8+1]==0x5aa5);}

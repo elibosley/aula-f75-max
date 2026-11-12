@@ -104,7 +104,7 @@ def run(image, consumer_only=False, clock_only=False):
             return decoded[5], decoded[6], bytes(decoded[11:-4])
 
         assert rpc(0) == (0, 0, struct.pack('<BHHB', 3, BUNDLE_BYTES, 256, 48))
-        assert rpc(6) == (0, 0, b'\x03')
+        assert rpc(6) == (0, 0, b'\x07')
         config_before = m.read(m.symbols['state'], 116)
         assert rpc(7, 0, 4, struct.pack('<I', 45240)) == (0, 0, struct.pack('<I', 45240))
         assert m.read(m.symbols['clock_state'] + 8, 1) == b'\1'
@@ -158,6 +158,17 @@ def run(image, consumer_only=False, clock_only=False):
             parts.append(payload)
             print(f'Bluetooth snapshot: {offset + count}/{BUNDLE_BYTES} bytes verified', flush=True)
         original = b''.join(parts); validate(original)
+        from keyboard_bluetooth import unpack_snapshot
+        compressed=bytearray(); compressed_windows=0
+        while len(compressed)<BUNDLE_BYTES:
+            status,phase,payload=rpc(8,len(compressed),BUNDLE_BYTES-len(compressed))
+            assert (status,phase)==(0,2) and len(payload)>=4
+            count=struct.unpack_from('<H',payload)[0]
+            assert 0<count<=BUNDLE_BYTES-len(compressed)
+            compressed.extend(unpack_snapshot(payload[2:],count));compressed_windows+=1
+        assert bytes(compressed)==original and compressed_windows<13
+        assert rpc(8,0,0)[0]==3 and rpc(8,BUNDLE_BYTES,1)[0]==3
+        print(f'Compressed snapshot: {compressed_windows} windows instead of 13 raw windows',flush=True)
         assert snapshot_crc(original) == struct.unpack('<I', snapshot_identity)[0]
         assert rpc(2, BUNDLE_BYTES - 1, 2)[0] == 3
         desired = bytearray(original); desired[119] = (original[119] + 1) % 3

@@ -14,7 +14,11 @@ typedef struct {
 
 /* Requests contain nonce32, session32, command8, offset16, count16, then
  * optional body bytes. Commands 0..7 are Info, Begin, Read, Patch, Commit,
- * End, Capabilities, Clock. Clock carries seconds since local midnight (u32).
+ * End, Capabilities, Clock; command 8 reads compressed snapshot windows when
+ * capability bit 2 is set. Its payload is consumed-u16 then tokens: low seven
+ * bits plus one give a length; high bit repeats the next byte, otherwise that
+ * many literal bytes follow. Decoded windows never exceed the requested count.
+ * Clock carries seconds since local midnight (u32).
  * Commit carries the complete snapshot CRC32 and an explicit Save flag.
  * Only Commit schedules an application. Nothing programs the radio. */
 bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,

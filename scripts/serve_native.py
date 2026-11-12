@@ -28,9 +28,9 @@ class Budget(C.Structure):
 class Timer(C.Structure):
     _fields_=[(n,C.c_uint32) for n in ['remaining_ms','last_tick','finished_at']]+[('phase',C.c_uint8),('completed',C.c_uint8),('running',C.c_bool),('alert',C.c_bool)]
 class Pet(C.Structure):
-    _fields_=[(n,C.c_uint32) for n in ['bucket_at','last_key','last_effect','effect_started','rng','next_blink','blink_started']]+[('buckets',C.c_uint16*16),('wpm',C.c_uint16)]+[(n,C.c_uint8) for n in ['bucket','mode','effect','previous_effect']]+[('has_key',C.c_bool),('blinking',C.c_bool)]+[(n,C.c_uint32) for n in ['next_bonus','bonus_started','last_streak']]+[('bonus',C.c_uint8),('previous_bonus',C.c_uint8),('streak_pending',C.c_bool)]
+    _fields_=[(n,C.c_uint32) for n in ['bucket_at','last_key','last_effect','effect_started','rng','next_blink','blink_started']]+[('buckets',C.c_uint16*16),('wpm',C.c_uint16)]+[(n,C.c_uint8) for n in ['bucket','mode','effect','previous_effect']]+[('has_key',C.c_bool),('blinking',C.c_bool)]+[(n,C.c_uint32) for n in ['next_bonus','bonus_started','last_streak']]+[('bonus',C.c_uint8),('previous_bonus',C.c_uint8),('streak_pending',C.c_bool),('next_visit',C.c_uint32),('visit_started',C.c_uint32),('visiting',C.c_bool)]
 class PetFrame(C.Structure):
-    _fields_=[('wpm',C.c_uint16)]+[(n,C.c_uint8) for n in ['mode','frame','effect','phase']]+[('bob',C.c_int8)]
+    _fields_=[('wpm',C.c_uint16)]+[(n,C.c_uint8) for n in ['mode','frame','effect','phase']]+[('bob',C.c_int8),('visitor',C.c_bool),('visitor_flip',C.c_bool),('visitor_frame',C.c_uint8),('visitor_x',C.c_int16)]
 class Navigation(C.Structure):
     _fields_=[(n,C.c_uint8) for n in ['page','cursor','volume','editing','wheel_divisor','edit_streak']]+[('wheel_pending',C.c_int8),('last_direction',C.c_int8),('last_turn',C.c_uint32)]
 class Motion(C.Structure):
@@ -248,7 +248,7 @@ class Session:
             quiet=self.system_motion or bool(c.reduced_motion) or (self.battery<=10 and not self.usb)
             v.alert_pulse=timer_pulse(C.byref(t),self.now(),quiet)
         pet_frame=pet_get_frame(C.byref(self.pet),self.now(),not bool(b.animation_fps))
-        v.pet_wpm=pet_frame.wpm;v.pet_mode=pet_frame.mode;v.pet_frame=pet_frame.frame;v.pet_effect=pet_frame.effect;v.pet_phase=pet_frame.phase;v.pet_bob=pet_frame.bob
+        v.pet_wpm=pet_frame.wpm;v.pet_mode=pet_frame.mode;v.pet_frame=pet_frame.frame;v.pet_effect=pet_frame.effect;v.pet_phase=pet_frame.phase;v.pet_bob=pet_frame.bob;v.visitor=pet_frame.visitor;v.visitor_flip=pet_frame.visitor_flip;v.visitor_frame=pet_frame.visitor_frame;v.visitor_x=pet_frame.visitor_x
         if v.home and c.face==3 and self.timer.running:
             seconds=(self.timer.remaining_ms+999)//1000
             v.footer=f'{["Focus","Break","Long break"][self.timer.phase]} {seconds//60:02}:{seconds%60:02}'.encode()

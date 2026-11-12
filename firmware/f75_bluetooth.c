@@ -11,6 +11,27 @@ static void put32(uint8_t *p, uint32_t v) {
     for (unsigned i = 0; i < 4; ++i) p[i] = v >> (i * 8);
 }
 
+/* PackBits-style chunks. Every token consumes input; the caller's fixed reply
+ * buffer bounds both the encoded output and each decoded snapshot window. */
+static unsigned pack_snapshot(const uint8_t *data, unsigned size, uint8_t *out, unsigned capacity, unsigned *consumed) {
+    unsigned at=0, written=0;
+    while(at<size && capacity-written>=2) {
+        unsigned run=1;
+        while(run<128 && at+run<size && data[at+run]==data[at])++run;
+        if(run>=3) {out[written++]=(uint8_t)(0x80u| (run-1));out[written++]=data[at];at+=run;}
+        else {
+            unsigned length=0,limit=capacity-written-1;
+            if(limit>128)limit=128;
+            while(length<limit && at+length<size) {
+                if(length && at+length+2<size && data[at+length]==data[at+length+1] && data[at+length]==data[at+length+2])break;
+                ++length;
+            }
+            out[written++]=(uint8_t)(length-1);memcpy(out+written,data+at,length);written+=length;at+=length;
+        }
+    }
+    *consumed=at;return written;
+}
+
 uint32_t f75_bluetooth_snapshot_crc(const uint8_t data[F75_BUNDLE_BYTES]) {
     uint32_t value = UINT32_MAX;
     for (unsigned i = 0; i < F75_BUNDLE_BYTES - 4; ++i) {
@@ -46,14 +67,14 @@ bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,
     memset(r, 0, sizeof(b->response)); memcpy(r, q, 4);
     r[4] = command; put16(r + 7, offset);
     bool body = command == 3 || command == 4 || command == 7;
-    if (size != 13u + (body ? count : 0u) || command > 7) status = 3;
+    if (size != 13u + (body ? count : 0u) || command > 8) status = 3;
     else if (command == 0) {
         if (count || offset) status = 3;
         else { r[11] = 3; put16(r + 12, F75_BUNDLE_BYTES);
             put16(r + 14, F75_BT_READ_MAX); r[16] = F75_BT_PATCH_MAX; length = 6; }
     } else if (command == 6) {
         if (count || offset) status = 3;
-        else { r[11] = 1 | (clock ? 2 : 0); length = 1; } /* Indicators, clock. Info v3 unchanged. */
+        else { r[11] = 1 | (clock ? 2 : 0) | 4; length = 1; } /* Indicators, clock, compressed reads. */
     } else if (command == 7) {
         if (offset || count != 4 || !clock || get32(q + 13) >= 86400u) status = 3;
         else if (b->owns_transfer || t->phase == 1 || t->phase == 2 || t->phase == 3) status = 1;
@@ -75,6 +96,14 @@ bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,
         if (t->phase != 2) status = 1;
         else if (!count || count > F75_BT_READ_MAX || offset > F75_BUNDLE_BYTES - count) status = 3;
         else { memcpy(r + 11, t->bytes + offset, count); length = count; }
+    } else if (command == 8) {
+        if (t->phase != 2) status = 1;
+        else if (!count || offset>=F75_BUNDLE_BYTES || count>F75_BUNDLE_BYTES-offset) status = 3;
+        else {
+            unsigned consumed;
+            length=2+pack_snapshot(t->bytes+offset,count,r+13,F75_BT_READ_MAX-2,&consumed);
+            put16(r+11,(uint16_t)consumed);
+        }
     } else if (command == 3) {
         if (t->phase != 2) status = 1;
         else if (!count || count > F75_BT_PATCH_MAX || offset > F75_BUNDLE_BYTES - count) status = 3;

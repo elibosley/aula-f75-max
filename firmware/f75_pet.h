@@ -11,8 +11,13 @@ typedef struct {
     uint32_t next_bonus,bonus_started,last_streak;
     uint8_t bonus,previous_bonus;
     bool streak_pending;
+    uint32_t next_visit,visit_started;
+    bool visiting;
 } f75_pet;
-typedef struct { uint16_t wpm;uint8_t mode,frame,effect,phase;int8_t bob; } f75_pet_frame;
+typedef struct {
+    uint16_t wpm;uint8_t mode,frame,effect,phase;int8_t bob;
+    bool visitor,visitor_flip;uint8_t visitor_frame;int16_t visitor_x;
+} f75_pet_frame;
 void f75_pet_init(f75_pet *pet,uint32_t now,uint32_t seed);
 void f75_pet_tick(f75_pet *pet,uint32_t now);
 void f75_pet_tap(f75_pet *pet,uint32_t now);

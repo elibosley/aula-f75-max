@@ -2,7 +2,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const {Motion, frameAt} = require('../ui/companion-motion.js');
+const {Motion, Visitor, frameAt} = require('../ui/companion-motion.js');
 const library = JSON.parse(fs.readFileSync('ui/assets/characters/index.json'));
 for (const entry of library.characters) {
   const manifest = JSON.parse(fs.readFileSync('ui/' + entry.manifest));
@@ -59,3 +59,20 @@ for (const entry of library.characters) {
   assert.notEqual(new Motion(manifest, 11, 0).due, new Motion(manifest, 912, 0).due);
 }
 console.log('Four companions passed: paired scenes, random variety, cooldown, no repeats, immediate typing interruption, streaks, quiet mode and bounded state.');
+
+const visitor = new Visitor(75, 0);
+const arrival = visitor.due;
+assert.equal(visitor.tick(arrival - 1, false).visible, false);
+const seen = new Set();
+for (let elapsed = 0; elapsed < 8000; elapsed += 20) {
+  const frame = visitor.tick(arrival + elapsed, false);
+  assert(frame.visible && frame.frame >= 0 && frame.frame < 16);
+  assert(frame.x >= 79 && frame.x <= 128);
+  assert.equal(frame.flip, elapsed >= 6000);
+  seen.add(frame.frame);
+  assert.equal(visitor.tick(arrival + elapsed, true).visible, false);
+}
+assert.equal(seen.size, 16);
+assert.equal(visitor.tick(arrival + 8000, false).visible, false);
+assert(visitor.due >= arrival + 33000);
+console.log('Sixteen visitor frames, entry/exit, cooldown and reduced motion passed.');

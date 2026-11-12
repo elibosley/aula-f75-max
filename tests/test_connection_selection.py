@@ -47,4 +47,20 @@ class SelectionTest(unittest.TestCase):
   with patch.object(hardware_api,'discover',return_value=snapshot()),patch.object(hardware_api,'BluetoothKeyboard',return_value=Keyboard()),patch.object(hardware_api,'Keyboard') as usb:
    hardware_api.handle(handler)
   usb.assert_not_called();self.assertEqual(Keyboard.commits,1);self.assertIn('unconfirmed',json.loads(handler.wfile.getvalue())['error'])
+ def test_successful_bluetooth_save_verifies_crc_without_full_readback(self):
+  calls=[]
+  class Keyboard:
+   indicator_support=True;clock_support=True
+   def __enter__(self):return self
+   def __exit__(self,*args):pass
+   def apply(self,data,save=False,baseline=None):calls.append(('apply',save));return {'applied':True,'saved':save}
+   def verify(self,data):calls.append(('verify',len(data)));return data
+   def read(self):raise AssertionError('Save downloaded the full snapshot again')
+   def host_status(self):return None
+  payload=json.dumps({'action':'save','transport':'auto','expected_transport':'bluetooth','board_identity':BOARD,'document':decode(fixture())}).encode()
+  handler=types.SimpleNamespace(path='/api/hardware',command='POST',headers={'Host':'127.0.0.1:1234','Origin':'http://127.0.0.1:1234','X-F75-CSRF':hardware_api.TOKEN,'Content-Length':str(len(payload))},server=types.SimpleNamespace(server_address=('127.0.0.1',1234),desktop=True,bluetooth_status_probe='probe'),rfile=io.BytesIO(payload),wfile=io.BytesIO(),send_response=lambda code:None,send_header=lambda *args:None,end_headers=lambda:None)
+  with patch.object(hardware_api,'discover',return_value=snapshot()),patch.object(hardware_api,'BluetoothKeyboard',return_value=Keyboard()),patch.object(hardware_api,'Keyboard') as usb:
+   hardware_api.handle(handler)
+  usb.assert_not_called();result=json.loads(handler.wfile.getvalue());self.assertNotIn('error',result)
+  self.assertEqual(calls,[('apply',True),('verify',3232)]);self.assertEqual(result['verification'],'snapshot-crc32');self.assertEqual(result['transport'],'bluetooth')
 if __name__=='__main__':unittest.main()

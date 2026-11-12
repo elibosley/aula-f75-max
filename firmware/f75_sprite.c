@@ -11,12 +11,13 @@ static bool take(f75_sprite_decoder *s,unsigned count,unsigned *value){
     if(count>16-shift)result|=(unsigned)s->data[byte+2]<<(16-shift);
     s->bit+=count;*value=result&((1u<<count)-1u);return true;
 }
-uint8_t f75_sprite_index(const uint8_t *packed,size_t pixel){
+static inline uint8_t index_at(const uint8_t *packed,size_t pixel){
     size_t bit=pixel*6,byte=bit/8;unsigned shift=bit%8;
     unsigned value=packed[byte]>>shift;
     if(shift>2)value|=(unsigned)packed[byte+1]<<(8-shift);
     return (uint8_t)(value&63u);
 }
+uint8_t f75_sprite_index(const uint8_t *packed,size_t pixel){return index_at(packed,pixel);}
 static void store(uint8_t *packed,size_t pixel,unsigned value){
     size_t bit=pixel*6,byte=bit/8;unsigned shift=bit%8;
     packed[byte]|=(uint8_t)(value<<shift);
@@ -34,7 +35,15 @@ bool f75_sprite_step(f75_sprite_decoder *input,uint8_t *out,size_t capacity,size
        through_pixel>input->pixels||capacity<(input->pixels*6+7)/8)return false;
     while(input->position<through_pixel){
         if(input->remaining){
-            store(out,input->position,f75_sprite_index(out,input->position-input->distance));
+            /* Four aligned palette indices occupy three whole bytes. Copy
+             * that group directly, including overlapping LZ runs, without
+             * unpacking and repacking each six-bit pixel. No larger cache. */
+            if(!(input->position&3u)&&!(input->distance&3u)&&input->remaining>=4&&through_pixel-input->position>=4){
+                size_t to=input->position*3/4,from=(input->position-input->distance)*3/4;
+                out[to]=out[from];out[to+1]=out[from+1];out[to+2]=out[from+2];
+                input->position+=4;input->remaining-=4;continue;
+            }
+            store(out,input->position,index_at(out,input->position-input->distance));
             input->position++;input->remaining--;continue;
         }
         unsigned literal,value,length;

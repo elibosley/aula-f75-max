@@ -40,6 +40,9 @@ static f75_view frame;
 static uint16_t tile[128 * F75_PANEL_TILE_ROWS];
 static uint32_t tile_signatures[128 / F75_PANEL_TILE_ROWS];
 static bool tile_valid[128 / F75_PANEL_TILE_ROWS];
+static f75_view previous_frame;
+static uint16_t frame_dirty;
+static bool previous_frame_valid;
 static uint16_t held[MATRIX_ROWS][MATRIX_COLS];
 static uint32_t release_epoch, last_frame, button_changed, button_down_at;
 static uint32_t selector_changed, notice_until, boot_down_at;
@@ -289,6 +292,7 @@ static void bluetooth_display_receive(uint8_t led, uint32_t now) {
                 bluetooth_read_offset=offset;bluetooth_read_count=count;
                 transfer_note("Sending settings",transfer_percent(offset),now);
             }
+            else if(command==8)transfer_note("Sending settings",transfer_percent(offset),now);
             else if(command==3)transfer_note("Receiving changes",254,now);
             else if(command==4)transfer_note(transfer.save?"Saving settings":"Applying changes",254,now);
             else if(command==5){transfer_info_until=now+1800u;}
@@ -884,6 +888,7 @@ static void make_frame(uint32_t now) {
     f75_pet_frame pf = f75_pet_get_frame(&pet, now, quiet);
     frame.pet_wpm = pf.wpm; frame.pet_mode = pf.mode; frame.pet_frame = pf.frame;
     frame.pet_effect = pf.effect; frame.pet_phase = pf.phase; frame.pet_bob = pf.bob;
+    frame.visitor=pf.visitor;frame.visitor_flip=pf.visitor_flip;frame.visitor_frame=pf.visitor_frame;frame.visitor_x=pf.visitor_x;
 #ifndef F75_USB_ONLY
     if (frame.home && state.pairing == F75_PAIR_IDLE && host_display_duration) {
         memcpy(frame.footer, host_display_text, sizeof(frame.footer));
@@ -1087,8 +1092,13 @@ void housekeeping_task_user(void) {
         if(benchmark_active||((navigation.page!=F75_HOME||f75_motion_active(&motion))&&now-state.last_activity<1200u))interval=16u;
         if(state.config.reduced_motion&&interval<250u)interval=250u;
         if (now - last_frame < interval) return;
-        make_frame(now); frame_y = 0; frame_pending = true; last_frame = now;
+        previous_frame=frame;
+        make_frame(now);
+        frame_dirty=previous_frame_valid?f75_changed_tiles(&previous_frame,&frame):0xffffu;
+        previous_frame_valid=true;frame_y = 0; frame_pending = true; last_frame = now;
     }
+    while(frame_y<128&&tile_valid[frame_y/F75_PANEL_TILE_ROWS]&&!(frame_dirty&(1u<<(frame_y/F75_PANEL_TILE_ROWS))))frame_y+=F75_PANEL_TILE_ROWS;
+    if(frame_y==128){frame_pending=false;++complete_frames;return;}
     uint16_t render_start = (uint16_t)SN_CT16B4->TC;
     bool rendered = f75_render_tile(&frame, frame_y, F75_PANEL_TILE_ROWS, tile, 128 * F75_PANEL_TILE_ROWS);
     uint16_t render_elapsed = (uint16_t)((uint16_t)SN_CT16B4->TC - render_start);

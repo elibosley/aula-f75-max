@@ -18,6 +18,26 @@ def snapshot_crc(data):
     return zlib.crc32(data[160:-4], zlib.crc32(data[:156]))
 
 
+def unpack_snapshot(data, expected):
+    if type(expected) is not int or not 0 < expected <= BUNDLE_BYTES:
+        raise RuntimeError('Invalid compressed snapshot size.')
+    out = bytearray()
+    at = 0
+    while at < len(data):
+        token = data[at]; at += 1
+        count = (token & 127) + 1
+        if count > expected - len(out):
+            raise RuntimeError('Compressed settings window overflows its declared size.')
+        size = 1 if token & 128 else count
+        if size > len(data) - at:
+            raise RuntimeError('Compressed settings token was truncated.')
+        out.extend(bytes([data[at]]) * count if token & 128 else data[at:at + count])
+        at += size
+    if len(out) != expected:
+        raise RuntimeError('Compressed settings window was incomplete.')
+    return bytes(out)
+
+
 class BluetoothKeyboard:
     def __init__(self, probe, lock_timeout=1.0):
         self.probe = str(probe)
@@ -27,6 +47,7 @@ class BluetoothKeyboard:
         self.progress = lambda *args: None
         self.indicator_support = False
         self.clock_support = False
+        self.compressed_read_support = False
         self.expected_board = None
 
     def __enter__(self):
@@ -36,11 +57,12 @@ class BluetoothKeyboard:
             if info != struct.pack('<BHHB', 3, BUNDLE_BYTES, 256, 48):
                 raise RuntimeError('This Bluetooth settings protocol is unsupported.')
             capability = self.request(6, allow_unsupported=True)['payload']
-            if len(capability) > 1 or (capability and capability[0] & ~3):
+            if len(capability) > 1 or (capability and capability[0] & ~7):
                 raise RuntimeError('Unknown Bluetooth capability.')
             flags = capability[0] if capability else 0
             self.indicator_support = bool(flags & 1)
             self.clock_support = bool(flags & 2)
+            self.compressed_read_support = bool(flags & 4)
             return self
         except BaseException:
             self.lock.__exit__()
@@ -110,6 +132,8 @@ class BluetoothKeyboard:
         self.session = False
 
     def read_snapshot(self, expected_crc):
+        if self.compressed_read_support:
+            return self.read_compressed_snapshot(expected_crc)
         blocks = []
         for offset in range(0, BUNDLE_BYTES, 256):
             count = min(256, BUNDLE_BYTES - offset)
@@ -125,6 +149,26 @@ class BluetoothKeyboard:
             raise RuntimeError('Bluetooth settings snapshot changed during download.')
         return data
 
+    def read_compressed_snapshot(self, expected_crc):
+        blocks = bytearray()
+        while len(blocks) < BUNDLE_BYTES:
+            remaining = BUNDLE_BYTES - len(blocks)
+            payload = self.request(8, len(blocks), remaining)['payload']
+            if len(payload) < 4:
+                raise RuntimeError('Compressed settings window was short.')
+            count = struct.unpack_from('<H', payload)[0]
+            if not 0 < count <= remaining:
+                raise RuntimeError('Compressed settings window exceeds the snapshot.')
+            block = unpack_snapshot(payload[2:], count)
+            blocks.extend(block)
+            self.progress('reading', len(blocks), BUNDLE_BYTES)
+        data = bytes(blocks)
+        self.progress('checking')
+        validate(data)
+        if snapshot_crc(data) != expected_crc:
+            raise RuntimeError('Bluetooth settings snapshot changed during download.')
+        return data
+
     def read(self):
         self.progress('reading')
         crc = self.begin()
@@ -135,6 +179,18 @@ class BluetoothKeyboard:
                 self.end()
             raise
         self.end()
+        return data
+
+    def verify(self, data):
+        """Check the live, encoded snapshot without downloading unchanged blocks."""
+        validate(data)
+        self.progress('verifying')
+        actual_crc = self.begin()
+        try:
+            if actual_crc != snapshot_crc(data):
+                raise RuntimeError('Settings snapshot CRC differs; read the keyboard before trying again.')
+        finally:
+            self.end()
         return data
 
     def apply(self, data, save=False, baseline=None):

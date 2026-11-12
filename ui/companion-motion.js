@@ -76,7 +76,31 @@
       return {frame: sleepy ? 5 : now % 4000 >= 3840 ? 1 : 0, activity: sleepy ? 'sleep' : 'idle', wpm};
     }
   }
-  const api = {Motion, frameAt};
+  class Visitor {
+    constructor(seed, now) {
+      this.seed = seed >>> 0 || 1;
+      this.started = null;
+      this.due = now + 8000 + this.random() % 8001;
+    }
+    random() {
+      let x = this.seed;
+      x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+      return this.seed = x >>> 0;
+    }
+    tick(now, quiet) {
+      if (this.started !== null && now - this.started >= 8000) {
+        this.started = null;
+        this.due = now + 25000 + this.random() % 30001;
+      }
+      if (this.started === null && now >= this.due) this.started = now;
+      if (quiet || this.started === null) return {visible: false};
+      const elapsed = now - this.started;
+      return {visible: true, flip: elapsed >= 6000,
+        x: elapsed < 2000 ? 128 - Math.floor(elapsed * 49 / 2000) : elapsed < 6000 ? 79 : 79 + Math.floor((elapsed - 6000) * 49 / 2000),
+        frame: elapsed < 2000 || elapsed >= 6000 ? Math.floor(elapsed / 80) % 8 : elapsed < 4000 ? 8 + Math.floor(elapsed / 160) % 4 : 12 + Math.floor(elapsed / 140) % 4};
+    }
+  }
+  const api = {Motion, Visitor, frameAt};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CompanionMotion = api;
 })(typeof window !== 'undefined' ? window : globalThis);

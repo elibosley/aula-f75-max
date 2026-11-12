@@ -1,0 +1,11 @@
+{
+  "frames": 16,
+  "frame_size": [
+    20,
+    20
+  ],
+  "source_sha256": "a2b8d4144a8d96f34b3a103db870147667c2aeeb29490ed1a83cf28755543bbd",
+  "encoded_bytes": 2681,
+  "palette_entries": 8,
+  "format": "high nibble count-minus-one; low nibble palette index; index zero transparent"
+}

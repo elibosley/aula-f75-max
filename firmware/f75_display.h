@@ -23,6 +23,9 @@ typedef struct {
     bool pet_info;
     uint8_t info_progress; /* 0..100 acknowledged work, 254 waiting, 255 no bar */
     uint8_t link_state,power_state;
+    bool visitor,visitor_flip;
+    uint8_t visitor_frame;
+    int16_t visitor_x;
 } f75_view;
 
 /* Q8 springs. Selection changes synchronously; only its visual position lags.
@@ -41,4 +44,7 @@ void f75_motion_apply(const f75_motion *motion,f75_view *view);
 /* RGB565 tile output: no full-screen framebuffer and no dynamic allocation.
    The SPI adapter supplies each tile in order. It owns panel offsets and byte order. */
 bool f75_render_tile(const f75_view *view,uint8_t y,uint8_t rows,uint16_t *pixels,size_t capacity);
+/* Conservative eight-row dirty mask for companion Home frames. Other pages
+ * and unclassified changes require a complete repaint. */
+uint16_t f75_changed_tiles(const f75_view *previous,const f75_view *next);
 #endif

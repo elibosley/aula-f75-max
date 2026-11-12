@@ -10,7 +10,7 @@ from unittest.mock import patch
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from keyboard_bluetooth import BluetoothKeyboard, snapshot_crc
+from keyboard_bluetooth import BluetoothKeyboard, snapshot_crc, unpack_snapshot
 
 
 def fixture():
@@ -51,6 +51,13 @@ class BluetoothHostTest(unittest.TestCase):
             self.staged = bytearray(self.live); self.phase = 2
             payload = struct.pack('<I', snapshot_crc(self.staged))
         elif command == 2: payload = self.staged[offset:offset + count]
+        elif command == 8:
+            encoded=bytearray(); consumed=0
+            while consumed<count and len(encoded)<254:
+                value=self.staged[offset+consumed]; size=1
+                while size<128 and consumed+size<count and self.staged[offset+consumed+size]==value:size+=1
+                encoded.extend((0x80| (size-1),value));consumed+=size
+            payload=struct.pack('<H',consumed)+encoded
         elif command == 3:
             self.assertEqual(len(q), 13 + count)
             self.staged[offset:offset + count] = q[13:]
@@ -89,6 +96,28 @@ class BluetoothHostTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'CRC'):
             with BluetoothKeyboard('probe'): pass
         self.assertEqual(self.calls, [0])
+
+    def test_changed_blocks_apply_and_verify_without_a_full_download(self):
+        baseline = self.live
+        desired = bytearray(baseline); desired[119] = 1
+        struct.pack_into('<I', desired, 156, zlib.crc32(desired[:156]))
+        with BluetoothKeyboard('probe') as keyboard:
+            keyboard.apply(bytes(desired), save=True, baseline=baseline)
+            self.assertEqual(keyboard.verify(bytes(desired)), desired)
+        self.assertNotIn(2, self.calls, 'Verification downloaded the full settings record')
+        self.assertEqual(self.calls.count(4), 1, 'Verification retried Commit')
+        self.assertLessEqual(self.calls.count(3), 2)
+
+    def test_crc_verification_rejects_changes_and_closes_the_session(self):
+        with BluetoothKeyboard('probe') as keyboard:
+            desired = bytearray(self.live); desired[119] = 1
+            struct.pack_into('<I', desired, 156, zlib.crc32(desired[:156]))
+            with self.assertRaisesRegex(RuntimeError, 'snapshot CRC differs'):
+                keyboard.verify(bytes(desired))
+            self.assertFalse(keyboard.session)
+        self.assertEqual(self.calls, [0, 6, 1, 5])
+        self.assertEqual(self.phase, 0)
+        self.assertNotIn(4, self.calls)
 
     def test_lost_commit_response_does_not_retry(self):
         normal = self.helper
@@ -149,10 +178,28 @@ class BluetoothHostTest(unittest.TestCase):
             self.assertEqual(self.calls.count(7), 2)
 
     def test_unknown_capability_stops_before_clock(self):
-        self.capabilities = 4
+        self.capabilities = 8
         with self.assertRaisesRegex(RuntimeError, 'Unknown Bluetooth capability'):
             with BluetoothKeyboard('probe'): self.fail('Unknown capability accepted')
         self.assertNotIn(7, self.calls)
+
+    def test_negotiated_compressed_read_and_explicit_legacy_read(self):
+        self.capabilities=7
+        with BluetoothKeyboard('probe') as keyboard:
+            self.assertTrue(keyboard.compressed_read_support)
+            self.assertEqual(keyboard.read(),self.live)
+        self.assertIn(8,self.calls);self.assertNotIn(2,self.calls)
+        self.assertLess(self.calls.count(8),3)
+        self.calls=[];self.capabilities=3
+        with BluetoothKeyboard('probe') as keyboard:
+            self.assertFalse(keyboard.compressed_read_support)
+            self.assertEqual(keyboard.read(),self.live)
+        self.assertIn(2,self.calls);self.assertNotIn(8,self.calls)
+
+    def test_compressed_tokens_are_bounded_and_exact(self):
+        self.assertEqual(unpack_snapshot(bytes([2,1,2,3,0x82,4]),6),b'\1\2\3\4\4\4')
+        for data,size in [(b'\xff',128),(b'\xff\0',127),(b'\0',1),(b'\x02ab',3),(b'\x80\0',2),(b'\x80\0\x80\0',1),(b'',1)]:
+            with self.assertRaises(RuntimeError):unpack_snapshot(data,size)
 
     def test_missing_permission_stops_before_a_settings_session(self):
         reply = subprocess.CompletedProcess(['probe'], 0, json.dumps({'access':'unknown'}), '')

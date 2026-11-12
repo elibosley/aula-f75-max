@@ -1,0 +1,10 @@
+{
+  "tool": "built-in image_gen",
+  "transparent_background": true,
+  "prompt": "Use case: illustration-story. Asset type: production 2D game animation sprite sheet for a tiny keyboard display. Generate ONE sprite sheet: exact 4 columns by 4 rows, 16 equal square cells, no gutters, transparent background, no text, labels, borders or shadows outside the sprite. A single consistent cute chubby cream-and-peach calico kitten visiting a little desktop companion. Match cozy pastel kawaii sticker-style sprites: thick dark plum outlines, clean solid shapes, tiny mint and peach accents, friendly expressive face, very readable reduced to 24 by 24 pixels. Entire kitten visible in every cell, equal scale, fixed baseline, generous transparent padding, no desk or other character. Reading order left-to-right top-to-bottom: cells 1-8 are eight genuinely different consecutive side-view walking poses facing left, with a smooth alternating four-paw walk cycle, gentle body bob and flowing tail; cells 9-12 are seated three-quarter poses, eyes open, half closed, closed, then open, tail curls progressively; cells 13-16 are a playful paw wave in four consecutive poses: paw resting, lifting halfway, raised, waving inward. Preserve exactly the same kitten identity, fur markings, size and line thickness across all frames. Pixel-art-friendly flat colors with clean opaque interiors, antialiased outside edge only. 1024x1024 square overall, strict sixteen-cell 4x4 layout.",
+  "native_frame_size": [
+    20,
+    20
+  ],
+  "native_palette_colors": 7
+}

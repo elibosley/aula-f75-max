@@ -99,7 +99,8 @@ f75_budget f75_power_budget(const f75_state *s,uint32_t now,uint8_t battery,bool
     static const uint32_t dim[]={15000,8000,60000},off[]={45000,25000,180000},sleep[]={180000,90000,600000};
     static const uint8_t caps[]={40,18,75},screens[]={65,40,85},fps[]={12,8,20};
     unsigned p=s->config.power;uint32_t idle=now-s->last_activity;
-    f75_budget b={F75_ACTIVE,minimum(s->config.brightness,usb?100:caps[p]),screens[p],fps[p]};
+    static const uint8_t powered_fps[]={24,18,30};
+    f75_budget b={F75_ACTIVE,minimum(s->config.brightness,usb?100:caps[p]),screens[p],usb?powered_fps[p]:fps[p]};
     if(s->pairing!=F75_PAIR_WAIT&&s->pairing!=F75_PAIR_CONFIRM){
         if(idle>=sleep[p])b.stage=F75_SLEEP;else if(idle>=off[p])b.stage=F75_OFF;else if(idle>=dim[p])b.stage=F75_DIM;
     }

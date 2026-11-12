@@ -88,7 +88,9 @@ def handle(handler):
     data=encode(body['document'])
     if transport=='bluetooth':result=keyboard.apply(data,body['action']=='save',baseline=bytes.fromhex(body['document']['base_hex']))
     else:result=keyboard.apply(data,body['action']=='save')
-    verifying=True;report('verifying');actual=keyboard.read()
+    verifying=True;report('verifying')
+    actual=keyboard.verify(data) if transport=='bluetooth' else keyboard.read()
+    result['verification']='snapshot-crc32' if transport=='bluetooth' else 'full-readback'
     if actual[160:]!=data[160:]:raise RuntimeError('Custom settings readback differs; read the keyboard before trying again')
     result['document']=decode(actual);result['custom_readback_verified']=True
     expected=decode(data)
