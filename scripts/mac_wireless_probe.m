@@ -290,6 +290,7 @@ static BOOL fast_qualified(IOHIDDeviceRef device) {
 }
 
 static BOOL send_fast(IOHIDDeviceRef device,const uint8_t *data,size_t length,uint8_t flags,NSMutableDictionary *receipt) {
+    CFAbsoluteTime started=CFAbsoluteTimeGetCurrent();
     uint32_t checksum=packet_crc(data,length);unsigned sent=0;uint8_t previous=27;
     uint8_t report[2]={2,(uint8_t)(flags|(previous<<3))};
     IOReturn result=write_symbol(device,flags,0);
@@ -308,6 +309,7 @@ static BOOL send_fast(IOHIDDeviceRef device,const uint8_t *data,size_t length,ui
     CFRunLoopRunInMode(kCFRunLoopDefaultMode,0.02,false);
     uint8_t latest;if(read_leds(device,&latest)==kIOReturnSuccess)flags=latest;
     IOReturn restored=write_symbol(device,flags,0);
+    receipt[@"fast_request_seconds"]=@(CFAbsoluteTimeGetCurrent()-started);
     receipt[@"display_send_status"]=status(result);receipt[@"display_led_restore_status"]=status(restored);
     receipt[@"display_symbols_sent"]=@(sent);receipt[@"output_bits_per_symbol"]=@4;
     return result==kIOReturnSuccess&&restored==kIOReturnSuccess&&sent==2*(length+4);
@@ -568,6 +570,12 @@ int main(int argc, const char **argv) {
     result[@"candidate_metadata"] = candidates;
     result[@"local_wireless_devices"] = matches;
     result[@"fast_settings_version"]=@(target&&![result[@"ambiguous"] boolValue]&&fast_qualified(target)?1:0);
+    if([result[@"fast_settings_version"] intValue]==1) {
+        NSString *root=[[NSBundle mainBundle] objectForInfoDictionaryKey:@"F75ProjectRoot"];
+        NSData *bytes=[NSData dataWithContentsOfFile:[root stringByAppendingPathComponent:@".runtime/ble-padding-qualified.json"]];
+        NSDictionary *qualification=bytes?[NSJSONSerialization JSONObjectWithData:bytes options:0 error:NULL]:nil;
+        result[@"fast_snapshot_codec"]=[qualification[@"fast_snapshot_codec"] isEqual:@2]?@2:@1;
+    }
     if (displayInfo) result[@"display_ready"] = @NO;
     if (openCheck && access == kIOHIDAccessTypeGranted && target && ![result[@"ambiguous"] boolValue]) {
         result[@"open_attempted"] = @YES;

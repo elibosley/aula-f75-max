@@ -42,7 +42,7 @@ def run(image):
    nonce+=1;prefix=struct.pack('<I',nonce if token is None else token);before=len(trace())
    for symbol in fast_symbols(command,prefix,offset,body):
     value=(symbol<<3)|2;inject(bytes([0x5a,value,(0x5a+value)&255]))
-   for _ in range(180):
+   for _ in range(400):
     step(10)
     if m.read(m.symbols['bluetooth_settings']+ReplyState.replying.offset,1)==b'\0':break
    step(10);raw=trace()[before:];values=[];packets=[];at=0
@@ -68,6 +68,16 @@ def run(image):
    crc,count=struct.unpack_from('<IH',payload,2);assert identity is None or identity==crc;identity=crc
    data.extend(unpack_snapshot(payload[8:],count));assert phase==(0 if len(data)==BUNDLE_BYTES else 2)
   original=bytes(data);validate(original);assert snapshot_crc(original)==identity
+  # Codec 2 is opt-in; its shorter response must still reconstruct the exact
+  # live bundle and reject an unknown codec without taking snapshot ownership.
+  compact=bytearray();wire_bytes=0
+  while len(compact)<BUNDLE_BYTES:
+   status,phase,payload,_=rpc(9,len(compact),b'\2',token=0x6a713f71)
+   assert not status and payload[:2]==b'\2\7'
+   crc,count=struct.unpack_from('<IH',payload,2);assert crc==identity
+   compact.extend(unpack_snapshot(payload[8:],count,2));wire_bytes+=len(payload)+15
+  assert bytes(compact)==original and wire_bytes<160
+  assert rpc(9,body=b'\3')[0]==3
   assert m.read32(HOST+0x5c)==0
   patch=struct.pack('<IHB',identity,119,1)+bytes([(original[119]+1)%3])
   desired=bytearray(original);desired[119]=(original[119]+1)%3;struct.pack_into('<I',desired,156,zlib.crc32(desired[:156]))
@@ -89,11 +99,12 @@ def run(image):
   step(50);assert m.read(m.symbols['state'],116)==unchanged and m.read32(HOST+0x5c)==writes
   # A dense snapshot is frozen across chunks and released by a route change.
   m.write(m.symbols['f75_custom_config']+360,bytes(i*29%256 for i in range(810)))
-  status,phase,payload,_=rpc(9,token=0x24157369);assert status==0 and phase==2
+  status,phase,payload,_=rpc(9,body=b'\2',token=0x24157369);assert status==0 and phase==2
+  assert payload[:2]==b'\2\7'
   count=struct.unpack_from('<H',payload,6)[0];assert 0<count<BUNDLE_BYTES
   m.write32(HOST+0x204,1<<2);step(100)
   assert m.read(m.symbols['transfer']+BUNDLE_BYTES+14,1)==b'\0'
-  return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),fast_full_snapshot_crc=True,atomic_ram_apply_live_crc=True,stale_baseline_rejected=True,save_waits_for_reserved_flash=True,held_keys_and_modifiers_preserved=True,corrupt_frame_no_apply=True,dense_read_frozen_and_route_cancelled=True,apple_fn_never_used=True,usb_not_enumerated=True,physical_radio_tested=False)
+  return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),fast_full_snapshot_crc=True,compact_snapshot_byte_exact=True,compact_response_bytes=wire_bytes,unknown_codec_rejected=True,atomic_ram_apply_live_crc=True,stale_baseline_rejected=True,save_waits_for_reserved_flash=True,held_keys_and_modifiers_preserved=True,corrupt_frame_no_apply=True,dense_read_frozen_and_route_cancelled=True,apple_fn_never_used=True,usb_not_enumerated=True,physical_radio_tested=False)
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--output',type=Path,required=True);a=p.parse_args();r=run(a.image);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

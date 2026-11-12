@@ -18,13 +18,18 @@ def snapshot_crc(data):
     return zlib.crc32(data[160:-4], zlib.crc32(data[:156]))
 
 
-def unpack_snapshot(data, expected):
+def unpack_snapshot(data, expected, codec=1):
     if type(expected) is not int or not 0 < expected <= BUNDLE_BYTES:
         raise RuntimeError('Invalid compressed snapshot size.')
     out = bytearray()
     at = 0
     while at < len(data):
         token = data[at]; at += 1
+        if codec==2 and token==128:
+            if len(data)-at<2: raise RuntimeError('Compressed zero span was truncated.')
+            count=struct.unpack_from('<H',data,at)[0];at+=2
+            if not count or count>expected-len(out): raise RuntimeError('Compressed zero span overflows its declared size.')
+            out.extend(bytes(count));continue
         count = (token & 127) + 1
         if count > expected - len(out):
             raise RuntimeError('Compressed settings window overflows its declared size.')
@@ -50,6 +55,7 @@ class BluetoothKeyboard:
         self.compressed_read_support = False
         self.expected_board = None
         self.prefer_fast=fast; self.fast_mode=False; self._verified=None
+        self.fast_snapshot_codec=1
 
     def __enter__(self):
         self.lock.__enter__()
@@ -62,6 +68,9 @@ class BluetoothKeyboard:
                 version=value.get('fast_settings_version',0)
                 if type(version) is not int or version not in (0,1): raise RuntimeError('Unknown fast Bluetooth capability.')
                 if version==1:
+                    codec=value.get('fast_snapshot_codec',1)
+                    if type(codec) is not int or codec not in (1,2): raise RuntimeError('Unknown fast snapshot codec.')
+                    self.fast_snapshot_codec=codec
                     self.fast_mode=True;self.indicator_support=True;self.clock_support=True;self.compressed_read_support=True
                     return self
             info = self.request(0)['payload']
@@ -81,7 +90,9 @@ class BluetoothKeyboard:
 
     def __exit__(self, *exc):
         try:
-            if self.session:
+            # A failed fast reply never sends a legacy cleanup request. Its
+            # bounded snapshot expires on the board; diagnose before new RPCs.
+            if self.session and not (exc[0] and self.fast_mode):
                 with contextlib.suppress(Exception):
                     self.end()
         finally:
@@ -195,13 +206,14 @@ class BluetoothKeyboard:
         self.token=secrets.randbits(32) or 1;nonce=struct.pack('<I',self.token)
         data=bytearray();identity=None;self.session=True
         while len(data)<BUNDLE_BYTES:
-            reply=self.request_fast(9,len(data),nonce=nonce);payload=reply['payload']
-            if len(payload)<10 or payload[0]!=1 or payload[1]&~7: raise RuntimeError('Fast Bluetooth snapshot format is unsupported.')
+            body=bytes([2]) if self.fast_snapshot_codec==2 else b''
+            reply=self.request_fast(9,len(data),body,nonce=nonce);payload=reply['payload']
+            if len(payload)<10 or payload[0]!=self.fast_snapshot_codec or payload[1]&~7: raise RuntimeError('Fast Bluetooth snapshot format is unsupported.')
             crc,count=struct.unpack_from('<IH',payload,2)
             if identity is not None and identity!=crc: raise RuntimeError('Fast Bluetooth snapshot changed.')
             identity=crc
             if not 0<count<=BUNDLE_BYTES-len(data): raise RuntimeError('Invalid fast Bluetooth window size.')
-            data.extend(unpack_snapshot(payload[8:],count));self.progress('reading',len(data),BUNDLE_BYTES)
+            data.extend(unpack_snapshot(payload[8:],count,self.fast_snapshot_codec));self.progress('reading',len(data),BUNDLE_BYTES)
             if reply['phase']!=(0 if len(data)==BUNDLE_BYTES else 2): raise RuntimeError('Fast Bluetooth snapshot phase is invalid.')
         result=bytes(data);validate(result)
         if snapshot_crc(result)!=identity: raise RuntimeError('Fast Bluetooth snapshot CRC differs.')
@@ -210,7 +222,11 @@ class BluetoothKeyboard:
 
     def read(self):
         self.progress('reading')
-        if self.fast_mode:return self.read_fast()
+        if self.fast_mode:
+            try:return self.read_fast()
+            except BaseException:
+                self.session=False
+                raise
         crc = self.begin()
         try:
             data = self.read_snapshot(crc)

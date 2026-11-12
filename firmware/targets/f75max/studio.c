@@ -213,7 +213,9 @@ static void bluetooth_settings_reply(uint32_t now) {
     // marker, so they cannot be mistaken for bytes of a settings response.
     if (transfer.phase == 3 || pending_save) return;
     f75_bluetooth_fast_complete(&bluetooth_settings,&transfer,&state.config,&f75_custom_config);
-    if (f75_radio_busy() || now - bluetooth_reply_at < (bluetooth_settings.fast?2u:10u)) return;
+    /* UART ACK means accepted by the radio, not delivered over BLE. The 2ms
+     * candidate lost host reports in physical testing despite those ACKs. */
+    if (f75_radio_busy() || now - bluetooth_reply_at < (bluetooth_settings.fast?8u:10u)) return;
     // Preserve every key and modifier. Only the Constant byte carries data;
     // the Apple Fn field is never used for replies.
     uint8_t value;

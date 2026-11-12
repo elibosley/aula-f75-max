@@ -132,6 +132,30 @@ int main(void) {
         assert(decoded==count);position+=count;b.replying=false;
     }while(position<F75_BUNDLE_BYTES);
     assert(!b.owns_transfer&&t.phase==0);
+    /* Extended zero spans are requested explicitly; reconstruct every byte,
+     * including the embedded record CRCs, through the actual C encoder. */
+    uint8_t codec=2;position=0;unsigned compact_wire=0;
+    do {
+        assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,position,&codec,1,++now,&c,&custom));
+        assert(!b.response[5]&&b.response[11]==2);
+        unsigned count=b.response[17]|((unsigned)b.response[18]<<8),at=19,decoded=0;
+        while(at<b.response_length-4u) {
+            unsigned token=b.response[at++],length=(token&127u)+1;
+            if(token==128) {
+                assert(at+2<=b.response_length-4u);length=b.response[at]|((unsigned)b.response[at+1]<<8);at+=2;
+                assert(length&&length<=count-decoded);
+                for(unsigned i=0;i<length;++i)assert(initial[position+decoded++]==0);
+            } else {
+                assert(length<=count-decoded);
+                if(token&128u){for(unsigned i=0;i<length;++i)assert(initial[position+decoded++]==b.response[at]);++at;}
+                else for(unsigned i=0;i<length;++i)assert(initial[position+decoded++]==b.response[at++]);
+            }
+        }
+        assert(count==decoded);position+=count;compact_wire+=b.response_length;b.replying=false;
+    }while(position<F75_BUNDLE_BYTES);
+    assert(compact_wire<160&&!b.owns_transfer&&t.phase==0);
+    codec=3;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,0,&codec,1,++now,&c,&custom)&&b.response[5]==3&&!b.owns_transfer);b.replying=false;
     uint8_t atomic[8]={0};put32(atomic,f75_bluetooth_snapshot_crc(initial));atomic[4]=119;atomic[6]=1;atomic[7]=1;
     uint8_t stale[8];memcpy(stale,atomic,8);stale[0]^=1;
     assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,0,stale,8,++now,&c,&custom)&&b.response[5]==2&&t.phase==0);b.replying=false;

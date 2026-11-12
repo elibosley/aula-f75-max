@@ -13,9 +13,20 @@ static void put32(uint8_t *p, uint32_t v) {
 
 /* PackBits-style chunks. Every token consumes input; the caller's fixed reply
  * buffer bounds both the encoded output and each decoded snapshot window. */
-static unsigned pack_snapshot(const uint8_t *data, unsigned size, uint8_t *out, unsigned capacity, unsigned *consumed) {
+static unsigned pack_snapshot(const uint8_t *data, unsigned size, uint8_t *out, unsigned capacity, unsigned *consumed, bool compact) {
     unsigned at=0, written=0;
     while(at<size && capacity-written>=2) {
+        /* Codec 2 reserves the otherwise unused repeat-one token for a long
+         * zero span. Empty mapping/macro space stays a fresh snapshot without
+         * sending dozens of identical run tokens. Codec 1 is unchanged. */
+        if(compact && data[at]==0 && capacity-written>=3) {
+            unsigned zeros=1;
+            while(at+zeros<size && zeros<65535u && data[at+zeros]==0)++zeros;
+            if(zeros>256u) {
+                out[written++]=0x80;put16(out+written,(uint16_t)zeros);
+                written+=2;at+=zeros;continue;
+            }
+        }
         unsigned run=1;
         while(run<128 && at+run<size && data[at+run]==data[at])++run;
         if(run>=3) {out[written++]=(uint8_t)(0x80u| (run-1));out[written++]=data[at];at+=run;}
@@ -102,7 +113,7 @@ bool f75_bluetooth_receive(f75_bluetooth *b, f75_transfer *t,
         else if (!count || offset>=F75_BUNDLE_BYTES || count>F75_BUNDLE_BYTES-offset) status = 3;
         else {
             unsigned consumed;
-            length=2+pack_snapshot(t->bytes+offset,count,r+13,F75_BT_READ_MAX-2,&consumed);
+            length=2+pack_snapshot(t->bytes+offset,count,r+13,F75_BT_READ_MAX-2,&consumed,false);
             put16(r+11,(uint16_t)consumed);
         }
     } else if (command == 3) {
@@ -147,7 +158,7 @@ bool f75_bluetooth_fast_receive(f75_bluetooth *b, f75_transfer *t,
     b->response[4]=command;put16(b->response+7,offset);b->fast=true;b->commit_wait=false;
     if(!token)status=3;
     else if(command==9) {
-        if(length||offset>=F75_BUNDLE_BYTES)status=3;
+        if((length && (length!=1 || body[0]!=2))||offset>=F75_BUNDLE_BYTES)status=3;
         else if(!offset) {
             if(t->phase==1||t->phase==2||t->phase==3||b->owns_transfer)status=1;
             else {
@@ -158,9 +169,10 @@ bool f75_bluetooth_fast_receive(f75_bluetooth *b, f75_transfer *t,
         else if(t->phase!=2||offset!=t->next)status=3;
         if(!status) {
             unsigned consumed;
-            uint8_t *r=b->response+11;r[0]=1;r[1]=7;
+            bool compact=length==1;
+            uint8_t *r=b->response+11;r[0]=compact?2:1;r[1]=7;
             put32(r+2,f75_bluetooth_snapshot_crc(t->bytes));
-            payload=8+pack_snapshot(t->bytes+offset,F75_BUNDLE_BYTES-offset,r+8,F75_BT_READ_MAX-8,&consumed);
+            payload=8+pack_snapshot(t->bytes+offset,F75_BUNDLE_BYTES-offset,r+8,F75_BT_READ_MAX-8,&consumed,compact);
             put16(r+6,(uint16_t)consumed);t->next=(uint16_t)(offset+consumed);
             t->touched=now;b->touched=now;
             if(t->next==F75_BUNDLE_BYTES){t->phase=0;t->token=0;b->owns_transfer=false;}

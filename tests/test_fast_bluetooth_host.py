@@ -3,35 +3,40 @@ import contextlib,json,struct,subprocess,sys,unittest,zlib
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from keyboard_bluetooth import BluetoothKeyboard,snapshot_crc
+from keyboard_bluetooth import BluetoothKeyboard,snapshot_crc,unpack_snapshot
 from test_bluetooth_host import fixture
 
 
-def packed(data,capacity=248):
+def packed(data,capacity=248,codec=1):
  out=bytearray();at=0
  while at<len(data) and len(out)+2<=capacity:
+  if codec==2 and data[at]==0 and len(out)+3<=capacity:
+   zeros=1
+   while at+zeros<len(data) and data[at+zeros]==0:zeros+=1
+   if zeros>256:out.extend(b'\x80'+struct.pack('<H',zeros));at+=zeros;continue
   count=1
   while count<128 and at+count<len(data) and data[at+count]==data[at]:count+=1
-  out.extend((128| (count-1),data[at]));at+=count
+  out.extend((0 if codec==2 and count==1 else 128| (count-1),data[at]));at+=count
  return at,bytes(out)
 
 
 class FastBluetoothTest(unittest.TestCase):
  def setUp(self):
-  self.live=fixture();self.calls=[];self.snapshots={};self.version=1;self.corrupt=False;self.lost=False;self.save_failed=False;self.legacy_phase=0
+  self.live=fixture();self.calls=[];self.snapshots={};self.version=1;self.codec=1;self.corrupt=False;self.lost=False;self.save_failed=False;self.legacy_phase=0
   self.mocks=[patch('keyboard_bluetooth.TransportLock',side_effect=lambda _:contextlib.nullcontext()),patch('keyboard_bluetooth.subprocess.run',side_effect=self.helper)]
   for m in self.mocks:m.start()
  def tearDown(self):
   for m in reversed(self.mocks):m.stop()
  def helper(self,args,**kwargs):
-  if args==['probe','--check']:return subprocess.CompletedProcess(args,0,json.dumps(dict(access='granted',fast_settings_version=self.version)),'')
+  if args==['probe','--check']:return subprocess.CompletedProcess(args,0,json.dumps(dict(access='granted',fast_settings_version=self.version,fast_snapshot_codec=self.codec)),'')
   q=bytes.fromhex(kwargs['input']);nonce=q[:4];payload=b'';status=phase=0
   if '--fast-settings-request' in args:
    command=q[4];offset=struct.unpack_from('<H',q,5)[0];body=q[7:];self.calls.append((command,offset,body))
    if command==9:
     if not offset:self.snapshots[nonce]=self.live
-    source=self.snapshots[nonce];count,tokens=packed(source[offset:]);phase=0 if offset+count==len(source) else 2
-    payload=bytes([1,7])+struct.pack('<IH',snapshot_crc(source),count)+tokens
+    codec=2 if body==b'\2' else 1
+    source=self.snapshots[nonce];count,tokens=packed(source[offset:],codec=codec);phase=0 if offset+count==len(source) else 2
+    payload=bytes([codec,7])+struct.pack('<IH',snapshot_crc(source),count)+tokens
    elif command==10:
     if struct.unpack_from('<I',body)[0]!=snapshot_crc(self.live):status=2
     else:
@@ -85,6 +90,21 @@ class FastBluetoothTest(unittest.TestCase):
   with BluetoothKeyboard('probe',fast=True) as k:
    with self.assertRaisesRegex(RuntimeError,'CRC'):k.read()
   self.assertEqual([c[0] for c in self.calls if c[0]==9],[9])
+  self.assertEqual([c[0] for c in self.calls],[9])
+ def test_compact_codec_is_explicit_and_keeps_snapshot_identity(self):
+  self.codec=2
+  with BluetoothKeyboard('probe',fast=True) as k:self.assertEqual(k.read(),self.live)
+  self.assertTrue(all(c[2]==b'\2' for c in self.calls));self.assertEqual(len(self.snapshots),1)
+ def test_compact_zero_span_bounds_and_legacy_token_are_distinct(self):
+  self.assertEqual(unpack_snapshot(b'\x80\x00\x0c',3072,2),bytes(3072))
+  self.assertEqual(unpack_snapshot(b'\x80\x00',1),b'\0')
+  for value,expected in [(b'\x80',1),(b'\x80\0',1),(b'\x80\0\0',1),(b'\x80\2\0',1)]:
+   with self.assertRaises(RuntimeError):unpack_snapshot(value,expected,2)
+ def test_unknown_codec_fails_before_any_wire_request(self):
+  self.codec=3
+  with self.assertRaisesRegex(RuntimeError,'codec'):
+   with BluetoothKeyboard('probe',fast=True):pass
+  self.assertEqual(self.calls,[])
  def test_dense_snapshot_uses_same_nonce_and_ordered_offsets(self):
   data=bytearray(self.live)
   for i in range(168,len(data)-4):data[i]=i*73%256
