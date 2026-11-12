@@ -61,6 +61,9 @@ extern uint32_t f75_max_scan_gap_ticks;
 static uint32_t perf_tiles, perf_render_ticks, perf_spi_ticks, perf_max_render, perf_max_spi;
 static volatile uint32_t complete_frames;
 static uint32_t pending_boot_at;
+static uint32_t bt_memory_since;
+static uint8_t bt_memory_slot;
+static bool bt_memory_attempted;
 static bool pending_boot;
 static bool pending_save;
 static uint8_t usb_detected=255;
@@ -406,7 +409,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
 #endif
         raw_hid_send(reply,sizeof(reply));return;
     }
-    if(!memcmp(data,"F75j",4)&&data[8]<2){
+    if(!memcmp(data,"F75j",4)&&data[8]<3){
         uint8_t response[32]={'F','7','5','k'};memcpy(response+4,data+4,8);
         uint16_t offset=(uint16_t)data[9]|((uint16_t)data[10]<<8);
         f75_settings_read(data[8],offset,response+12);raw_hid_send(response,sizeof(response));return;
@@ -568,6 +571,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
     uint32_t counters[] = {timer_read32(), f75_matrix_scans, complete_frames, state.release_epoch};
     memcpy(response + 8, counters, sizeof(counters));
     response[24] = (uint8_t)panel_ready | ((uint8_t)usb_selected() << 1) | ((uint8_t)state.control_layer << 2) | ((uint8_t)f75_matrix_ready << 3);
+    response[24] |= 1u << 5;
 #ifndef F75_USB_ONLY
     response[24] |= 1u << 4;
 #endif
@@ -692,6 +696,7 @@ void keyboard_post_init_user(void) {
     uint32_t now = timer_read32();
     f75_config saved;bool restored=f75_settings_load(&saved,&f75_custom_config);
     f75_init(&state, restored?&saved:NULL, now);
+    last_bt_slot=f75_settings_last_bt(restored?saved.active_host:1);
     state.config.active_host = 0;
     state.connected_slot = 0;
     f75_navigation_init(&navigation);
@@ -1047,6 +1052,15 @@ void housekeeping_task_user(void) {
         if(was_pairing)request_host(active_slot,false);
     }
     if (boot_held && now - boot_down_at >= 1200) { boot_held = false; release_keys(); f75_rgb_suspend(true); bootloader_jump(); }
+    uint8_t remember=active_slot>=1&&active_slot<=3&&f75_radio_connected()&&!radio_switch_pending?active_slot:0;
+    if(remember!=bt_memory_slot){bt_memory_slot=remember;bt_memory_since=now;bt_memory_attempted=false;}
+    if(remember&&!bt_memory_attempted&&now-bt_memory_since>=1000u&&now-state.last_activity>=200u&&
+       !f75_radio_busy()&&!pending_save&&transfer.phase!=1&&transfer.phase!=2&&transfer.phase!=3){
+        bt_memory_attempted=true;f75_rgb_suspend(true);
+        bool remembered=f75_settings_remember_bt(remember);
+        if(!diagnostic_rgb_off){f75_rgb_suspend(false);if(diagnostic_rgb_blank)f75_rgb_pause();}
+        if(!remembered)show_notice("BT memory failed");
+    }
     if(state.pairing==F75_PAIR_CONFIRM&&!button_stable&&now-button_down_at>=1200u){
         if(f75_pair_confirm(&state,now-button_down_at,now)){button_held_action=true;release_keys();f75_radio_pair();}
     }

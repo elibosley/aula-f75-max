@@ -126,6 +126,7 @@ def main():
                     'storage': 'test_storage_probe.py',
                     'companions': 'test_companion_system.py',
                     'animation-speed': 'test_animation_system.py',
+                    'route-memory': 'test_route_system.py',
                     'host-display': 'test_host_display_system.py',
                     'info-signs': 'test_info_signs_system.py',
                     'indicators': 'test_indicators_system.py',

@@ -188,7 +188,7 @@ static void f75_write(void *opaque, hwaddr a, uint64_t v, unsigned size) {
         uint32_t address=R(0x62010);uint8_t *flash=memory_region_get_ram_ptr(&s->flash);
         /* Deliberately restricted application-data model. Attempts to touch
          * code, option bytes or the trailer fail visibly. */
-        if(!((address>=0x38000u&&address<0x3a000u)||(address>=0x3f000u&&address<0x3f800u))||(address&7u)||(v&4u)){
+        if(!((address>=0x38000u&&address<0x3a000u)||(address>=0x3e800u&&address<0x3f800u))||(address&7u)||(v&4u)){
             ++s->flash_illegal;R(0x62004)|=4u;return;
         }
         if((v&3u)==2u){

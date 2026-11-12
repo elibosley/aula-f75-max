@@ -16,6 +16,7 @@ from pathlib import Path
 import struct
 import time
 import uuid
+import zlib
 
 import usb.backend.libusb1
 import usb.core
@@ -37,7 +38,7 @@ def checksum(data):
         raise ValueError('Image must contain whole 16-bit words')
     return sum(struct.unpack('<' + str(len(data) // 2) + 'H', data)) & 65535
 
-def preserve_settings(image,backup,expected_current):
+def preserve_settings(image,backup,expected_current,*,route_reserved=False):
     """Restore only whitelisted settings regions into an admitted blank image."""
     source_sha=backup['source_image_sha256']
     if len(source_sha)!=64 or any(c not in '0123456789abcdef' for c in source_sha):
@@ -60,6 +61,20 @@ def preserve_settings(image,backup,expected_current):
             if len(value)!=4096:raise ValueError('Wrong customization record length')
             if source[address:address+4096]!=b'\xff'*4096 or image[address:address+4096]!=b'\xff'*4096:raise ValueError('Image lacks reserved customization region')
             current[address:address+4096]=value;merged[address:address+4096]=value
+    route=backup.get('route_regions',[])
+    if route:
+        if not route_reserved:raise ValueError('Candidate lacks a reserved Bluetooth journal')
+        if len(route)!=1 or route[0]['address']!=0x3e800:raise ValueError('Invalid Bluetooth route journal region')
+        value=bytes.fromhex(route[0]['hex'])
+        if len(value)!=2048 or source[0x3e800:0x3f000]!=b'\xff'*2048 or image[0x3e800:0x3f000]!=b'\xff'*2048:raise ValueError('Bluetooth route journal is not reserved')
+        current[0x3e800:0x3f000]=value;merged[0x3e800:0x3f000]=value
+    elif route_reserved:
+        if image[0x3e800:0x3f000]!=b'\xff'*2048:raise ValueError('Bluetooth journal is not blank')
+        slot=backup.get('last_connected_bt')
+        if slot is not None:
+            if type(slot) is not int or not 1<=slot<=3:raise ValueError('Invalid last connected Bluetooth slot')
+            entry=struct.pack('<4sII',b'F75R',1,slot);entry+=struct.pack('<I',zlib.crc32(entry))
+            merged[0x3e800:0x3e810]=entry
     if checksum(current)!=expected_current or backup['source_checksum']!=f'{expected_current:04x}':
         raise ValueError('Settings backup does not match expected current checksum')
     return bytes(merged)
@@ -221,7 +236,7 @@ def main():
     args = parser.parse_args()
     image = load_candidate(args.sha256)
     if args.settings_backup:
-        image=preserve_settings(image,json.loads(args.settings_backup.read_text()),args.expected_current_checksum)
+        image=preserve_settings(image,json.loads(args.settings_backup.read_text()),args.expected_current_checksum,route_reserved=json.loads(IMAGE.with_suffix('.json').read_text()).get('route_memory')==dict(address=0x3e800,bytes=2048,entry_bytes=16))
     root = ROOT / '.runtime'; root.mkdir(mode=0o700, exist_ok=True)
     lock = os.open(root / 'keyboard-flash.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

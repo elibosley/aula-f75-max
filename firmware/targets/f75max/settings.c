@@ -8,9 +8,12 @@ __attribute__((used,section(".f75_settings_reserve")))
 const uint8_t f75_settings_reserve[2048]={[0 ... 2047]=0xff};
 __attribute__((used,section(".f75_custom_reserve")))
 const uint8_t f75_custom_reserve[8192]={[0 ... 8191]=0xff};
+__attribute__((used,section(".f75_route_reserve")))
+const uint8_t f75_route_reserve[2048]={[0 ... 2047]=0xff};
 static uint32_t generation,saves,failures;
 static uint8_t active=255;
 static bool loaded;
+static uint8_t bt_fallback=1;
 /* Static buffer keeps a 4 KiB record off the 2 KiB process stack. */
 static uint32_t words[F75_ENVELOPE_BYTES/4];
 static const uint8_t *page(unsigned slot){return (const uint8_t *)(slot?F75_SETTINGS_B:F75_SETTINGS_A);}
@@ -43,6 +46,33 @@ static bool program_record(unsigned slot){
     }
     SN_FLASH->CTRL=0;return !memcmp(page(slot),words,F75_ENVELOPE_BYTES);
 }
+uint8_t f75_settings_last_bt(uint8_t saved_slot){
+    f75_route_record r=f75_route_latest((const uint8_t *)F75_ROUTE_BASE);
+    bt_fallback=saved_slot>=1&&saved_slot<=3?saved_slot:1;
+    return r.valid?r.slot:bt_fallback;
+}
+bool f75_settings_remember_bt(uint8_t slot){
+    const uint8_t *pages=(const uint8_t *)F75_ROUTE_BASE;unsigned offset;bool erase;uint32_t sequence;
+    if(slot<1||slot>3)return false;
+    if(slot==1&&bt_fallback==1&&!f75_route_latest(pages).valid)return true;
+    if(!f75_route_plan(pages,slot,&offset,&erase,&sequence))return true;
+    uint32_t entry[4];f75_route_encode((uint8_t *)entry,sequence,slot);
+    SN_FLASH->STATUS&=~4u;
+    if(erase){
+        if(!ready())return false;
+        SN_FLASH->CTRL=2;SN_FLASH->ADDR=F75_ROUTE_BASE+offset;SN_FLASH->CTRL=0x42;
+        if(!ready())goto failed;
+        for(unsigned i=0;i<1024;i++)if(pages[offset+i]!=255)goto failed;
+    }
+    for(unsigned i=0;i<4;i+=2){
+        if(!ready())goto failed;
+        SN_FLASH->CTRL=1;SN_FLASH->ADDR=F75_ROUTE_BASE+offset+i*4;
+        SN_FLASH->DATA=entry[i];SN_FLASH->DATA=entry[i+1];SN_FLASH->CTRL=0x41;
+        if(!ready())goto failed;
+    }
+    SN_FLASH->CTRL=0;return !memcmp(pages+offset,entry,16);
+failed:SN_FLASH->CTRL=0;return false;
+}
 bool f75_settings_load(f75_config *config,f75_custom *custom){
     bool valid[2];uint32_t gens[2]={0};
     /* Outputs are scratch until a complete record wins. Decode the winner
@@ -69,6 +99,11 @@ bool f75_settings_save(const f75_config *config,const f75_custom *custom){
 }
 void f75_settings_read(uint8_t slot,uint16_t offset,uint8_t out[20]){
     memset(out,0xff,20);
+    if(slot==2&&offset==UINT16_MAX){
+        f75_route_record r=f75_route_latest((const uint8_t *)F75_ROUTE_BASE);
+        uint32_t stamp[5]={f75_crc32((const uint8_t *)F75_ROUTE_BASE,F75_ROUTE_BYTES),r.sequence,r.offset,r.slot,r.valid};memcpy(out,stamp,20);return;
+    }
+    if(slot==2&&offset<F75_ROUTE_BYTES){unsigned n=F75_ROUTE_BYTES-offset;if(n>20)n=20;memcpy(out,(const uint8_t *)F75_ROUTE_BASE+offset,n);return;}
     if(slot<2&&offset<F75_ENVELOPE_BYTES){unsigned n=F75_ENVELOPE_BYTES-offset;if(n>20)n=20;memcpy(out,page(slot)+offset,n);}
 }
 void f75_settings_legacy_read(uint8_t slot,uint8_t chunk,uint8_t out[20]){

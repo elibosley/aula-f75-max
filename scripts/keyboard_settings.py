@@ -21,6 +21,8 @@ def snapshot():
 
 def capture(source_sha):
  before=snapshot()
+ health=exchange(b'F75?');assert health[:4]==b'F75!'
+ route_supported=bool(health[24]&32)
  records=[]
  for slot in range(2):
   data=bytearray()
@@ -37,10 +39,20 @@ def capture(source_sha):
    for offset in range(0,4096,20):
     r=exchange(b'F75j',bytes([slot])+struct.pack('<H',offset));assert r[:4]==b'F75k' and r[8:11]==bytes([slot])+struct.pack('<H',offset);value.extend(r[12:32])
    value=bytes(value[:4096]);data[address:address+4096]=value;regions.append({'address':address,'hex':value.hex()})
+ route_regions=[]
+ if route_supported:
+  stamp=exchange(b'F75j',bytes([2,255,255]));assert stamp[:4]==b'F75k'
+  value=bytearray()
+  for offset in range(0,2048,20):
+   r=exchange(b'F75j',bytes([2])+struct.pack('<H',offset));assert r[:4]==b'F75k' and r[8:11]==bytes([2])+struct.pack('<H',offset);value.extend(r[12:32])
+  if exchange(b'F75j',bytes([2,255,255]))[8:]!=stamp[8:]:raise RuntimeError('Bluetooth route changed during backup')
+  value=bytes(value[:2048]);data[0x3e800:0x3f000]=value;route_regions=[dict(address=0x3e800,hex=value.hex())]
+ status=exchange(b'F75o');assert status[:4]==b'F75p'
+ last_connected_bt=status[10] if 1<=status[10]<=3 and status[19]&1 else None
  after=snapshot()
  if before!=after:raise RuntimeError('Settings changed during backup; capture again before flashing')
  checksum=sum(struct.unpack('<131072H',data))&65535
- return {'observed_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_image_sha256':source_sha,'source_checksum':f'{checksum:04x}','records_hex':records,'custom_regions':regions,'stats':after}
+ return {'observed_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source_image_sha256':source_sha,'source_checksum':f'{checksum:04x}','records_hex':records,'custom_regions':regions,'route_regions':route_regions,'last_connected_bt':last_connected_bt,'stats':after}
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--save',action='store_true');p.add_argument('--capture',type=Path);p.add_argument('--source-sha');p.add_argument('--debug',action='store_true');p.add_argument('--os',action='store_true');a=p.parse_args()

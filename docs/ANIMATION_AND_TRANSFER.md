@@ -2,6 +2,8 @@
 
 The animation candidate adds a small visiting cat to the four existing desk companions. Its sixteen generated poses cover walking, sitting with a blink, and waving. It enters, spends a moment beside the companion, and leaves, with randomized cooldowns. Menus, timers and notification signs retain priority. Reduced motion hides the visitor. The visitor never wakes the screen or writes settings.
 
+The combined update also [remembers the last successful Bluetooth device](BLUETOOTH_LAST_DEVICE.md) independently of normal Save, while retaining physical-selector precedence.
+
 The generated source, exact prompt and native palette manifest are under `assets/characters/visiting-cat/`. `scripts/build_visitor_assets.py` packs the source into a 20×20 sprite with seven opaque colors and transparency. The native preview and keyboard renderer use the generated header. The gallery uses the matching native atlas.
 
 The renderer retains its 4,800-byte sprite cache. It copies aligned four-pixel LZ groups directly and unpacks four palette indices together. A conservative dirty-tile mask skips unchanged companion-screen regions. Other pages, appearance changes and unclassified changes still repaint completely. Pixel tests require every changed pixel to belong to a dirty tile. Page transitions and wake-up still invalidate every tile. SPI timing, RGB interrupts and recovery code are unchanged.

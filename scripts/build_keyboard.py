@@ -170,6 +170,7 @@ def main():
     assert len(data) == FAMILY_FLASH
     assert data[0x3f000:0x3f800] == b'\xff'*2048, 'Application overlaps reserved settings pages'
     assert data[0x38000:0x3a000] == b'\xff'*8192, 'Application overlaps customization records'
+    assert data[0x3e800:0x3f000] == b'\xff'*2048, 'Application overlaps Bluetooth route journal'
     assert data[-4:] == struct.pack("<I", 0xAAAA5555)
     dest = args.output_dir.resolve()
     dest.mkdir(parents=True, exist_ok=True)
@@ -200,6 +201,7 @@ def main():
     recovery = dict(start=symbols['f75_recovery_begin'], end=symbols['f75_recovery_end'],
                     rom_entry=symbols['f75_enter_rom'], before_c_runtime=True)
     recovery['sha256'] = hashlib.sha256(data[recovery['start']:recovery['end']]).hexdigest()
+    assert symbols['f75_route_reserve']==0x3e800
     recovery['hardfault_entry'] = symbols['HardFault_Handler']
     recovery['wheel_button'] = dict(source='matrix', row=symbols['f75_wheel_matrix_row'],
                                     column=symbols['f75_wheel_matrix_col'], drive='C9', sense='B14', active_level='high')
@@ -223,6 +225,7 @@ def main():
     receipt = {
         "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "status": "linked_candidate_not_hardware_tested",
+        "route_memory": {"address": 0x3e800, "bytes": 2048, "entry_bytes": 16},
         "flash_authorized_by_user": True,
         "hardware_writes": False,
         "stock_source_sha256": STOCK_SHA,
