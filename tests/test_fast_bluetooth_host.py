@@ -4,43 +4,47 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from keyboard_bluetooth import BluetoothKeyboard,snapshot_crc,unpack_snapshot
+from bluetooth_dictionary import DICTIONARY3
 from test_bluetooth_host import fixture
 
 
 def packed(data,capacity=248,codec=1):
  out=bytearray();at=0
  while at<len(data) and len(out)+2<=capacity:
-  if codec==2 and data[at]==0 and len(out)+3<=capacity:
+  if codec>=2 and data[at]==0 and len(out)+3<=capacity:
    zeros=1
    while at+zeros<len(data) and data[at+zeros]==0:zeros+=1
    if zeros>256:out.extend(b'\x80'+struct.pack('<H',zeros));at+=zeros;continue
   count=1
   while count<128 and at+count<len(data) and data[at+count]==data[at]:count+=1
-  out.extend((0 if codec==2 and count==1 else 128| (count-1),data[at]));at+=count
+  out.extend((0 if codec>=2 and count==1 else 128| (count-1),data[at]));at+=count
  return at,bytes(out)
 
 
 class FastBluetoothTest(unittest.TestCase):
  def setUp(self):
-  self.live=fixture();self.calls=[];self.snapshots={};self.version=1;self.codec=1;self.corrupt=False;self.lost=False;self.save_failed=False;self.legacy_phase=0
+  self.live=fixture();self.calls=[];self.snapshots={};self.version=1;self.codec=1;self.patch_version=1;self.corrupt=False;self.lost=False;self.save_failed=False;self.legacy_phase=0
   self.mocks=[patch('keyboard_bluetooth.TransportLock',side_effect=lambda _:contextlib.nullcontext()),patch('keyboard_bluetooth.subprocess.run',side_effect=self.helper)]
   for m in self.mocks:m.start()
  def tearDown(self):
   for m in reversed(self.mocks):m.stop()
  def helper(self,args,**kwargs):
-  if args==['probe','--check']:return subprocess.CompletedProcess(args,0,json.dumps(dict(access='granted',fast_settings_version=self.version,fast_snapshot_codec=self.codec)),'')
+  if args==['probe','--check']:return subprocess.CompletedProcess(args,0,json.dumps(dict(access='granted',fast_settings_version=self.version,fast_snapshot_codec=self.codec,fast_patch_version=self.patch_version)),'')
   q=bytes.fromhex(kwargs['input']);nonce=q[:4];payload=b'';status=phase=0
   if '--fast-settings-request' in args:
    command=q[4];offset=struct.unpack_from('<H',q,5)[0];body=q[7:];self.calls.append((command,offset,body))
    if command==9:
     if not offset:self.snapshots[nonce]=self.live
-    codec=2 if body==b'\2' else 1
-    source=self.snapshots[nonce];count,tokens=packed(source[offset:],codec=codec);phase=0 if offset+count==len(source) else 2
+    codec=body[0] if body in (b'\2',b'\3') else 1
+    source=self.snapshots[nonce];segment=source[offset:]
+    if codec==3:segment=bytes(a^b for a,b in zip(segment,DICTIONARY3[offset:]))
+    count,tokens=packed(segment,codec=codec);phase=0 if offset+count==len(source) else 2
     payload=bytes([codec,7])+struct.pack('<IH',snapshot_crc(source),count)+tokens
    elif command==10:
     if struct.unpack_from('<I',body)[0]!=snapshot_crc(self.live):status=2
     else:
      value=bytearray(self.live);at=4
+     if len(body)==6:value[body[4]]=body[5];at=6
      while at<len(body):
       position,count=struct.unpack_from('<HB',body,at);at+=3;value[position:position+count]=body[at:at+count];at+=count
      struct.pack_into('<I',value,156,zlib.crc32(value[:156]));struct.pack_into('<I',value,len(value)-4,zlib.crc32(value[160:-4]));self.live=bytes(value)
@@ -101,10 +105,32 @@ class FastBluetoothTest(unittest.TestCase):
   for value,expected in [(b'\x80',1),(b'\x80\0',1),(b'\x80\0\0',1),(b'\x80\2\0',1)]:
    with self.assertRaises(RuntimeError):unpack_snapshot(value,expected,2)
  def test_unknown_codec_fails_before_any_wire_request(self):
-  self.codec=3
+  self.codec=4
   with self.assertRaisesRegex(RuntimeError,'codec'):
    with BluetoothKeyboard('probe',fast=True):pass
   self.assertEqual(self.calls,[])
+ def test_dictionary_read_reconstructs_all_current_bytes(self):
+  self.codec=3
+  with BluetoothKeyboard('probe',fast=True) as k:self.assertEqual(k.read(),self.live)
+  self.assertTrue(all(c[2]==b'\3' for c in self.calls))
+ def test_wrong_dictionary_fails_crc_without_legacy_cleanup(self):
+  self.codec=3
+  with patch('keyboard_bluetooth.DICTIONARY3',bytes(3232)):
+   with BluetoothKeyboard('probe',fast=True) as k:
+    with self.assertRaisesRegex(ValueError,'CRC'):k.read()
+  self.assertTrue(all(c[0]==9 for c in self.calls))
+ def test_dictionary_offsets_are_bounded(self):
+  self.assertEqual(unpack_snapshot(b'\x80\x0c\0',12,3,0),DICTIONARY3[:12])
+  for offset in (-1,3232,True):
+   with self.assertRaises(RuntimeError):unpack_snapshot(b'\x80\x0c\0',12,3,offset)
+ def test_dense_dictionary_snapshot_uses_frozen_ordered_windows(self):
+  self.codec=3;self.test_dense_snapshot_uses_same_nonce_and_ordered_offsets()
+ def test_qualified_compact_field_apply_keeps_live_crc_guard(self):
+  self.patch_version=2;baseline=self.live;desired=self.desired()
+  with BluetoothKeyboard('probe',fast=True) as k:
+   k.apply(desired,baseline=baseline);self.assertEqual(k.verify(desired),desired)
+  self.assertEqual(self.live,desired);self.assertEqual(len(self.calls),1)
+  self.assertEqual(self.calls[0][2],struct.pack('<IBB',snapshot_crc(baseline),119,1))
  def test_dense_snapshot_uses_same_nonce_and_ordered_offsets(self):
   data=bytearray(self.live)
   for i in range(168,len(data)-4):data[i]=i*73%256

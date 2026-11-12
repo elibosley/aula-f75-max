@@ -77,7 +77,15 @@ def run(image):
    crc,count=struct.unpack_from('<IH',payload,2);assert crc==identity
    compact.extend(unpack_snapshot(payload[8:],count,2));wire_bytes+=len(payload)+15
   assert bytes(compact)==original and wire_bytes<160
-  assert rpc(9,body=b'\3')[0]==3
+  dictionary=bytearray();dictionary_wire=0
+  while len(dictionary)<BUNDLE_BYTES:
+   offset=len(dictionary)
+   status,phase,payload,_=rpc(9,offset,b'\3',token=0x6a713f72)
+   assert not status and payload[:2]==b'\3\7'
+   crc,count=struct.unpack_from('<IH',payload,2);assert crc==identity
+   dictionary.extend(unpack_snapshot(payload[8:],count,3,offset));dictionary_wire+=len(payload)+15
+  assert bytes(dictionary)==original and dictionary_wire<90
+  assert rpc(9,body=b'\4')[0]==3
   assert m.read32(HOST+0x5c)==0
   patch=struct.pack('<IHB',identity,119,1)+bytes([(original[119]+1)%3])
   desired=bytearray(original);desired[119]=(original[119]+1)%3;struct.pack_into('<I',desired,156,zlib.crc32(desired[:156]))
@@ -87,6 +95,11 @@ def run(image):
   restore=struct.pack('<IHB',snapshot_crc(desired),119,1)+original[119:120]
   assert rpc(10,1,restore)[:3]==(0,5,struct.pack('<I',identity))
   assert m.read32(HOST+0x5c)>0 and m.read32(HOST+0x60)==0
+  short=struct.pack('<IBB',identity,119,desired[119])
+  assert rpc(10,body=short)[:3]==(0,4,struct.pack('<I',snapshot_crc(desired)))
+  assert rpc(10,body=short)[0]==2
+  assert rpc(10,body=struct.pack('<IBB',snapshot_crc(desired),8,1))[0]==3
+  assert rpc(10,body=struct.pack('<IBB',snapshot_crc(desired),119,original[119]))[:3]==(0,4,struct.pack('<I',identity))
   # No key or modifier is released by a read response; Apple Fn stays zero.
   m.write(m.symbols['key_owners']+4,b'\1');m.write(m.symbols['key_owners']+0xe1,b'\1')
   status,_,_,packets=rpc(9,token=0x42651379);assert not status
@@ -99,12 +112,12 @@ def run(image):
   step(50);assert m.read(m.symbols['state'],116)==unchanged and m.read32(HOST+0x5c)==writes
   # A dense snapshot is frozen across chunks and released by a route change.
   m.write(m.symbols['f75_custom_config']+360,bytes(i*29%256 for i in range(810)))
-  status,phase,payload,_=rpc(9,body=b'\2',token=0x24157369);assert status==0 and phase==2
-  assert payload[:2]==b'\2\7'
+  status,phase,payload,_=rpc(9,body=b'\3',token=0x24157369);assert status==0 and phase==2
+  assert payload[:2]==b'\3\7'
   count=struct.unpack_from('<H',payload,6)[0];assert 0<count<BUNDLE_BYTES
   m.write32(HOST+0x204,1<<2);step(100)
   assert m.read(m.symbols['transfer']+BUNDLE_BYTES+14,1)==b'\0'
-  return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),fast_full_snapshot_crc=True,compact_snapshot_byte_exact=True,compact_response_bytes=wire_bytes,unknown_codec_rejected=True,atomic_ram_apply_live_crc=True,stale_baseline_rejected=True,save_waits_for_reserved_flash=True,held_keys_and_modifiers_preserved=True,corrupt_frame_no_apply=True,dense_read_frozen_and_route_cancelled=True,apple_fn_never_used=True,usb_not_enumerated=True,physical_radio_tested=False)
+  return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),fast_full_snapshot_crc=True,compact_snapshot_byte_exact=True,compact_response_bytes=wire_bytes,dictionary_snapshot_byte_exact=True,dictionary_response_bytes=dictionary_wire,unknown_codec_rejected=True,atomic_ram_apply_live_crc=True,stale_baseline_rejected=True,save_waits_for_reserved_flash=True,held_keys_and_modifiers_preserved=True,corrupt_frame_no_apply=True,dense_read_frozen_and_route_cancelled=True,apple_fn_never_used=True,usb_not_enumerated=True,physical_radio_tested=False)
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--output',type=Path,required=True);a=p.parse_args();r=run(a.image);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

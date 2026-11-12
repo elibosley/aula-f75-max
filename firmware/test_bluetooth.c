@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "f75_bluetooth.h"
+#include "f75_bluetooth_dictionary.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -154,8 +155,22 @@ int main(void) {
         assert(count==decoded);position+=count;compact_wire+=b.response_length;b.replying=false;
     }while(position<F75_BUNDLE_BYTES);
     assert(compact_wire<160&&!b.owns_transfer&&t.phase==0);
+    for(unsigned i=0;i<F75_BUNDLE_BYTES;++i)assert(initial[i]==f75_bt_dictionary3_byte(i));
     codec=3;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,0,&codec,1,++now,&c,&custom));
+    assert(!b.response[5]&&b.response[11]==3&&b.response_length==26);
+    assert(b.response[19]==128&&(b.response[20]|((unsigned)b.response[21]<<8))==F75_BUNDLE_BYTES);
+    assert(!b.owns_transfer&&t.phase==0);b.replying=false;
+    codec=4;
     assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,0,&codec,1,++now,&c,&custom)&&b.response[5]==3&&!b.owns_transfer);b.replying=false;
+    uint8_t small[6];put32(small,f75_bluetooth_snapshot_crc(initial));small[4]=8;small[5]=1;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,0,small,6,++now,&c,&custom)&&b.response[5]==3&&t.phase==0);b.replying=false;
+    small[4]=119;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,0,small,6,++now,&c,&custom)&&t.phase==3);
+    assert(f75_bundle_decode(t.bytes,&c,&custom)&&c.wheel==1);t.phase=4;f75_bluetooth_fast_complete(&b,&t,&c,&custom);b.replying=false;
+    f75_bundle_encode(&c,&custom,other);put32(small,f75_bluetooth_snapshot_crc(other));small[5]=0;
+    assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,0,small,6,++now,&c,&custom)&&t.phase==3);
+    assert(f75_bundle_decode(t.bytes,&c,&custom)&&c.wheel==0);t.phase=4;f75_bluetooth_fast_complete(&b,&t,&c,&custom);b.replying=false;
     uint8_t atomic[8]={0};put32(atomic,f75_bluetooth_snapshot_crc(initial));atomic[4]=119;atomic[6]=1;atomic[7]=1;
     uint8_t stale[8];memcpy(stale,atomic,8);stale[0]^=1;
     assert(f75_bluetooth_fast_receive(&b,&t,nonce,10,0,stale,8,++now,&c,&custom)&&b.response[5]==2&&t.phase==0);b.replying=false;

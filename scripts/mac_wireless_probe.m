@@ -574,7 +574,9 @@ int main(int argc, const char **argv) {
         NSString *root=[[NSBundle mainBundle] objectForInfoDictionaryKey:@"F75ProjectRoot"];
         NSData *bytes=[NSData dataWithContentsOfFile:[root stringByAppendingPathComponent:@".runtime/ble-padding-qualified.json"]];
         NSDictionary *qualification=bytes?[NSJSONSerialization JSONObjectWithData:bytes options:0 error:NULL]:nil;
-        result[@"fast_snapshot_codec"]=[qualification[@"fast_snapshot_codec"] isEqual:@2]?@2:@1;
+        result[@"fast_snapshot_codec"]=[qualification[@"fast_snapshot_codec_max"] isEqual:@3]?@3:
+            [qualification[@"fast_snapshot_codec"] isEqual:@2]?@2:@1;
+        result[@"fast_patch_version"]=[qualification[@"fast_snapshot_codec_max"] isEqual:@3]?@2:@1;
     }
     if (displayInfo) result[@"display_ready"] = @NO;
     if (openCheck && access == kIOHIDAccessTypeGranted && target && ![result[@"ambiguous"] boolValue]) {

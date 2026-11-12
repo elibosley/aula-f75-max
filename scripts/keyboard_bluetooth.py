@@ -9,6 +9,7 @@ import time
 import zlib
 
 from keyboard_customize import BUNDLE_BYTES, validate
+from bluetooth_dictionary import DICTIONARY3
 from keyboard_transport_lock import TransportLock
 
 
@@ -18,14 +19,14 @@ def snapshot_crc(data):
     return zlib.crc32(data[160:-4], zlib.crc32(data[:156]))
 
 
-def unpack_snapshot(data, expected, codec=1):
+def unpack_snapshot(data, expected, codec=1, offset=0):
     if type(expected) is not int or not 0 < expected <= BUNDLE_BYTES:
         raise RuntimeError('Invalid compressed snapshot size.')
     out = bytearray()
     at = 0
     while at < len(data):
         token = data[at]; at += 1
-        if codec==2 and token==128:
+        if codec>=2 and token==128:
             if len(data)-at<2: raise RuntimeError('Compressed zero span was truncated.')
             count=struct.unpack_from('<H',data,at)[0];at+=2
             if not count or count>expected-len(out): raise RuntimeError('Compressed zero span overflows its declared size.')
@@ -40,6 +41,9 @@ def unpack_snapshot(data, expected, codec=1):
         at += size
     if len(out) != expected:
         raise RuntimeError('Compressed settings window was incomplete.')
+    if codec==3:
+        if type(offset) is not int or not 0<=offset<=BUNDLE_BYTES-expected: raise RuntimeError('Dictionary window offset is invalid.')
+        out=bytearray(a^b for a,b in zip(out,DICTIONARY3[offset:offset+expected]))
     return bytes(out)
 
 
@@ -56,6 +60,7 @@ class BluetoothKeyboard:
         self.expected_board = None
         self.prefer_fast=fast; self.fast_mode=False; self._verified=None
         self.fast_snapshot_codec=1
+        self.fast_patch_version=1
 
     def __enter__(self):
         self.lock.__enter__()
@@ -69,8 +74,11 @@ class BluetoothKeyboard:
                 if type(version) is not int or version not in (0,1): raise RuntimeError('Unknown fast Bluetooth capability.')
                 if version==1:
                     codec=value.get('fast_snapshot_codec',1)
-                    if type(codec) is not int or codec not in (1,2): raise RuntimeError('Unknown fast snapshot codec.')
+                    if type(codec) is not int or codec not in (1,2,3): raise RuntimeError('Unknown fast snapshot codec.')
                     self.fast_snapshot_codec=codec
+                    version=value.get('fast_patch_version',1)
+                    if type(version) is not int or version not in (1,2): raise RuntimeError('Unknown fast patch version.')
+                    self.fast_patch_version=version
                     self.fast_mode=True;self.indicator_support=True;self.clock_support=True;self.compressed_read_support=True
                     return self
             info = self.request(0)['payload']
@@ -206,14 +214,14 @@ class BluetoothKeyboard:
         self.token=secrets.randbits(32) or 1;nonce=struct.pack('<I',self.token)
         data=bytearray();identity=None;self.session=True
         while len(data)<BUNDLE_BYTES:
-            body=bytes([2]) if self.fast_snapshot_codec==2 else b''
+            body=bytes([self.fast_snapshot_codec]) if self.fast_snapshot_codec>=2 else b''
             reply=self.request_fast(9,len(data),body,nonce=nonce);payload=reply['payload']
             if len(payload)<10 or payload[0]!=self.fast_snapshot_codec or payload[1]&~7: raise RuntimeError('Fast Bluetooth snapshot format is unsupported.')
             crc,count=struct.unpack_from('<IH',payload,2)
             if identity is not None and identity!=crc: raise RuntimeError('Fast Bluetooth snapshot changed.')
             identity=crc
             if not 0<count<=BUNDLE_BYTES-len(data): raise RuntimeError('Invalid fast Bluetooth window size.')
-            data.extend(unpack_snapshot(payload[8:],count,self.fast_snapshot_codec));self.progress('reading',len(data),BUNDLE_BYTES)
+            data.extend(unpack_snapshot(payload[8:],count,self.fast_snapshot_codec,len(data)));self.progress('reading',len(data),BUNDLE_BYTES)
             if reply['phase']!=(0 if len(data)==BUNDLE_BYTES else 2): raise RuntimeError('Fast Bluetooth snapshot phase is invalid.')
         result=bytes(data);validate(result)
         if snapshot_crc(result)!=identity: raise RuntimeError('Fast Bluetooth snapshot CRC differs.')
@@ -266,6 +274,10 @@ class BluetoothKeyboard:
                 while end<limit and data[end]!=baseline[end] and end-at<40:end+=1
                 patch.extend(struct.pack('<HB',at,end-at));patch.extend(data[at:end]);at=end
             if len(patch)<=48:
+                if self.fast_patch_version==2 and len(patch)==8 and patch[6]==1:
+                    position=struct.unpack_from('<H',patch,4)[0]
+                    if 114<=position<=121 or 125<=position<=127:
+                        patch=patch[:4]+bytes([position,data[position]])
                 self.progress('saving' if save else 'applying')
                 # An uncertain atomic commit is never retried or sent on USB.
                 reply=self.request_fast(10,int(bool(save)),bytes(patch))
