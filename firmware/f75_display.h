@@ -44,7 +44,7 @@ void f75_motion_apply(const f75_motion *motion,f75_view *view);
 /* RGB565 tile output: no full-screen framebuffer and no dynamic allocation.
    The SPI adapter supplies each tile in order. It owns panel offsets and byte order. */
 bool f75_render_tile(const f75_view *view,uint8_t y,uint8_t rows,uint16_t *pixels,size_t capacity);
-/* Conservative eight-row dirty mask for companion Home frames. Other pages
- * and unclassified changes require a complete repaint. */
+/* Conservative eight-row dirty mask for menus and companion Home frames.
+ * Appearance changes and unclassified pages require a complete repaint. */
 uint16_t f75_changed_tiles(const f75_view *previous,const f75_view *next);
 #endif

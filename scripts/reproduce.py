@@ -119,6 +119,7 @@ def main():
                     'settings': 'test_settings_system.py', 'os': 'test_os_system.py',
                     'host-os': 'test_host_os_system.py', 'radio': 'test_radio_system.py',
                     'pairing': 'test_pairing_system.py', 'menu': 'test_menu_system.py',
+                    'menu-scroll': 'test_menu_scroll_system.py',
                     'switch-failure': 'test_switch_failure_system.py',
                     'custom': 'test_custom_system.py', 'battery': 'test_battery_image.py',
                     'power-scroll': 'test_power_scroll.py', 'idle-power': 'test_idle_power.py',

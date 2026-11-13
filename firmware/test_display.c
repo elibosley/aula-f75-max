@@ -106,6 +106,21 @@ int main(int argc,char **argv){
     typography.title[0]='m';assert(f75_render_tile(&typography,7,1,row,128));
     bool differs=false;for(unsigned y=6;y<19;y++){assert(f75_render_tile(&typography,(uint8_t)y,1,row,128));if(memcmp(row,whole+y*128,sizeof(row)))differs=true;}assert(differs);
     f75_view menu={.title="Menu",.rows={"Devices","Keys","Lighting","Power","Focus"},.selected=4,.status_left="USB",.status_right="Ready"};
+    for(unsigned theme=0;theme<2;theme++)for(unsigned editing=0;editing<2;editing++){
+        menu.light_mode=theme!=0;menu.editing=editing!=0;menu.motion=true;
+        for(int y=-3;y<=63;y++){
+            menu.highlight_y=(int16_t)y;changed=menu;changed.highlight_y=(int16_t)(y+1);
+            dirty_mask_covers_pixels(menu,changed);
+        }
+        assert(f75_changed_tiles(&menu,&menu)==0);
+        changed=menu;strcpy(changed.rows[2],"Brightness: 100%");dirty_mask_covers_pixels(menu,changed);
+        changed=menu;changed.content_x=-12;dirty_mask_covers_pixels(menu,changed);
+        changed=menu;strcpy(changed.footer,"Editing value");dirty_mask_covers_pixels(menu,changed);
+        changed=menu;strcpy(changed.title,"Lighting");dirty_mask_covers_pixels(menu,changed);
+        changed=menu;changed.selected=255;dirty_mask_covers_pixels(menu,changed);
+        changed=menu;changed.light_mode=!menu.light_mode;assert(f75_changed_tiles(&menu,&changed)==0xffffu);
+    }
+    menu.motion=false;menu.editing=false;menu.light_mode=false;
     for(unsigned y=0;y<128;y+=8)assert(f75_render_tile(&menu,y,8,whole+y*128,1024));
     strcpy(menu.status_left,"BT1");strcpy(menu.status_right,"Offline");
     for(unsigned y=0;y<128;y++){assert(f75_render_tile(&menu,y,1,row,128));assert(!memcmp(row,whole+y*128,sizeof(row)));}

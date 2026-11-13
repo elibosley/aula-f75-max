@@ -7,7 +7,36 @@
 #include "f75_sprite.h"
 
 typedef struct { uint8_t y,rows;uint16_t *pixels; } tile;
+static uint16_t changed_band(int top,int bottom){
+    if(top<0)top=0;
+    if(bottom>128)bottom=128;
+    uint16_t mask=0;for(int y=top;y<bottom;y=(y/8+1)*8)mask|=(uint16_t)(1u<<(y/8));
+    return mask;
+}
+static uint16_t menu_changed_tiles(const f75_view *a,const f75_view *b){
+    if(a->light_mode!=b->light_mode||a->custom_accent!=b->custom_accent||a->accent!=b->accent||a->alert_pulse!=b->alert_pulse)return 0xffffu;
+    uint16_t mask=0;
+    if(memcmp(a->title,b->title,sizeof(a->title)))mask|=7u;
+    if(memcmp(a->footer,b->footer,sizeof(a->footer)))mask|=0xc000u;
+    int ax=a->motion?a->content_x:0,bx=b->motion?b->content_x:0;
+    if(ax!=bx)return mask|0x3ff8u; /* Sliding content owns rows 24..111. */
+    int ay=a->motion?a->highlight_y:(int)a->selected*15;
+    int by=b->motion?b->highlight_y:(int)b->selected*15;
+    bool ah=a->selected<5,bh=b->selected<5;
+    if(ay!=by||ah!=bh||a->editing!=b->editing){
+        if(ah)mask|=changed_band(29+ay,42+ay);
+        if(bh)mask|=changed_band(29+by,42+by);
+    }
+    for(unsigned i=0;i<5;i++){
+        int da=(int)i*15-ay,db=(int)i*15-by;
+        bool ac=ah&&!a->editing&&da>-7&&da<7,bc=bh&&!b->editing&&db>-7&&db<7;
+        if(ac!=bc||memcmp(a->rows[i],b->rows[i],sizeof(a->rows[i])))
+            mask|=changed_band(27+(int)i*15,45+(int)i*15);
+    }
+    return mask;
+}
 uint16_t f75_changed_tiles(const f75_view *a,const f75_view *b){
+    if(a&&b&&!a->home&&!b->home&&!a->timer&&!b->timer)return menu_changed_tiles(a,b);
     if(!a||!b||!a->home||!b->home||a->face!=3||b->face!=3||a->timer||b->timer)return 0xffff;
     f75_view fixed=*b;
     fixed.pet_frame=a->pet_frame;fixed.pet_character=a->pet_character;

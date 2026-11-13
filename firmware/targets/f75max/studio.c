@@ -38,7 +38,13 @@ static f75_pet pet;
 static f75_motion motion;
 static f75_view frame;
 static uint16_t tile[128 * F75_PANEL_TILE_ROWS];
-static uint32_t tile_signatures[128 / F75_PANEL_TILE_ROWS];
+/* Menu motion changes only a few scanlines. Reuse the Home tile cache's
+ * storage for row signatures; no framebuffer or sprite-cache growth. */
+static union {
+    uint32_t tiles[128 / F75_PANEL_TILE_ROWS];
+    struct { uint32_t fixed[5],rows[88]; } menu;
+} signatures;
+static bool menu_row_cache;
 static bool tile_valid[128 / F75_PANEL_TILE_ROWS];
 static f75_view previous_frame;
 static uint16_t frame_dirty;
@@ -130,13 +136,26 @@ static void send_action(void *context,uint16_t usage,bool down){
     }
 }
 static bool wheel_pressed(void) { return (matrix_get_row(F75_WHEEL_ROW) & (1u << F75_WHEEL_COL)) != 0; }
-static uint32_t tile_signature(void) {
+static uint32_t pixel_signature(const uint16_t *pixels,unsigned count) {
     uint32_t hash=0;
-    for (unsigned i=0;i<128*F75_PANEL_TILE_ROWS;++i) {
-        hash+=tile[i];hash+=hash<<10;hash^=hash>>6;
+    for (unsigned i=0;i<count;++i) {
+        hash+=pixels[i];hash+=hash<<10;hash^=hash>>6;
     }
     hash+=hash<<3;hash^=hash>>11;hash+=hash<<15;
     return hash;
+}
+static bool send_menu_rows(unsigned index){
+    uint32_t current[F75_PANEL_TILE_ROWS];uint8_t changed=0;
+    for(unsigned row=0;row<F75_PANEL_TILE_ROWS;row++){
+        current[row]=pixel_signature(tile+row*128,128);
+        if(!tile_valid[index]||current[row]!=signatures.menu.rows[frame_y-24+row])changed|=(uint8_t)(1u<<row);
+    }
+    for(unsigned row=0;row<F75_PANEL_TILE_ROWS;){
+        if(!(changed&(1u<<row))){++row;continue;}
+        unsigned first=row;while(row<F75_PANEL_TILE_ROWS&&(changed&(1u<<row)))++row;
+        if(!f75_panel_tile((uint8_t)(frame_y+first),(uint8_t)(row-first),tile+first*128))return false;
+    }
+    memcpy(signatures.menu.rows+frame_y-24,current,sizeof(current));return true;
 }
 #ifndef F75_USB_ONLY
 static virtual_timer_t startup_timer;
@@ -1128,6 +1147,8 @@ void housekeeping_task_user(void) {
         if (now - last_frame < interval) return;
         previous_frame=frame;
         make_frame(now);
+        bool row_cache=!frame.home&&!frame.timer;
+        if(row_cache!=menu_row_cache){memset(tile_valid,0,sizeof(tile_valid));menu_row_cache=row_cache;}
         frame_dirty=previous_frame_valid?f75_changed_tiles(&previous_frame,&frame):0xffffu;
         previous_frame_valid=true;frame_y = 0; frame_pending = true; last_frame = now;
     }
@@ -1140,9 +1161,15 @@ void housekeeping_task_user(void) {
     if (render_elapsed > perf_max_render) perf_max_render = render_elapsed;
     uint16_t spi_start = (uint16_t)SN_CT16B4->TC;
     unsigned index=frame_y/F75_PANEL_TILE_ROWS;
-    uint32_t signature=rendered?tile_signature():0;
-    bool changed=!tile_valid[index]||tile_signatures[index]!=signature;
-    bool sent=rendered&&(!changed||f75_panel_tile(frame_y,F75_PANEL_TILE_ROWS,tile));
+    bool row_slice=menu_row_cache&&frame_y>=24&&frame_y<112;
+    uint32_t *cached=NULL;
+    if(!row_slice)cached=menu_row_cache?&signatures.menu.fixed[index<3?index:index-11]:&signatures.tiles[index];
+    uint32_t signature=rendered&&!row_slice?pixel_signature(tile,128*F75_PANEL_TILE_ROWS):0;
+    bool sent=false;
+    if(rendered){
+        if(row_slice)sent=send_menu_rows(index);
+        else sent=(tile_valid[index]&&*cached==signature)||f75_panel_tile(frame_y,F75_PANEL_TILE_ROWS,tile);
+    }
     uint16_t spi_elapsed = (uint16_t)((uint16_t)SN_CT16B4->TC - spi_start);
     perf_spi_ticks += spi_elapsed;
     if (spi_elapsed > perf_max_spi) perf_max_spi = spi_elapsed;
@@ -1151,7 +1178,8 @@ void housekeeping_task_user(void) {
         panel_ready = false;
         return;
     }
-    tile_signatures[index]=signature;tile_valid[index]=true;
+    if(!row_slice)*cached=signature;
+    tile_valid[index]=true;
     frame_y += F75_PANEL_TILE_ROWS;
     if (frame_y == 128) { frame_pending = false; ++complete_frames;f75_panel_backlight(true); }
 }
