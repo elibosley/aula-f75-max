@@ -368,11 +368,18 @@ def baseline_failures():
     old_spi = ROOT / 'analysis/candidates/725e0e0eae0f17261497674d74122ee6b77f205bcd9a0164a85a07486bab68da/f75max-wired-test.bin'
     with System(old_spi) as machine:
         machine.until('f75_panel_init')
-        lr = struct.unpack_from('<I', bytes.fromhex(machine.packet('g')), 14 * 4)[0]
-        machine.until(lr & ~1)
-        count = machine.read32(HOST + 4)
+        # This old, deliberately broken image sleeps inside panel startup.
+        # Waiting for its return can stop in WFI without advancing the model's
+        # host deadline. Drive a bounded 300 ms of virtual time and stop once
+        # the excessive SPI tail is observed; a broken image need not return.
+        count = 0
+        for _ in range(30):
+            machine.advance(10)
+            count = machine.read32(HOST + 4)
+            if count > 1000: break
         assert count > 1000, ('upstream SPI regression no longer reproduced', count)
-        spi = dict(image_sha256=sha(old_spi), init_bytes=count, unexpected_transfer_tail=True)
+        spi = dict(image_sha256=sha(old_spi), init_bytes=count, unexpected_transfer_tail=True,
+                   virtual_time_driven=True, requested_time_bound_ms=300)
     return dict(clock_divide_by_zero=clock, spi_master_tail=spi)
 
 
