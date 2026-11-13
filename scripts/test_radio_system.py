@@ -35,6 +35,16 @@ def run(image):
    index=keymap.index(usage);return divmod(index,6)
   def key_at(row,col,down):
    m.write32(HOST+0x100+row*4,(1<<col) if down else 0);step(20)
+   if (row,col)==(14,0):
+    # Matrix sampling precedes the wheel's own 20 ms debounce. A raw 20 ms
+    # tap depended on slow drawing extending a step. Wait for the accepted
+    # edge, bounded to 15 additional scheduler observations. This is not a
+    # latency measurement: pump() can finish display/route work before return.
+    expected=bytes([0 if down else 1])
+    for _ in range(15):
+     if m.read(m.symbols['button_stable'],1)==expected:break
+     step(2)
+    assert m.read(m.symbols['button_stable'],1)==expected,'Wheel edge did not debounce'
   def key(usage,down):key_at(*position(usage),down)
   def chord(usage):
    key_at(11,5,True);key(usage,True);key(usage,False);key_at(11,5,False)
@@ -122,6 +132,7 @@ def run(image):
   selector(0);assert slot()==0
   assert m.read32(HOST+8)==0
   return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),
+   wheel_edges_debounced=True,
    uart_bytes=m.read32(HOST+0x40),hardware_writes=False,real_arm_image=True,function_stubs=[],
    no_usb_startup=True,stock_framing=True,led_checksum_wrap=True,bluetooth_press_and_release=True,bluetooth_caps_ctrl_swap=True,
    release_before_switch=True,report_ack_timeout_is_not_rf_disconnect=True,wireless_idle_uart_and_first_key_without_usb=True,usb_cable_does_not_replace_wireless=True,
