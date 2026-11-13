@@ -866,6 +866,10 @@ static void make_frame(uint32_t now) {
     frame.animation_phase = now / 100;
     frame.selected = navigation.cursor-menu_start;
     frame.editing = navigation.editing;
+    if(!frame.home&&state.pairing==F75_PAIR_IDLE){
+        frame.menu_position=navigation.cursor;
+        frame.menu_count=page==F75_MENU?6:page==F75_POWER?4:page==F75_FOCUS?3:5;
+    }
     snprintf(frame.title, sizeof(frame.title), "%s", pages[page]);
     snprintf(frame.status_left, sizeof(frame.status_left), "%s", usb_selected()?"USB":active_slot==4?"RF":active_slot==1?"BT1":active_slot==2?"BT2":"BT3");
     bool linked=usb_selected()?USB_DRIVER.state==USB_ACTIVE:f75_radio_connected();

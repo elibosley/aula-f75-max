@@ -10,6 +10,7 @@ typedef struct {
     char clock[6],host_label[19],os[4];
     uint8_t selected,animation_phase,face;
     bool home,caps_swap,motion,editing;
+    uint8_t menu_position; /* Uses the existing alignment byte; View ABI stays 224 bytes. */
     int16_t highlight_y,content_x;
     bool light_mode,timer,alert_pulse;
     uint8_t timer_progress;
@@ -25,6 +26,7 @@ typedef struct {
     uint8_t link_state,power_state;
     bool visitor,visitor_flip;
     uint8_t visitor_frame;
+    uint8_t menu_count; /* Second existing alignment byte. */
     int16_t visitor_x;
 } f75_view;
 

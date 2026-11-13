@@ -1,4 +1,7 @@
 #include "f75_display.h"
+_Static_assert(sizeof(f75_view)==224,"Display ABI size must remain stable");
+_Static_assert(offsetof(f75_view,highlight_y)==194,"Existing display offsets must remain stable");
+_Static_assert(offsetof(f75_view,visitor_x)==222,"Existing display offsets must remain stable");
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -120,6 +123,15 @@ int main(int argc,char **argv){
         changed=menu;changed.selected=255;dirty_mask_covers_pixels(menu,changed);
         changed=menu;changed.light_mode=!menu.light_mode;assert(f75_changed_tiles(&menu,&changed)==0xffffu);
     }
+    for(unsigned count=2;count<=6;count++){
+        menu.menu_count=(uint8_t)count;
+        for(unsigned position=0;position<count;position++){
+            menu.menu_position=(uint8_t)position;changed=menu;changed.menu_position=(uint8_t)((position+1)%count);
+            dirty_mask_covers_pixels(menu,changed);
+        }
+        changed=menu;changed.menu_count=0;dirty_mask_covers_pixels(menu,changed);
+    }
+    menu.menu_count=0;
     menu.motion=false;menu.editing=false;menu.light_mode=false;
     for(unsigned y=0;y<128;y+=8)assert(f75_render_tile(&menu,y,8,whole+y*128,1024));
     strcpy(menu.status_left,"BT1");strcpy(menu.status_right,"Offline");

@@ -13,9 +13,18 @@ static uint16_t changed_band(int top,int bottom){
     uint16_t mask=0;for(int y=top;y<bottom;y=(y/8+1)*8)mask|=(uint16_t)(1u<<(y/8));
     return mask;
 }
+static int menu_marker_y(const f75_view *v){
+    unsigned position=v->menu_position<v->menu_count?v->menu_position:v->menu_count-1u;
+    return 30+(int)(position*64u/(v->menu_count-1u));
+}
 static uint16_t menu_changed_tiles(const f75_view *a,const f75_view *b){
     if(a->light_mode!=b->light_mode||a->custom_accent!=b->custom_accent||a->accent!=b->accent||a->alert_pulse!=b->alert_pulse)return 0xffffu;
     uint16_t mask=0;
+    if(a->menu_count!=b->menu_count)mask|=changed_band(29,104);
+    else if(a->menu_count>1&&a->menu_position!=b->menu_position){
+        mask|=changed_band(menu_marker_y(a),menu_marker_y(a)+9);
+        mask|=changed_band(menu_marker_y(b),menu_marker_y(b)+9);
+    }
     if(memcmp(a->title,b->title,sizeof(a->title)))mask|=7u;
     if(memcmp(a->footer,b->footer,sizeof(a->footer)))mask|=0xc000u;
     int ax=a->motion?a->content_x:0,bx=b->motion?b->content_x:0;
@@ -371,6 +380,11 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
         for(unsigned i=0;i<5;i++){
             bool covered=v->selected<5&&magnitude((int32_t)i*15-highlight)<7;
             text(&t,v->rows[i],19,9+x,30+(int)i*15,1,covered&&!v->editing?BG:INK);
+        }
+        if(v->menu_count>1){
+            int marker=menu_marker_y(v);
+            rect(&t,125,30,1,73,LINE);
+            rect(&t,125,marker,1,9,ACCENT);rect(&t,124,marker+1,3,7,ACCENT);
         }
     }
     if(!(companion&&v->pet_info)){centered(&t,v->footer,20,117,0,MUTED);}

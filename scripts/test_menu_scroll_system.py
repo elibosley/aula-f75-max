@@ -36,6 +36,7 @@ def run(image,out,baseline=False):
   # Exit the temporary diagnostic and check both cache kinds own every pixel.
   m.write(m.symbols['benchmark_active'],b'\0');e.advance(500);golden('home-after-scroll')
   e.action('press');assert e.state()['page']==1;e.advance(400);golden('menu-start')
+  v=View.from_buffer_copy(view());assert v.menu_count==6 and v.menu_position==0,'Menu indicator lacks the complete item count'
   e.action('turn',1);assert e.state()['cursor']==1;e.advance(400);golden('menu-down')
   def detent(direction):
    seq=[3,2,0,1,3] if direction>0 else [3,1,0,2,3]
@@ -46,6 +47,10 @@ def run(image,out,baseline=False):
    detent(direction);expected_cursor=(expected_cursor+direction)%6
    assert e.state()['cursor']==expected_cursor,'A rapid detent was delayed or lost'
   e.advance(500);assert e.state()['cursor']==1;golden('menu-reversal')
+  for expected in (2,3,4,5,0,1):
+   e.action('turn',1);e.advance(250);v=View.from_buffer_copy(view())
+   assert v.menu_count==6 and v.menu_position==expected,'Indicator lost absolute position across viewport boundary'
+   if expected==5:golden('menu-last-item')
   # Static menu frames should cost no rendering or SPI work after settling.
   e.advance(1500);idle=counters();e.advance(500);after=counters()
   idle_tiles=after['perf_tiles']-idle['perf_tiles'];idle_bytes=after['bytes']-idle['bytes']
@@ -54,9 +59,10 @@ def run(image,out,baseline=False):
    m.write(m.symbols['state']+113,bytes([light]));e.advance(500);golden('menu-light' if light else 'menu-dark')
   m.write(m.symbols['state']+109,b'\1');e.action('turn',1);e.advance(500);golden('menu-reduced-motion')
   e.action('press');e.advance(500);golden('submenu')
+  v=View.from_buffer_copy(view());assert v.menu_count==5 and v.menu_position==0
   e.action('back');e.action('back');e.advance(500);golden('home-return')
   assert m.read32(HOST+8)==0
-  return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),baseline_measurement=baseline,modeled_scroll=metrics,unchanged_menu_rendered_tiles=idle_tiles,unchanged_menu_spi_bytes=idle_bytes,decoded_panel_matches_full_arm_frames=True,rapid_reversals_keep_first_detent_behavior=True,themes_and_reduced_motion=True,home_menu_submenu_cache_transitions=True,hardware_writes=False,physical_hardware_tested=False)
+  return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),baseline_measurement=baseline,modeled_scroll=metrics,unchanged_menu_rendered_tiles=idle_tiles,unchanged_menu_spi_bytes=idle_bytes,decoded_panel_matches_full_arm_frames=True,menu_position_indicator_all_six_items=True,display_abi_bytes=ctypes.sizeof(View),rapid_reversals_keep_first_detent_behavior=True,themes_and_reduced_motion=True,home_menu_submenu_cache_transitions=True,hardware_writes=False,physical_hardware_tested=False)
  finally:m.close()
 
 if __name__=='__main__':
