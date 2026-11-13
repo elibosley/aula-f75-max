@@ -11,9 +11,38 @@ from threading import Thread
 from urllib.request import urlopen
 
 import webview
+from webview.menu import Menu, MenuAction, MenuSeparator
 
 import hardware_api
 from keyboard_customize import hid_backend
+
+
+class DesktopState:
+    """Keep the native close confirmation in step with unsaved editor work."""
+    _window = None
+
+    def set_pending(self, pending):
+        if type(pending) is not bool:
+            raise ValueError('Expected a boolean pending state')
+        if self._window is not None:
+            self._window.confirm_close = pending
+
+
+def keyboard_menu(window):
+    def command(name):
+        return lambda: window.evaluate_js(f'window.F75Studio?.{name}()')
+
+    def pane(section):
+        return lambda: window.evaluate_js(f'window.F75Studio?.navigate("{section}")')
+
+    return [Menu('Keyboard', [
+        MenuAction('Reload Settings', command('reload')),
+        MenuAction('Sync Clock', command('clock')),
+        MenuSeparator(),
+        *[MenuAction(title, pane(section)) for title, section in (
+            ('Keys', 'keys'), ('Lighting', 'lighting'), ('Devices', 'devices'),
+            ('Screen', 'screen'), ('Macros', 'macros'), ('Notifications', 'status'))],
+    ])]
 
 
 def bluetooth_status_probe():
@@ -83,9 +112,14 @@ def main():
             check(origin, options.check_keyboard)
             return
         webview.settings['ALLOW_DOWNLOADS'] = True
-        webview.create_window('F75 Studio', f'{origin}/hardware.html', width=1260, height=880,
-                              min_size=(780, 580))
-        webview.start(gui='edgechromium' if sys.platform == 'win32' else None, private_mode=True)
+        state = DesktopState()
+        window = webview.create_window('F75 Studio', f'{origin}/hardware.html', width=1120, height=800,
+                                       min_size=(780, 580), js_api=state)
+        state._window = window
+        webview.start(gui='edgechromium' if sys.platform == 'win32' else None,
+                      private_mode=True, menu=keyboard_menu(window), localization={
+                          'global.quitConfirmation': 'Some changes have not finished saving. Quit anyway?'
+                      })
 
 
 def check(origin, use_keyboard):
@@ -94,7 +128,7 @@ def check(origin, use_keyboard):
     hid = hid_backend()
     if sys.platform == 'linux' and hid.__name__ != 'hidraw':
         raise RuntimeError('The Linux desktop package requires the hidraw backend.')
-    for asset in ('hardware.html', 'hardware.js', 'hardware.css', 'transfer-progress.js', 'studio.js', 'companions.html'):
+    for asset in ('hardware.html', 'hardware.js', 'hardware.css', 'autosave.js', 'transfer-progress.js', 'studio.js', 'companions.html'):
         with urlopen(f'{origin}/{asset}', timeout=5) as response:
             if not response.read():
                 raise RuntimeError(f'Missing desktop asset: {asset}')

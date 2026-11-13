@@ -44,7 +44,7 @@ F75 Studio configures your USB-connected keyboard on macOS, Windows, and Linux. 
 make preview
 ```
 
-Open <http://127.0.0.1:8787/hardware.html> for the real keyboard editor, or <http://127.0.0.1:8787/> for the native C preview. **Apply** changes RAM. **Save to keyboard** writes flash and reads the settings back. Connect USB for the editor, even when typing over Bluetooth.
+Open <http://127.0.0.1:8787/hardware.html> for the real keyboard editor, or <http://127.0.0.1:8787/> for the native C preview. Settings save automatically after a short pause, with verified persistence on the keyboard. The local Mac app uses the selected USB or qualified Bluetooth connection; the browser editor uses USB. Reload reads the keyboard again and asks before discarding pending edits.
 
 To reach the editor from a phone on your own tailnet, run `serve_native.py` with your Mac’s Tailscale address as `--bind` and port 8787. The service checks origin and a session token. The ARM emulator on port 8788 runs the actual linked image against modeled peripherals and has no flashing endpoint.
 

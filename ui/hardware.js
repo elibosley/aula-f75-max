@@ -4,8 +4,12 @@ const transferProgress=new F75TransferProgress($('#transfer-progress'));
 const colorPresets=[['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['Ocean','#a4c8f2'],['Peach','#edc08c'],['White','#ffffff'],['Blossom','#ffd3e7'],['Buttercream','#fff0b3'],['Seafoam','#c0f2df'],['Periwinkle','#b3bfff'],['Candy','#ff75b5'],['Coral','#ff806f'],['Cherry','#ed4667'],['Tangerine','#ff9b45'],['Sunflower','#ffd447'],['Lime','#b9ef61'],['Jade','#42d69b'],['Teal','#32bcb4'],['Cyan','#59dcf2'],['Azure','#4ba4ff'],['Indigo','#8072ee'],['Violet','#bd75f2'],['Fuchsia','#ed63d2'],['Warm white','#ffedd6']];
 let settings=null,observedHost=null,csrf='',layout=[],chosen=null,layer=0,slot=0,busy=false,dirty=false;
 let desktop=false,displayReady=false,bluetoothAccess=null;
-let resolvedTransport=null,connectionReady=false,connectionSnapshot=null,settingsBoard=null,detecting=false,autoReadKey=null;
-function connectionFields(action){return {transport:$('#settings-transport').value,expected_transport:resolvedTransport,board_identity:action==='read'?connectionSnapshot?.choice.board_identity:settingsBoard||connectionSnapshot?.choice.board_identity};}
+const editableFields=['os','auto_mask','caps_swap','face','power','wheel','names','lighting','light_mode','reduced_motion','companion','screen_color','indicators','keys','colors','layer_colors','macros'];
+let autoSaving=false;
+let resolvedTransport=null,connectionReady=false,connectionSnapshot=null,settingsBoard=null,settingsRoute=null,detecting=false,autoReadKey=null;
+function routeKey(){return JSON.stringify([connectionSnapshot?.choice.board_identity,resolvedTransport,connectionSnapshot?.choice.slot]);}
+function sameSettingsRoute(){return !settingsRoute||settingsRoute===routeKey();}
+function connectionFields(action){return {transport:$('#settings-transport').value,expected_transport:resolvedTransport,expected_slot:connectionSnapshot?.choice.slot,board_identity:action==='read'?connectionSnapshot?.choice.board_identity:settingsBoard||connectionSnapshot?.choice.board_identity};}
 async function refreshConnection(){
  if(busy||detecting||document.hidden)return;
  const mode=$('#settings-transport').value;detecting=true;updateButtons();
@@ -17,8 +21,10 @@ async function refreshConnection(){
   bluetoothAccess=snapshot.bluetooth.access;
   const label=resolvedTransport==='bluetooth'?'Bluetooth · BT'+snapshot.choice.slot:resolvedTransport==='usb'?'USB':null;
   $('#settings-transport option[value="auto"]').textContent=mode==='auto'&&label?'Automatic · '+label:'Automatic';
-  $('#connection-state').textContent=snapshot.choice.reason||('Connected via '+label+'.');
-  $('#connection-intro').textContent=label?'Edit your keyboard settings over '+(resolvedTransport==='bluetooth'?'Bluetooth.':'USB.'):'Connect your keyboard to load its settings.';
+  $('#connection-state').textContent=connectionReady?'Connected':snapshot.choice.reason||'Disconnected';
+  $('#connection-intro').textContent=label?'F75 Max · '+label:'Connect your keyboard to load its settings.';
+  document.body.dataset.connected=String(connectionReady);
+  if(dirty&&!sameSettingsRoute()){$('#state-label').textContent='Waiting for keyboard';$('#message').textContent='Your edits are kept here. Reconnect the original keyboard and slot, or Reload to start over.';}
   $('#bluetooth-access').hidden=resolvedTransport!=='bluetooth'||bluetoothAccess==='granted';
   displayReady=connectionReady;
   if(!resolvedTransport)autoReadKey=null;
@@ -41,6 +47,7 @@ function showSection(section,focus=false){
  }
  const current=document.querySelector(`[data-section="${section}"]`);
  $('#section-title').textContent=current.textContent;
+ document.title=current.textContent+' — F75 Studio';
  $('.preview').hidden=section==='macros'||section==='status';
  $('#editor').hidden=section==='status';
  $('#apply-note').hidden=section==='status';
@@ -52,24 +59,85 @@ for(const link of document.querySelectorAll('[data-section]'))link.addEventListe
 });
 showSection('keys');
 
+// One small, consistent outline icon family; labels remain the accessible names.
+const navPaths={keys:'M3 5h18v14H3z M6 9h1m3 0h1m3 0h1m3 0h0 M6 12h1m3 0h1m3 0h1m3 0h0 M7 16h10',lighting:'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',devices:'M10 3l8 6-12 8m4 4 8-6L6 7m4-4v18',screen:'M3 4h18v13H3z M8 21h8m-4-4v4',macros:'M8 4v16l12-8z',status:'M5 17h14l-2-3V9a5 5 0 0 0-10 0v5z M10 21h4'};
+for(const link of document.querySelectorAll('[data-section]')){
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','nav-icon');svg.setAttribute('aria-hidden','true');
+ const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',navPaths[link.dataset.section]);svg.append(path);link.prepend(svg);
+}
+window.F75Studio={navigate:section=>showSection(section,true),reload:()=>send('read'),clock:()=>send('clock')};
+window.addEventListener('pywebviewready',()=>window.pywebview.api.set_pending(dirty));
+
 const reserved=new Set([0,7,13,19,25,31,41,52,62,71,84]);
 const names={224:'Left Ctrl',225:'Left Shift',226:'Left Alt / Option',227:'Left Command / Windows',228:'Right Ctrl',229:'Right Shift',230:'Right Alt / Option',231:'Right Command / Windows',256:'Primary (Cmd / Ctrl)'};
 const logicalKeys=()=>[...new Map(F75_LAYOUT.filter(k=>k.label!=='Fn').map(k=>[k.usage,names[k.usage]||k.label])).entries()].concat([[228,'Right Ctrl'],[231,'Right Command / Windows']]);
 function option(select,value,label){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}
-function mark(){transferProgress.dismiss();dirty=true;$('#state-label').textContent='Unapplied changes';updateButtons();paint();}
+function validationMessage(){
+ if($('#editor input:invalid'))return 'Finish the highlighted field to save.';
+ if(settings?.names.some(name=>!name.trim()||!/^[\x20-\x7e]{1,18}$/.test(name)))return 'Device names need 1–18 plain letters, numbers or punctuation.';
+ if(!settings)return null;
+ for(const keys of settings.keys)for(const usage of keys)if(usage>=0x8000&&usage<0x8008&&!settings.macros[usage-0x8000].steps.length)return 'Add steps to Macro '+(usage-0x8000+1)+' before it saves.';
+ for(const [index,macro] of settings.macros.entries())for(const primary of [224,227]){
+  const held=new Set();let duration=0;
+  for(const step of macro.steps){
+   duration+=step.delay_ms;if(duration>120000)return 'Macro '+(index+1)+' must stay under two minutes.';
+   if(!step.usage)continue;
+   const key=(step.usage&0x7fff)===256?primary:step.usage&0x7fff;
+   if(step.usage&0x8000){if(!held.has(key))return 'Macro '+(index+1)+': add a press before each release.';held.delete(key);}
+   else{if(held.has(key))return 'Macro '+(index+1)+': release each key before pressing it again.';held.add(key);}
+   if([...held].filter(key=>key<224).length>6)return 'A macro can hold up to six ordinary keys.';
+  }
+  if(held.size)return 'Macro '+(index+1)+': add a release for every press to save.';
+ }
+ return null;
+}
+const autoSave=new F75AutoSave({
+ document:()=>settings,
+ signature:document=>JSON.stringify(editableFields.map(key=>document[key])),
+ busy:()=>busy||detecting||!connectionReady||!settings||!sameSettingsRoute(),
+ validate:validationMessage,
+ write:async snapshot=>{
+  const fields=connectionFields('save');
+  const operation_id=transferProgress.start('save',resolvedTransport,csrf);
+  busy=autoSaving=true;updateButtons();
+  try{
+   const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action:'save',operation_id,document:snapshot,...fields})});
+   const result=await response.json();if(!response.ok)throw Error(result.error||'Save was not confirmed.');
+   transferProgress.finish(true);return result;
+  }catch(error){transferProgress.finish(false);throw error;}
+  finally{busy=autoSaving=false;updateButtons();}
+ },
+ accept:(result,newerEdits)=>{
+  // Keep live control references and newer values; advance only verified metadata.
+  const pending=Object.fromEntries(editableFields.map(key=>[key,settings[key]]));
+  settings={...result.document,...pending};observedHost=result.host_status;settingsBoard=result.board_identity;
+ },
+ state:(state,error)=>{
+  dirty=autoSave.pending;
+  window.pywebview?.api.set_pending(dirty);
+  document.body.dataset.saveState=state;
+  $('#state-label').textContent={ready:'Ready',waiting:'Changes waiting',saving:'Saving…',saved:'All changes saved',invalid:'Finish editing',error:'Not saved'}[state];
+  $('#retry-save').hidden=state!=='error';
+  $('#message').textContent=error||{waiting:'Changes save after you pause.',saving:'Saving to your keyboard. You can keep editing.',saved:''}[state]||'';
+  if(state==='saved'||state==='ready')setTimeout(()=>{if(!dirty&&!busy)transferProgress.dismiss();},1500);
+  updateButtons();
+ }
+});
+function mark(){if(!busy)transferProgress.dismiss();autoSave.edited();updateButtons();paint();}
 function updateButtons(){
- const invalid=!!$('#editor input:invalid');
- const ready=connectionReady&&!detecting;const sameBoard=!settingsBoard||settingsBoard===connectionSnapshot?.choice.board_identity;
- $('#editor').disabled=busy||!settings;$('#read').disabled=busy||!ready;
- $('#apply').disabled=busy||!ready||!sameBoard||!settings||!dirty||invalid;$('#save-board').disabled=busy||!ready||!sameBoard||!settings||invalid;
- $('#read').textContent=busy?'Working…':'Read keyboard';
+ const ready=connectionReady&&!detecting;const sameBoard=sameSettingsRoute();
+ $('#editor').disabled=(busy&&!autoSaving)||!settings;$('#read').disabled=busy||!ready;
+ $('#read').textContent='Reload';
+ $('#read').title=dirty?'Reload from the keyboard and discard unsaved edits':'Reload keyboard settings (⌘R)';
+ $('#retry-save').disabled=busy||!ready||!sameBoard;
  $('#display-send').disabled=busy||!ready||!displayReady;
  $('#display-clear').disabled=busy||!ready||!displayReady;
  $('#display-transport').disabled=busy;
  $('#display-check').disabled=busy;
- $('#settings-transport').disabled=busy;
+ // A pending draft stays bound to its keyboard and transport until saved or reloaded.
+ $('#settings-transport').disabled=busy||dirty;
  $('#bluetooth-allow').disabled=busy;$('#bluetooth-recheck').disabled=busy;
- $('#settings-connection-note').hidden=resolvedTransport!=='bluetooth';
+ $('#settings-connection-note').hidden=true;
  const clockSupported=resolvedTransport==='usb'||!!settings?.bluetooth_clock_supported;
  $('#sync-clock').disabled=busy||!ready||!sameBoard||!settings||!clockSupported;
  $('#sync-clock').title=resolvedTransport==='bluetooth'&&!clockSupported?'Update the keyboard firmware for Bluetooth clock sync.':'';
@@ -88,21 +156,22 @@ $('#bluetooth-allow').onclick=()=>checkBluetoothAccess(true);
 $('#bluetooth-recheck').onclick=()=>checkBluetoothAccess();
 async function send(action){
  if(busy||!connectionReady||detecting)return;
+ if(action==='read'&&dirty){
+  if(!window.confirm('Reload from the keyboard and discard changes that have not saved?'))return;
+  autoSave.paused=true;clearTimeout(autoSave.timer);
+ }
  const fields=connectionFields(action);
  const operation_id=transferProgress.start(action,resolvedTransport,csrf);
- busy=true;updateButtons();$('#message').textContent=action==='clock'?'Synchronizing clock…':action==='read'?'Reading keyboard…':action==='save'?'Applying and saving to keyboard…':'Applying settings…';
- if(resolvedTransport==='bluetooth')$('#message').textContent+=action==='clock'?' Keep the keyboard connected.':' Bluetooth may take a few minutes. Keep the keyboard connected.';
+ busy=true;updateButtons();$('#message').textContent=action==='clock'?'Synchronizing clock…':'Loading keyboard settings…';
  try{
   const time=new Date();const seconds=time.getHours()*3600+time.getMinutes()*60+time.getSeconds();
-  const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action,operation_id,document:settings,seconds,...fields})});
+  const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action,operation_id,seconds,...fields})});
   const result=await response.json();if(!response.ok)throw Error(result.error||'Keyboard request failed');
-  if(action==='clock'){transferProgress.finish(true);$('#message').textContent='Clock synchronized to this device’s local time.';return;}
-  settings=result.document;observedHost=result.host_status;settingsBoard=result.board_identity;dirty=false;
-  $('#state-label').textContent=action==='save'?'Saved to keyboard':action==='apply'?'Applied · not saved':'Current keyboard settings';
-  $('#message').textContent=action==='save'?'Settings saved and read back from your keyboard.':action==='apply'?'Settings applied and read back. Save to keep them after a restart.':'Keyboard settings loaded. Choose a key or edit a macro.';
+  if(action==='clock'){transferProgress.finish(true);$('#message').textContent='Clock synchronized.';return;}
+  settings=result.document;observedHost=result.host_status;settingsBoard=result.board_identity;settingsRoute=routeKey();autoSave.loaded();
   render();transferProgress.finish(true);
- }catch(error){transferProgress.finish(false);$('#message').textContent=error.message;$('#state-label').textContent=dirty?'Changes kept in editor':'Settings unavailable';}
- finally{busy=false;updateButtons();if(desktop && action==='read') await refreshDisplay();}
+ }catch(error){transferProgress.finish(false);$('#message').textContent=error.message;$('#state-label').textContent=dirty?'Changes kept in Studio':'Settings unavailable';}
+ finally{busy=false;updateButtons();if(desktop&&action==='read')await refreshDisplay();}
 }
 async function displayRequest(action, fields={}) {
  const response=await fetch('/api/hardware',{
@@ -226,7 +295,7 @@ function colorInput(picker,hex,set){
   const value=input.value.trim(),match=/^#?([0-9a-f]{6})$/i.exec(value);
   input.setCustomValidity(match?'':'Enter six hex digits, such as #91E2CE.');
   if(match){set('#'+match[1].toLowerCase());mark();const start=input.selectionStart;lighting();input.setSelectionRange(start,start);}
-  else updateButtons();
+  else{autoSave.schedule();updateButtons();}
  };
  input.onblur=()=>{const invalid=!input.checkValidity();input.setAttribute('aria-invalid',String(invalid));error.textContent=invalid?'Use six hex digits, such as #91E2CE.':'';};
 }
@@ -238,7 +307,8 @@ $('#quiet-motion').onchange=()=>{settings.reduced_motion=$('#quiet-motion').chec
 $('#palette-all').onclick=()=>{settings.colors=settings.colors.map(layer=>layer.map(()=>null));settings.layer_colors=[null,null,null];mark();};
 $('#screen-default').onclick=()=>{settings.screen_color=null;lighting();mark();};
 $('#screen-theme').onchange=()=>{settings.light_mode=$('#screen-theme').value==='1';mark();};
-$('#read').onclick=()=>send('read');$('#apply').onclick=()=>send('apply');$('#save-board').onclick=()=>send('save');
+$('#read').onclick=()=>send('read');$('#retry-save').onclick=()=>autoSave.retry();
+window.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='r'){event.preventDefault();send('read');}});
 $('#layer').onchange=()=>{layer=Number($('#layer').value);if(settings)selection();};
 $('#binding').onchange=()=>{settings.keys[layer][chosen.matrix]=Number($('#binding').value);mark();};
 $('#paint-key').onclick=()=>{if(chosen){settings.colors[layer][chosen.matrix]=$('#paint').value;mark();}};

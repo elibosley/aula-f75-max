@@ -120,3 +120,74 @@ header>a:last-child{margin-left:auto;text-decoration:none}fieldset{border:0;marg
 .transfer-progress[data-state=error] .transfer-meter{display:none}
 @keyframes transfer-sweep{to{transform:translateX(560%)}}
 @media(prefers-reduced-motion:reduce){.transfer-progress[data-indeterminate=true] .transfer-sweep{animation:none;left:39%}}
+
+/* Settings-window refinement: system typography, quiet surfaces, grouped controls. */
+.studio-shell{--bg:#f5f5f7;--surface:#fff;--raised:#f2f2f4;--hover:#e7e7eb;--line:#d6d6dc;--control-line:#8b8b96;--text:#202024;--muted:#606069;--accent:#0867d2;--on-accent:#fff;--accent-hover:#0055b7;--warm:#0867d2;--disabled-bg:#ededf0;--disabled-text:#767680;--radius:10px;color:var(--text);background:var(--bg);font-size:13px}
+@media(prefers-color-scheme:dark){.studio-shell{--bg:#202023;--surface:#2b2b2f;--raised:#35353b;--hover:#414148;--line:#494950;--control-line:#85858f;--text:#f5f5f7;--muted:#b5b5bf;--accent:#64acff;--on-accent:#10243c;--accent-hover:#8bc1ff;--warm:#8bc1ff;--disabled-bg:#303035;--disabled-text:#a0a0aa}}
+.studio-shell header{height:58px;padding:0 22px;border-color:var(--line);background:var(--bg);gap:12px}
+.studio-shell .wordmark{width:172px;font-size:15px;letter-spacing:-.3px;font-weight:650;flex-shrink:0}
+.studio-shell .wordmark span{font-size:15px;letter-spacing:-.3px;margin-left:2px;color:var(--text);font-weight:500}
+.studio-shell header #read{min-height:28px;padding:4px 12px;border-radius:6px;font-size:12px;background:var(--surface);border-color:var(--line)}
+.studio-shell .save-status{display:flex;align-items:center;justify-content:flex-end;gap:7px;margin-left:auto;min-width:0}
+.studio-shell #state-label{margin:0;font-size:12px;color:var(--muted)}
+.studio-shell .save-dot{width:6px;height:6px;flex-shrink:0;border-radius:50%;background:var(--muted)}
+.studio-shell[data-save-state=saved] .save-dot{background:#24834b}
+.studio-shell[data-save-state=error] #state-label,.studio-shell[data-save-state=invalid] #state-label{color:var(--danger)}
+.studio-shell[data-save-state=error] .save-dot{background:var(--danger)}
+.studio-shell[data-save-state=saving] .save-dot{width:12px;height:12px;background:transparent;border:2px solid var(--line);border-top-color:var(--accent);animation:save-spin .8s linear infinite}
+.studio-shell #retry-save{font-size:12px;padding:3px 8px;min-height:26px}
+@keyframes save-spin{to{transform:rotate(360deg)}}
+.studio-shell .desktop-sections{top:58px;width:210px;padding:20px 12px 12px;background:var(--bg);border-right:1px solid var(--line);gap:3px}
+.studio-shell .sidebar-label{text-transform:none;font-size:11px;margin:0 12px 8px;color:var(--muted)}
+.studio-shell .desktop-sections a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:6px;font-size:13px;font-weight:500}
+.studio-shell .desktop-sections a[aria-current=page]{background:var(--accent);color:var(--on-accent);font-weight:600}
+.studio-shell .nav-icon{height:18px;width:18px;flex-shrink:0;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.studio-shell .sidebar-footer{margin-top:auto;padding:24px 8px 0}
+.studio-shell #settings-connection{margin:0;max-width:none}
+.studio-shell #settings-connection>span{font-size:11px;margin-bottom:6px}
+.studio-shell #settings-transport{font-size:12px;min-height:30px;padding:5px 7px;background:var(--surface);border-color:var(--line)}
+.studio-shell #connection-state{font-size:11px;line-height:1.4;margin:9px 0 12px;overflow-wrap:anywhere}
+.studio-shell[data-connected=true] #connection-state::before{content:'';display:inline-block;width:5px;height:5px;margin-right:6px;border-radius:50%;background:#24834b;vertical-align:2px}
+.studio-shell .desktop-sections .library-link{font-size:11px;padding:7px 0;color:var(--muted)}
+.studio-shell main{margin-left:210px;max-width:1040px;padding:30px 36px 40px}
+.studio-shell .intro{margin:0 0 26px}
+.studio-shell h1{font-size:25px;letter-spacing:-.6px;font-weight:650}
+.studio-shell .intro p{font-size:12px;color:var(--muted);margin:7px 0 0}
+.studio-shell .hardware-card{padding:22px 24px;border:1px solid var(--line);box-shadow:0 1px 2px #00000004;margin-bottom:20px}
+.studio-shell .hardware-card h2{font-size:15px;letter-spacing:-.2px}
+.studio-shell .hardware-card>p{font-size:12px}
+.studio-shell .field{display:grid;grid-template-columns:minmax(130px,1fr) minmax(140px,1.1fr);align-items:center;gap:20px;max-width:none;margin:0;padding:16px 0;border-bottom:1px solid var(--line)}
+.studio-shell .field:last-child{border-bottom:0}
+.studio-shell .field>span{color:var(--text);font-size:13px;margin:0}
+.studio-shell .field select,.studio-shell .field input[type=text]{font-size:13px;min-height:30px;padding:5px 8px;background:var(--surface);border-color:var(--control-line);border-radius:6px}
+.studio-shell input[type=range]{margin:5px 0;min-width:0}
+.studio-shell .check{font-size:13px;margin:18px 0;line-height:1.5}
+.studio-shell .note{font-size:12px;color:var(--muted);line-height:1.5}
+.studio-shell #message{font-size:12px;min-height:0;margin:0 0 16px;color:var(--muted)}
+.studio-shell #message:empty{display:none}
+.studio-shell[data-save-state=error] #message,.studio-shell[data-save-state=invalid] #message{color:var(--danger)}
+.studio-shell #apply-note{font-size:11px;margin-top:26px}
+.studio-shell .hardware-card .swatches{grid-template-columns:repeat(12,minmax(25px,1fr));gap:6px;max-width:none;margin:20px 0}
+.studio-shell .hardware-card .swatch{height:32px;min-width:25px;border-color:transparent;background:transparent}
+.studio-shell .hardware-card .swatch::before{width:22px;height:22px;border:1px solid #0003}
+.studio-shell .hardware-card .swatch[aria-pressed=true]{outline:2px solid var(--accent);outline-offset:0;background:var(--raised)}
+.studio-shell .color-entry{justify-content:space-between;margin:18px 0;gap:10px}
+.studio-shell .color-entry input[type=color]{height:30px;min-height:30px;width:40px;border-color:var(--control-line);border-radius:6px}
+.studio-shell .hex-entry input{min-height:30px;padding:5px 8px;font-size:12px;background:var(--surface);border-radius:6px}
+.studio-shell button{min-height:30px;font-size:12px;padding:6px 10px;border-radius:6px}
+.studio-shell .color-tools button{min-height:30px}
+.studio-shell .board-heading .field{padding:0;border:0;display:flex;gap:10px}
+.studio-shell .board-heading .field select{min-width:110px}
+.studio-shell #profiles{grid-template-columns:1fr;gap:0}
+.studio-shell #profiles .field{grid-template-columns:100px 1fr 1fr;margin:0;gap:12px;padding:12px 0}
+.studio-shell .transfer-progress{position:fixed;bottom:18px;right:22px;width:min(340px,calc(100% - 44px));z-index:10;padding:12px 14px;box-shadow:0 4px 20px #00000014;margin:0}
+.studio-shell .transfer-progress[data-state=complete]{display:none}
+.studio-shell .transfer-title{font-size:12px}
+.studio-shell .transfer-time{font-size:11px}
+.studio-shell .transfer-detail{font-size:11px}
+.studio-shell .transfer-meter{margin:9px 0 7px;height:4px}
+@media(max-width:900px){.studio-shell main{padding:26px 24px}.studio-shell .hardware-card .swatches{grid-template-columns:repeat(8,minmax(25px,1fr))}}
+@media(max-width:600px){.studio-shell header{padding:0 16px;height:52px}.studio-shell .wordmark{width:auto;flex-shrink:1}.studio-shell .wordmark span{display:inline}.studio-shell #state-label{font-size:11px}.studio-shell main{margin:0;padding:20px 16px}.studio-shell .desktop-sections{position:static;width:auto;flex-direction:row;padding:10px 12px;margin:0;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);background:var(--bg);gap:3px}.studio-shell .desktop-sections a{padding:8px 10px;white-space:nowrap}.studio-shell .desktop-sections .nav-icon{display:none}.studio-shell .sidebar-footer{display:block;flex:0 0 180px;margin:0;padding:0 6px}.studio-shell .sidebar-footer .library-link,.studio-shell .sidebar-footer #connection-state,.studio-shell .sidebar-footer label>span{display:none}.studio-shell .hardware-card{padding:18px}.studio-shell .field{grid-template-columns:1fr;gap:9px;padding:14px 0}.studio-shell #profiles .field{grid-template-columns:1fr;gap:8px}.studio-shell .board-heading{flex-wrap:wrap}.studio-shell .hardware-card .swatches{grid-template-columns:repeat(6,minmax(25px,1fr))}.studio-shell .sidebar-label{display:none}.studio-shell header #read{font-size:11px;padding:4px 8px}}
+@media(prefers-reduced-motion:reduce){.studio-shell .save-dot{animation:none!important}}
+.studio-shell #settings-connection{display:block;padding:0;border:0}
+.studio-shell #settings-transport{width:100%;min-width:0;max-width:100%}

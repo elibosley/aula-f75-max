@@ -34,7 +34,7 @@ class SelectionTest(unittest.TestCase):
   with patch.object(connections.subprocess,'run',return_value=types.SimpleNamespace(returncode=0,stdout=json.dumps(response),stderr='')):
    self.assertFalse(connections.bluetooth_presence('probe')['available'])
  def test_route_and_board_change_stop_before_opening(self):
-  for fields in [{'expected_transport':'usb'},{'board_identity':'b'*64}]:
+  for fields in [{'expected_transport':'usb'},{'board_identity':'b'*64},{'expected_slot':1}]:
    with patch.object(hardware_api,'discover',return_value=snapshot()),self.assertRaises(RuntimeError):hardware_api.resolve_connection({'transport':'auto',**fields},'probe')
  def test_failed_save_is_sent_once_to_bluetooth_without_usb_retry(self):
   class Keyboard:

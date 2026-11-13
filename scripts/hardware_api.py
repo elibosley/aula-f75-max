@@ -16,6 +16,7 @@ def resolve_connection(body,probe):
   snapshot=discover(probe);choice=select(snapshot,mode)
   if not choice['ready']:raise RuntimeError(choice['reason'] or 'No keyboard connection is available.')
   if body.get('expected_transport') and choice['selected']!=body['expected_transport']:raise RuntimeError('The keyboard connection changed. Check the connection before retrying.')
+  if 'expected_slot' in body and choice['slot']!=body['expected_slot']:raise RuntimeError('The Bluetooth slot changed. Reload before saving settings.')
   identity=choice['board_identity']
   if body.get('board_identity') and identity!=body['board_identity']:raise RuntimeError('A different keyboard is connected. Read it before applying settings.')
   mode=choice['selected']
