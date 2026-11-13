@@ -34,7 +34,7 @@ def run(image,out):
   keymap=struct.unpack('<90H',m.read(m.symbols['keymaps'],180))
   for os in range(3):
    m.write(m.symbols['state'],bytes([os]));m.write(m.symbols['state']+114,b'\0')
-   for usage,expected_modifier,expected_usage in [(0x39,8 if os==0 else 1,0),(0xe0,0,0x39)]:
+   for usage,expected_modifier,expected_usage in [(0x39,8 if os==0 else 1,0),(0xe0,1 if os==0 else 0,0 if os==0 else 0x39)]:
     row,col=divmod(keymap.index(usage),6);e.reports=[]
     m.write32(HOST+0x100+row*4,1<<col);e.advance(25)
     packets=[bytes.fromhex(p['data']) for p in e.reports if p['endpoint']==1]
@@ -48,7 +48,7 @@ def run(image,out):
    enumerate_usb(m);m.write32(HOST+0x30,0);m.advance(400);m.pump()
    assert m.read(m.symbols['state'],1)==b'\2' and not m.read(m.symbols['state']+114,1)[0]&1,'Android manual profile did not survive restart'
  return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),hardware_writes=False,
-  actual_wheel_auto_manual_cycle=True,per_device_isolation=True,mac_caps_command=True,windows_android_caps_ctrl=True,left_ctrl_caps=True,manual_android_save_restart=True,spi_icon_screenshots=True)
+  actual_wheel_auto_manual_cycle=True,per_device_isolation=True,mac_caps_command=True,mac_left_ctrl_control=True,windows_android_caps_ctrl=True,manual_android_save_restart=True,spi_icon_screenshots=True)
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--output',type=Path,required=True);a=p.parse_args()

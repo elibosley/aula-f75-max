@@ -79,7 +79,7 @@ def run(image):
   data=trace()[offset:]
   assert bytes([0xa1,0,0,4,0,0,0,0,0,0xa5]) in data,data.hex()
   assert bytes([0xa1,0,0,0,0,0,0,0,0,0xa1]) in data
-  for physical,expected in [(0x39,bytes([8,0,0,0,0,0,0,0])),(0xe0,bytes([0,0,0x39,0,0,0,0,0]))]:
+  for physical,expected in [(0x39,bytes([8,0,0,0,0,0,0,0])),(0xe0,bytes([1,0,0,0,0,0,0,0]))]:
    offset=len(trace());key(physical,True);settle();key(physical,False);settle()
    packet=bytes([0xa1])+expected+bytes([(0xa1+sum(expected))&255])
    assert packet in trace()[offset:],('Bluetooth Caps/Ctrl mapping',physical,trace()[offset:].hex())
@@ -134,7 +134,7 @@ def run(image):
   return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),
    wheel_edges_debounced=True,
    uart_bytes=m.read32(HOST+0x40),hardware_writes=False,real_arm_image=True,function_stubs=[],
-   no_usb_startup=True,stock_framing=True,led_checksum_wrap=True,bluetooth_press_and_release=True,bluetooth_caps_ctrl_swap=True,
+   no_usb_startup=True,stock_framing=True,led_checksum_wrap=True,bluetooth_press_and_release=True,bluetooth_mac_command_and_control=True,
    release_before_switch=True,report_ack_timeout_is_not_rf_disconnect=True,wireless_idle_uart_and_first_key_without_usb=True,usb_cable_does_not_replace_wireless=True,
    unavailable_requests_preserve_route=True,physical_selector_clears_override=True,
    switching_never_pairs=True,fn_wheel_toggles_previous_bluetooth=True,separate_pair_confirmation=True,stuck_uart_bounded=True,

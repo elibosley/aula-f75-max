@@ -35,6 +35,8 @@ const char *f75_color_name(const f75_config *config);
 void f75_cycle_color(f75_config *config);
 void f75_init(f75_state *state, const f75_config *config, uint32_t now);
 uint16_t f75_map_usage(const f75_state *state, uint16_t physical_usage);
+/* Default Fn+Caps toggles Caps Lock on Mac; explicit custom bindings win. */
+uint16_t f75_map_layer_usage(const f75_state *state, uint16_t physical_usage, bool fn);
 bool f75_set_os(f75_state *state, f75_os os);
 bool f75_detect_os(f75_state *state,uint8_t slot,f75_os os);
 bool f75_host_os_hint(f75_state *state,uint8_t slot,f75_os os,uint32_t transaction,bool connected);

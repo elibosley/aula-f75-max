@@ -8,7 +8,8 @@ int main(void){
  assert(!f75_host_os_hint(&s,1,F75_MAC,transaction,false));
  assert(s.config.os[1]==F75_WINDOWS&&s.release_epoch==epoch);
  assert(f75_host_os_hint(&s,1,F75_MAC,transaction,true)&&s.config.os[1]==F75_MAC&&s.release_epoch==epoch+1);
- assert(f75_map_usage(&s,0x39)==0xe3&&f75_map_usage(&s,0xe0)==0x39&&f75_map_usage(&s,0xe2)==0xe3);
+ assert(f75_map_usage(&s,0x39)==0xe3&&f75_map_usage(&s,0xe0)==0xe0&&f75_map_usage(&s,0xe2)==0xe3);
+ assert(f75_map_layer_usage(&s,0x39,true)==0x39);
  f75_set_os(&s,F75_WINDOWS);epoch=s.release_epoch;
  assert(!f75_host_os_hint(&s,1,F75_MAC,transaction,true)&&s.config.os[1]==F75_WINDOWS&&s.release_epoch==epoch);
  s.config.os_auto_mask|=2;f75_pair_request(&s,1,10);assert(!f75_host_os_hint(&s,1,F75_MAC,s.transaction,true));

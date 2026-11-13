@@ -161,9 +161,12 @@ def key_test():
     unarmed.key(0, 3, True); unarmed.key(0, 3, False)
     assert not unarmed.events
     fw = Candidate(); fw.initialize_app()
-    for (row, col), mapped in [((0, 3), 0xe3), ((0, 5), 0x39), ((2, 5), 0xe3)]:
+    for (row, col), mapped in [((0, 3), 0xe3), ((0, 5), 0xe0), ((2, 5), 0xe3)]:
         fw.events.clear(); fw.key(row, col, True); fw.key(row, col, False)
         assert fw.events == [('register_code16', mapped), ('unregister_code16', mapped)], fw.events
+    # Fn+Caps sends Caps Lock; releasing Fn first must not release Command.
+    fw.events.clear();fw.key(11,5,True);fw.key(0,3,True);fw.key(11,5,False);fw.key(0,3,False)
+    assert fw.events==[('register_code16',0x39),('unregister_code16',0x39)],fw.events
     # A profile change releases old mappings; their later key-up cannot release
     # a newly registered mapping owned by a different physical key.
     fw.key(2, 5, True)

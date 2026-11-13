@@ -24,7 +24,7 @@ Fn+P opens pairing for the current Bluetooth slot. Hold the wheel 1.2 seconds to
 
 ## Layouts, macros and colors
 
-Caps exchanges with physical left Ctrl in every OS profile. Mac mode then converts Control to Command: Caps sends Command, physical left Ctrl sends Caps Lock, and right Ctrl sends right Command. Windows and Android keep Control as Control. Mac mode also exchanges Alt and GUI. Every physical release uses the action captured on press; route/layout changes release existing owners first.
+With the Caps swap enabled, Mac mode sends Command from physical Caps and keeps physical left Ctrl as Control. Fn+Caps sends Caps Lock on Mac. Windows and Android retain the physical Caps/left Ctrl exchange. Mac mode also exchanges Alt and GUI. Every physical release uses the action captured on press; route/layout changes release existing owners first.
 
 The header shows an Apple, Windows or Android mark with Auto, Manual or Saved. Keys → Layout cycles Auto, manual Mac, manual Windows and manual Android for the selected device. USB can identify Apple and Windows hosts; the current USB fingerprint cannot distinguish Android from Linux, so those ambiguous hosts retain their saved profile. Bluetooth uses verified helper evidence when available. Android can always be selected manually.
 

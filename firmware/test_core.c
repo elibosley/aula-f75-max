@@ -41,9 +41,9 @@ int main(void) {
     f75_turn(&s,&nav,-1,1140);assert(nav.cursor==5&&nav.wheel_pending==0);
     f75_turn(&s,&nav,1,1200);f75_turn(&s,&nav,1,1600);assert(nav.cursor==5&&nav.wheel_pending==1);
     f75_set_control_layer(&s,true);f75_control_key(&s,&nav,0x51,1601);assert(nav.cursor==0&&nav.wheel_pending==0);f75_set_control_layer(&s,false);
-    for(unsigned os=0;os<3;os++){assert(f75_set_os(&s,(f75_os)os));assert(f75_map_usage(&s,0x39)==(os==F75_MAC?0xe3:0xe0));assert(f75_map_usage(&s,0xe0)==0x39);assert(f75_map_usage(&s,0xe4)==(os==F75_MAC?0xe7:0xe4));}
+    for(unsigned os=0;os<3;os++){assert(f75_set_os(&s,(f75_os)os));assert(f75_map_usage(&s,0x39)==(os==F75_MAC?0xe3:0xe0));assert(f75_map_usage(&s,0xe0)==(os==F75_MAC?0xe0:0x39));assert(f75_map_layer_usage(&s,0x39,true)==(os==F75_MAC?0x39:0xe0));assert(f75_map_usage(&s,0xe4)==(os==F75_MAC?0xe7:0xe4));}
     assert(f75_set_os(&s,F75_MAC));assert(f75_map_usage(&s,0xe2)==0xe3);assert(f75_map_usage(&s,0xe3)==0xe2);
-    f75_set_caps_swap(&s,false);assert(f75_map_usage(&s,0x39)==0x39&&f75_map_usage(&s,0xe0)==0xe3);f75_set_caps_swap(&s,true);
+    f75_set_caps_swap(&s,false);assert(f75_map_usage(&s,0x39)==0x39&&f75_map_usage(&s,0xe0)==0xe0);f75_set_caps_swap(&s,true);
     uint32_t epoch=s.release_epoch;f75_set_control_layer(&s,true);assert(s.release_epoch==epoch+1);f75_set_control_layer(&s,false);
     assert(f75_pair_request(&s,2,100));assert(!f75_pair_confirm(&s,1199,200));uint32_t token=f75_pair_confirm(&s,1200,1500);assert(token);assert(!(s.config.bonded_mask&(1u<<2)));
     assert(!f75_host_ack(&s,3,token));assert(!f75_host_ack(&s,2,token+1));assert(f75_host_ack(&s,2,token));assert(s.config.active_host==2);assert(s.config.bonded_mask&(1u<<2));

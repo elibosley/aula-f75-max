@@ -36,6 +36,8 @@ void f75_init(f75_state *s,const f75_config *c,uint32_t now) {
     s->last_activity=now; s->connected_slot=UINT8_MAX;
 }
 uint16_t f75_map_usage(const f75_state *s,uint16_t usage) {
+    /* Mac keeps a real Control key even while physical Caps sends Command. */
+    if(s->config.os[s->config.active_host]==F75_MAC&&usage==0xe0)return 0xe0;
     if(s->config.caps_swap) { if(usage==0x39)usage=0xe0;else if(usage==0xe0)usage=0x39; }
     if(s->config.os[s->config.active_host]==F75_MAC) {
         if(usage==0xe0)return 0xe3;
@@ -46,6 +48,10 @@ uint16_t f75_map_usage(const f75_state *s,uint16_t usage) {
         if(usage==0xe7)return 0xe6;
     }
     return usage;
+}
+uint16_t f75_map_layer_usage(const f75_state *s,uint16_t usage,bool fn) {
+    if(fn&&s->config.os[s->config.active_host]==F75_MAC&&usage==0x39)return 0x39;
+    return f75_map_usage(s,usage);
 }
 bool f75_set_os(f75_state *s,f75_os os) {
     if(os!=F75_MAC&&os!=F75_WINDOWS&&os!=F75_ANDROID)return false;

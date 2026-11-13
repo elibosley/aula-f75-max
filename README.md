@@ -12,7 +12,7 @@ This is an experimental community board port. The physical selector remains auth
 - Switch Bluetooth slots with **Fn+1/2/3**. On Home, **Fn+wheel click** returns to the previous Bluetooth slot. The shortcut uses the last two selected slots during the current session.
 - Use **Fn+4** for the receiver and **Fn+5** for USB when those transports are available. Moving the physical selector takes priority; software cannot override a hardware power cut.
 - Pair deliberately with **Fn+P**, then hold the wheel for 1.2 seconds. Switching devices does not replace a bond.
-- On Mac, physical Caps sends Command when the Caps/left Ctrl swap is enabled. Physical left Ctrl sends Caps Lock. Windows and Android use Ctrl at physical Caps.
+- On Mac, physical Caps sends Command when the Caps/left Ctrl swap is enabled. Physical left Ctrl remains Control, and Fn+Caps toggles Caps Lock. Windows and Android keep the Caps/left Ctrl exchange.
 - Run a Pomodoro timer, choose the wheel action, and save settings to the keyboard.
 
 [Controls and recovery](firmware/README.md) · [Board target](firmware/targets/f75max/README.md) · [Hardware qualification](docs/HARDWARE_STATUS.md)

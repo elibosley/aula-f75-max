@@ -80,7 +80,7 @@ def keys(machine):
     result = []
     for row, col, expected in [(1, 3, bytes([0,0,4,0,0,0,0,0])),
                                (0, 3, bytes([8 if mac else 1,0,0,0,0,0,0,0])),
-                               (0, 5, bytes([0,0,0x39,0,0,0,0,0])),
+                               (0, 5, bytes([1 if mac else 0,0,0 if mac else 0x39,0,0,0,0,0])),
                                (2, 5, bytes([8 if mac else 4,0,0,0,0,0,0,0]))]:
         machine.write32(HOST + 0x100 + row * 4, 1 << col)
         machine.advance(15); machine.pump()

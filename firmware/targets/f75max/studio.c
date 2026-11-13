@@ -816,7 +816,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (state.control_layer) { action(f75_control_key(&state, &navigation, keycode, now), now); return false; }
     if (keycode > 0xff || keycode == KC_NO) return false;
     uint16_t custom=f75_custom_binding(&f75_custom_config,row*MATRIX_COLS+col,fn,0);
-    uint16_t mapped=custom?custom:f75_map_usage(&state,keycode);
+    uint16_t mapped=custom?custom:f75_map_layer_usage(&state,keycode,fn);
     if(mapped==F75_BIND_DISABLED)return false;
     if(mapped>=F75_BIND_MACRO&&mapped<F75_BIND_MACRO+F75_CUSTOM_MACROS){
         if(!active_slot||f75_radio_connected()){
