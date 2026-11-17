@@ -60,7 +60,13 @@ def charge_debounce(image):
  from test_keyboard_image import Candidate,GPIO,SCRATCH
  f=Candidate();f.callback('f75_battery_read_register',lambda args:0)
  def charge():return bool(f.call('f75_battery_charging',SCRATCH)),bool(f.byte(SCRATCH))
+ # The supplier samples active-low B17 with a pull-up. Preserve other
+ # GPIO fields while enabling its input pull-up before the first sample.
+ mode=0x00060133;cfg=0x000000aa
+ f.word(GPIO[1]+4,mode);f.word(GPIO[1]+0x30,cfg)
  f.word(GPIO[1],1<<17);f.call('f75_battery_task',1000);assert not charge()[0]
+ assert f.word(GPIO[1]+4)==mode&~(1<<17),'Charge input must not be an output'
+ assert f.word(GPIO[1]+0x30)==cfg&~(3<<2),'B17 requires the supplier input pull-up'
  f.call('f75_battery_task',1049);assert not charge()[0]
  f.call('f75_battery_task',1050);assert charge()==(True,False)
  f.word(GPIO[1],0);f.call('f75_battery_task',1060);f.call('f75_battery_task',1109);assert charge()==(True,False)

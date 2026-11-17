@@ -39,10 +39,13 @@ bool f75_battery_read_register(uint8_t reg,uint8_t *value){
     stop();return ok;
 }
 void f75_battery_task(uint32_t now){
-    /* Supplier 0x2184 debounces active-low B17 into 0x20000059.
-     * Its Home painter at 0xfd8c selects battery icon 0x0e from that
-     * flag: the lightning-bolt image at asset-flash offset 0xbd10.
-     * Read the existing input only; do not alter its mux or pull settings. */
+    /* Supplier 0x7e50 sets GPIOB MODE=0 and CFG1=0x82: B17 is an
+     * input with its pull-up enabled. QMK leaves this pad without a pull-up;
+     * an undriven low level then falsely looks like charging. Configure only
+     * B17 before sampling. No charger/gauge configuration is changed.
+     * Supplier 0x2184 debounces active-low B17 into 0x20000059, used by the
+     * Home painter for the lightning-bolt battery icon. */
+    if(!charge_started)gpio_set_pin_input_high(B17);
     bool incoming=!gpio_read_pin(B17);
     if(!charge_started||incoming!=charge_raw){
         charge_started=true;charge_raw=incoming;charge_changed=now;
