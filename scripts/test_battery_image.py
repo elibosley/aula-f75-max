@@ -59,9 +59,9 @@ def fields():
  data=bytes(fw.cpu.mem_read(SYMBOLS['frame'],180))
  return data[8:16].split(b'\0')[0],data[136:157].split(b'\0')[0]
 assert fields()==(b'--%',b''),fields()
-def known(args):fw.byte(args[0],91);return 1
-fw.callback('f75_battery_percent',known);draw(5010)
-assert fields()==(b'91%',b''),fields()
+def known(args):fw.cpu.mem_write(args[0],struct.pack('<H',22364));return 1
+fw.callback('f75_battery_raw_soc',known);draw(5010)
+assert fields()==(b'91.0%',b''),fields()
 fw.callback('f75_radio_connected',lambda args:0);draw(5020)
 assert fields()[1]==b'Offline / Fn+P',fields()
 fw.byte(SYMBOLS['active_slot'],4);draw(5030)

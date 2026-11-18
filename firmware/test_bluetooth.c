@@ -183,12 +183,16 @@ int main(void) {
     /* Codec 3's dictionary stays immutable. New exported capability metadata
      * is a normal sparse delta, not a reason to replace the shared dictionary. */
     uint8_t historical[F75_BUNDLE_BYTES];memcpy(historical,initial,sizeof(historical));
-    assert(historical[128]==F75_LIGHT_EFFECT_COUNT);historical[128]=0;
+    assert(historical[128]==F75_LIGHT_EFFECT_COUNT);historical[128]=0;historical[129]=0;
     put32(historical+156,f75_crc32(historical,156));
+    historical[160+4]=1;memset(historical+160+2512,0,3068-2512);
+    put32(historical+160+3068,f75_crc32(historical+160,3068));
     for(unsigned i=0;i<F75_BUNDLE_BYTES;++i)assert(historical[i]==f75_bt_dictionary3_byte(i));
     codec=3;
     assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,0,&codec,1,++now,&c,&custom));
-    assert(!b.response[5]&&b.response[11]==3&&b.response_length<=48);
+    /* The immutable dictionary predates calibration and decimal metadata.
+     * Their sparse delta still fits one bounded response. */
+    assert(!b.response[5]&&b.response[11]==3&&b.response_length<=64);
     unsigned decoded3=0,at3=19;
     assert((b.response[17]|((unsigned)b.response[18]<<8))==F75_BUNDLE_BYTES);
     while(at3<b.response_length-4u){

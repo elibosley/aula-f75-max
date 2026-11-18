@@ -219,3 +219,41 @@ the 3 ms delay, and reaches RX processing without arming the ACK snapshot.
 A separate linked ARM adapter check verifies that the next packet is blocked
 at 1 and 2 ms and permitted at 3 ms. These are software checks; physical wake
 and radio-current measurements remain separate gates.
+
+## Fractional estimates and full-charge calibration
+
+Studio's Battery page and the keyboard header support zero, one, or two decimal
+places. A decimal is finer display resolution, not a capacity or runtime
+measurement. The gauge remains read-only. Its model and profile are not inferred
+from the register layout.
+
+By default, the estimate retains the supplier reference of 24576 raw SOC counts
+at 100%. After fully charging, unplug USB, refresh Battery, confirm that the
+battery was fully charged, and select **Mark current reading as 100%**. Studio
+obtains a fresh valid reading, requires an inactive charging input and absent
+live USB link, and accepts a full reference only between 23040 and 25600 counts.
+It saves the reference and decimal preference through the existing verified
+settings workflow. **Reset calibration** restores the supplier reference while
+keeping the selected number of decimal places. No empty-point discharge, gauge
+profile write, reset, or calibration-register command is performed.
+
+The displayed estimate is `min(10000, round(raw_soc * 10000 / full_reference))`
+in hundredths of a percent. For a full reference of 25600, raw SOC 25387 displays
+99.2% or 99.17%. Values above the reference remain capped at 100%. No calibration
+is automatically applied just because the gauge currently reports 100%.
+
+Custom record version 4 stores the full reference at bytes 2524–2525 and decimal
+places at byte 2526. Versions 1–3 still load with the supplier reference and one
+decimal place. The new app reads older firmware and disables unsupported
+calibration controls. Updated firmware exports support in core metadata byte
+129. Settings backup, route journal, pairing, and recovery boundaries are retained.
+
+Power telemetry version 2 retains its 24-byte size. Byte 0 is version 2; byte 1
+retains flags 0–4 and puts the policy stage in bits 5–6. Bytes 2–3 carry the
+estimated percentage in hundredths, with 65535 meaning unavailable. Voltage,
+raw SOC, timestamps, configuration fingerprint, and activity count keep their
+previous offsets. The fingerprint additionally covers calibration and decimal
+preference. Host tools continue decoding version 1. Their `percent` field and
+discharge summaries retain the supplier's integer estimate; `estimate_percent`
+is a separately labeled display estimate. Low-battery limits and reserve
+admission still use the unchanged supplier conversion.

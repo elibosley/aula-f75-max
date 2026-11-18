@@ -15,7 +15,9 @@ typedef struct {
     uint8_t macro_length[F75_CUSTOM_MACROS],macro_repeat[F75_CUSTOM_MACROS];
     f75_macro_step steps[F75_CUSTOM_MACROS][F75_MACRO_STEPS];
     uint8_t screen_color[3],screen_custom;
-    uint8_t indicator_mask,caps_color[3],fn_color[3],indicators_custom;
+    uint8_t indicator_mask,caps_color[3],fn_color[3];
+    uint8_t indicators_custom:1,battery_decimals:2;
+    uint16_t battery_full_soc; /* Zero retains the supplier's 24576 reference. */
 } f75_custom;
 typedef struct {
     uint32_t due;
@@ -27,6 +29,8 @@ void f75_custom_defaults(f75_custom *custom);
 bool f75_custom_valid(const f75_custom *custom);
 void f75_custom_encode(const f75_custom *custom,uint8_t bytes[F75_CUSTOM_BYTES]);
 bool f75_custom_decode(const uint8_t bytes[F75_CUSTOM_BYTES],f75_custom *custom);
+uint16_t f75_battery_estimate(const f75_custom *custom,uint16_t raw_soc);
+void f75_battery_label(char out[8],uint16_t hundredths,uint8_t decimals);
 uint16_t f75_custom_binding(const f75_custom *custom,uint8_t key,bool function,uint16_t stock);
 void f75_custom_lighting(const f75_custom *custom,uint8_t layer,uint8_t brightness,uint8_t pwm[270]);
 void f75_custom_indicators(const f75_custom *custom,bool caps,bool fn,uint8_t brightness,uint8_t pwm[270]);

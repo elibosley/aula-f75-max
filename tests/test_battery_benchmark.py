@@ -10,6 +10,19 @@ from battery_benchmark import decode_snapshot, summarize
 
 
 class BatteryBenchmarkTest(unittest.TestCase):
+    def test_fractional_snapshot_preserves_supplier_result_and_reserve(self):
+        payload=struct.pack('<BBHHHIIII',2,19|(3<<5),9917,4109,25387,100000,99900,123,7)
+        value=decode_snapshot(payload)
+        self.assertEqual(value['percent'],100)
+        self.assertEqual(value['estimate_percent'],99.17)
+        self.assertEqual(value['stage'],'sleep')
+        self.assertEqual(value['estimate_basis'],'keyboard full-charge reference')
+        unknown=decode_snapshot(struct.pack('<BBHHHIIII',2,2,65535,0,65535,100000,0,123,7))
+        self.assertIsNone(unknown['estimate_percent'])
+        for estimate in (0,9916,10001,65535):
+            with self.subTest(estimate=estimate),self.assertRaises(ValueError):
+                decode_snapshot(struct.pack('<BBHHHIIII',2,19,estimate,4109,25387,100000,99900,123,7))
+
     def payload(self, **changes):
         x=dict(version=1, flags=19, percent=50, stage=2, mv=4000, raw=12288,
                uptime=100000, sampled=99900, config=123, activity=7)

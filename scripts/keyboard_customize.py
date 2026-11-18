@@ -106,8 +106,11 @@ def validate(data):
 
 def decode(data):
  validate(data);core=data[:160];custom=data[160:];at=16
- if custom[4] not in (1,2,3):raise ValueError('Unsupported custom settings version')
- if custom[4]==3 and custom[2516]&~3:raise ValueError('Invalid indicator flags')
+ if custom[4] not in (1,2,3,4):raise ValueError('Unsupported custom settings version')
+ if custom[4]>=3 and custom[2516]&~3:raise ValueError('Invalid indicator flags')
+ full=struct.unpack_from('<H',custom,2524)[0] if custom[4]>=4 else 0
+ decimals=custom[2526] if custom[4]>=4 else 0
+ if (full and not 23040<=full<=25600) or decimals>2:raise ValueError('Invalid battery calibration')
  keys=[list(struct.unpack_from('<90H',custom,at+layer*180)) for layer in range(2)];at+=360
  rgb=[['#'+custom[at+(layer*90+key)*3:at+(layer*90+key)*3+3].hex() for key in range(90)] for layer in range(3)];at+=810
  flags=custom[at:at+270];at+=270
@@ -121,6 +124,7 @@ def decode(data):
   macros.append({'repeat':bool(repeat[slot]),'steps':steps})
  return {'schema':1,'base_hex':data.hex(),'os':list(core[12:17]),'auto_mask':core[126],'caps_swap':bool(core[114]),'face':core[120],
          'power':core[115],'wheel':core[119],
+         'battery':{'supported':core[129]==1,'full_soc':full,'decimals':decimals},
          'names':[core[17+i*19:36+i*19].split(b'\0')[0].decode('ascii') for i in range(5)],
          'lighting':{'color':'#'+core[122:125].hex(),'brightness':core[116],'speed':core[117],'effect':core[118]},
          'lighting_effect_count':core[128] if 5<=core[128]<=25 else 5,
@@ -219,6 +223,15 @@ def encode(document):
   caps_color=color(indicators['caps_color']);fn_color=color(indicators['fn_color'])
   if indicators['custom'] or not indicators['caps'] or not indicators['fn'] or caps_color!=bytes.fromhex('a8ead4') or fn_color!=bytes.fromhex('c8aaf6'):
    custom[4]=3;custom[2516]=int(indicators['caps'])|(int(indicators['fn'])<<1);custom[2517:2520]=caps_color;custom[2520:2523]=fn_color
+ battery=document.get('battery')
+ if battery is not None:
+  full=integer(battery.get('full_soc'),0,25600);decimals=integer(battery.get('decimals'),0,2)
+  if full and full<23040:raise ValueError('Full-charge reference is outside the supported range')
+  if data[129]!=1 and (full or decimals):raise ValueError('Update firmware before changing battery calibration')
+  if data[129]==1:
+   if custom[4]<3:
+    custom[2516]=3;custom[2517:2520]=bytes.fromhex('a8ead4');custom[2520:2523]=bytes.fromhex('c8aaf6')
+   custom[4]=4;struct.pack_into('<H',custom,2524,full);custom[2526]=decimals
  struct.pack_into('<I',custom,3068,zlib.crc32(custom[:3068]));data[160:]=custom;return bytes(data)
 
 def main():

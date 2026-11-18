@@ -19,18 +19,33 @@ def decode_snapshot(payload):
     if len(payload) != 24:
         raise ValueError('Power snapshot must contain 24 bytes')
     version, flags, percent, stage, mv, raw, uptime, sampled, config, activity = struct.unpack('<BBBBHHIIII', payload)
-    if version != 1 or flags & ~31 or stage > 3:
+    estimate = None
+    if version == 2:
+        estimate = struct.unpack_from('<H', payload, 2)[0]
+        stage = (flags >> 5) & 3
+        if flags & 128:
+            raise ValueError('Unknown power snapshot flags')
+        flags &= 31
+        percent = min(100, raw * 100 // 24576)
+    elif version != 1:
+        raise ValueError('Unknown power snapshot schema')
+    if flags & ~31 or stage > 3:
         raise ValueError('Unknown power snapshot schema, flags, or stage')
     valid = bool(flags & 1)
     age = (uptime - sampled) & 0xffffffff
     if valid and (not 2800 <= mv <= 4500 or raw > 25600 or
-                  percent != min(100, raw * 100 // 24576) or age >= 30000):
+                  percent != min(100, raw * 100 // 24576) or age >= 30000 or
+                  (estimate is not None and not min(10000,(raw*10000+12800)//25600) <= estimate <= min(10000,(raw*10000+11520)//23040))):
         raise ValueError('Invalid or stale gauge measurement')
-    if not valid and (percent != 255 or mv != 0 or raw != 65535):
+    if not valid and ((version == 1 and percent != 255) or (version == 2 and estimate != 65535) or mv != 0 or raw != 65535):
         raise ValueError('Unavailable gauge must preserve unknown values')
     if flags & 4 and not flags & 2:
         raise ValueError('Charging cannot be true without a known charging input')
+    if valid and estimate is None:
+        estimate = min(10000, (raw * 10000 + 12288) // 24576)
     return dict(gauge_valid=valid, percent=percent if valid else None,
+                estimate_percent=estimate / 100 if valid else None,
+                estimate_basis='keyboard full-charge reference' if version == 2 else 'supplier scale',
                 millivolts=mv if valid else None, raw_soc=raw if valid else None,
                 charging=bool(flags & 4) if flags & 2 else None,
                 usb_configured=bool(flags & 8), radio_connected=bool(flags & 16),

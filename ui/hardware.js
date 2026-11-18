@@ -5,7 +5,8 @@ const colorPresets=[['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['
 let settings=null,observedHost=null,csrf='',layout=[],chosen=null,layer=0,slot=0,busy=false,dirty=false;
 let desktop=false,displayReady=false,bluetoothAccess=null;
 let lightingEffects=[];
-const editableFields=['os','auto_mask','caps_swap','face','power','wheel','names','lighting','light_mode','reduced_motion','companion','screen_color','indicators','keys','colors','layer_colors','macros'];
+let batteryReading=null;
+const editableFields=['os','auto_mask','caps_swap','face','power','wheel','battery','names','lighting','light_mode','reduced_motion','companion','screen_color','indicators','keys','colors','layer_colors','macros'];
 let autoSaving=false;
 let resolvedTransport=null,connectionReady=false,connectionSnapshot=null,settingsBoard=null,settingsRoute=null,detecting=false,autoReadKey=null;
 function routeKey(){return JSON.stringify([connectionSnapshot?.choice.board_identity,resolvedTransport,connectionSnapshot?.choice.slot]);}
@@ -53,6 +54,7 @@ function showSection(section,focus=false){
  $('#editor').hidden=section==='status';
  $('#apply-note').hidden=section==='status';
  if(focus)$('#section-title').focus({preventScroll:true});
+ if(section==='battery'&&settings&&!busy)refreshBattery();
  window.scrollTo({top:0,behavior:'instant'});
 }
 for(const link of document.querySelectorAll('[data-section]'))link.addEventListener('click',event=>{
@@ -61,7 +63,7 @@ for(const link of document.querySelectorAll('[data-section]'))link.addEventListe
 showSection('keys');
 
 // One small, consistent outline icon family; labels remain the accessible names.
-const navPaths={keys:'M3 5h18v14H3z M6 9h1m3 0h1m3 0h1m3 0h0 M6 12h1m3 0h1m3 0h1m3 0h0 M7 16h10',lighting:'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',devices:'M10 3l8 6-12 8m4 4 8-6L6 7m4-4v18',screen:'M3 4h18v13H3z M8 21h8m-4-4v4',macros:'M8 4v16l12-8z',status:'M5 17h14l-2-3V9a5 5 0 0 0-10 0v5z M10 21h4'};
+const navPaths={keys:'M3 5h18v14H3z M6 9h1m3 0h1m3 0h1m3 0h0 M6 12h1m3 0h1m3 0h1m3 0h0 M7 16h10',lighting:'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',devices:'M10 3l8 6-12 8m4 4 8-6L6 7m4-4v18',screen:'M3 4h18v13H3z M8 21h8m-4-4v4',battery:'M3 7h16v10H3z M21 10v4 M6 10v4m3-4v4m3-4v4',macros:'M8 4v16l12-8z',status:'M5 17h14l-2-3V9a5 5 0 0 0-10 0v5z M10 21h4'};
 for(const link of document.querySelectorAll('[data-section]')){
  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','nav-icon');svg.setAttribute('aria-hidden','true');
  const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',navPaths[link.dataset.section]);svg.append(path);link.prepend(svg);
@@ -122,6 +124,7 @@ const autoSave=new F75AutoSave({
   $('#message').textContent=error||{waiting:'Changes save after you pause.',saving:'Saving to your keyboard. You can keep editing.',saved:''}[state]||'';
   if(state==='saved'||state==='ready')setTimeout(()=>{if(!dirty&&!busy)transferProgress.dismiss();},1500);
   updateButtons();
+  if(state==='saved'&&activeSection==='battery')queueMicrotask(refreshBattery);
  }
 });
 function mark(){if(!busy)transferProgress.dismiss();autoSave.edited();updateButtons();paint();}
@@ -138,6 +141,7 @@ function updateButtons(){
  // A pending draft stays bound to its keyboard and transport until saved or reloaded.
  $('#settings-transport').disabled=busy||dirty;
  $('#bluetooth-allow').disabled=busy;$('#bluetooth-recheck').disabled=busy;
+ updateBatteryButtons();
  $('#settings-connection-note').hidden=true;
  const clockSupported=resolvedTransport==='usb'||!!settings?.bluetooth_clock_supported;
  $('#sync-clock').disabled=busy||!ready||!sameBoard||!settings||!clockSupported;
@@ -172,7 +176,7 @@ async function send(action){
   settings=result.document;observedHost=result.host_status;settingsBoard=result.board_identity;settingsRoute=routeKey();autoSave.loaded();
   render();transferProgress.finish(true);
  }catch(error){transferProgress.finish(false);$('#message').textContent=error.message;$('#state-label').textContent=dirty?'Changes kept in Studio':'Settings unavailable';}
- finally{busy=false;updateButtons();if(desktop&&action==='read')await refreshDisplay();}
+ finally{busy=false;updateButtons();if(desktop&&action==='read')await refreshDisplay();if(action==='read'&&activeSection==='battery')await refreshBattery();}
 }
 async function displayRequest(action, fields={}) {
  const response=await fetch('/api/hardware',{
@@ -272,7 +276,7 @@ function macro(){
   $('#steps').append(row);
  });
 }
-function render(){selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
+function render(){renderBattery();selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
 function lighting(){
  const supported=settings.lighting_effect_count??5;
  for(const item of $('#light-effect').options)item.disabled=Number(item.value)>=supported;
@@ -329,6 +333,54 @@ $('#caps').onchange=()=>{settings.caps_swap=$('#caps').checked;mark();};
 $('#companion').onchange=()=>{settings.companion=Number($('#companion').value);mark();};
 $('#wheel-mode').onchange=()=>{settings.wheel=Number($('#wheel-mode').value);mark();};
 $('#power-mode').onchange=()=>{settings.power=Number($('#power-mode').value);mark();};
+function updateBatteryButtons(){
+ const ready=!!settings&&connectionReady&&sameSettingsRoute()&&!busy&&!detecting;
+ const supported=!!settings?.battery?.supported;
+ $('#battery-refresh').disabled=!ready;
+ $('#battery-decimals').disabled=!ready||!supported;
+ $('#battery-full-confirm').disabled=!ready||!supported;
+ $('#battery-calibrate').disabled=!ready||!supported||dirty||!$('#battery-full-confirm').checked||!batteryReading?.gauge_valid||batteryReading.charging!==false||batteryReading.usb_configured||batteryReading.raw_soc<23040||batteryReading.raw_soc>25600;
+ $('#battery-reset').disabled=!ready||!supported||!settings?.battery?.full_soc;
+}
+function renderBattery(){
+ const battery=settings?.battery;
+ $('#battery-decimals').value=String(battery?.decimals??0);
+ $('#battery-calibration-state').textContent=!battery?.supported?'Update keyboard firmware to set decimal places and calibrate.':battery.full_soc?'Custom full-charge reference selected.':'Supplier reference selected. Full-charge calibration can remove its 100% plateau.';
+ if(batteryReading){
+  const p=batteryReading;
+  const value=p.estimate_percent;
+  $('#battery-reading').textContent=p.gauge_valid&&Number.isFinite(value)?`${value.toFixed(battery?.decimals??0)}% estimated · ${(p.millivolts/1000).toFixed(3)} V · ${p.charging===true?'Charging':p.charging===false?'Not charging':'Charging state unknown'}`:'Battery reading unavailable. Refresh after reconnecting.';
+ }
+ updateBatteryButtons();
+}
+async function batteryRequest(){
+ const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action:'power',...connectionFields('power')})});
+ const result=await response.json();if(!response.ok)throw Error(result.error||'Battery reading unavailable.');
+ batteryReading=result.power;return result.power;
+}
+async function refreshBattery(){
+ if(busy||detecting||!settings||!connectionReady||!sameSettingsRoute())return;
+ busy=true;updateButtons();$('#battery-message').textContent='Reading battery…';
+ try{await batteryRequest();$('#battery-message').textContent='Reading refreshed.';}
+ catch(error){batteryReading=null;$('#battery-reading').textContent='Battery reading unavailable.';$('#battery-message').textContent=error.message;}
+ finally{busy=false;renderBattery();updateButtons();}
+}
+$('#battery-refresh').onclick=refreshBattery;
+$('#battery-decimals').onchange=()=>{settings.battery.decimals=Number($('#battery-decimals').value);mark();renderBattery();};
+$('#battery-full-confirm').onchange=updateBatteryButtons;
+$('#battery-calibrate').onclick=async()=>{
+ if(busy||dirty||!settings?.battery?.supported||!$('#battery-full-confirm').checked)return;
+ busy=true;updateButtons();
+ try{
+  const p=await batteryRequest();
+  if(!p.gauge_valid||p.charging!==false||p.usb_configured||!Number.isInteger(p.raw_soc)||p.raw_soc<23040||p.raw_soc>25600)throw Error('Fully charge the battery, unplug USB, then refresh before calibrating.');
+  settings.battery.full_soc=p.raw_soc;$('#battery-full-confirm').checked=false;
+  busy=false;mark();$('#battery-message').textContent='Full-charge reference selected.';
+ }catch(error){$('#battery-message').textContent=error.message;}
+ finally{busy=false;renderBattery();updateButtons();}
+};
+$('#battery-reset').onclick=()=>{settings.battery.full_soc=0;$('#battery-full-confirm').checked=false;mark();renderBattery();$('#battery-message').textContent='Supplier reference selected.';};
+
 for(const [id,name] of [['caps-light','caps'],['fn-light','fn']])$('#'+id).onchange=()=>{settings.indicators[name]=$('#'+id).checked;settings.indicators.custom=true;mark();};
 for(const [id,name] of [['caps-light','caps_color'],['fn-light','fn_color']])colorInput(id+'-color',id+'-hex',value=>{settings.indicators[name]=value;settings.indicators.custom=true;});
 $('#display-send').onclick=()=>sendDisplay('set');

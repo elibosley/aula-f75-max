@@ -6,9 +6,9 @@
  * 0x63, A14 clock and A15 data. Stock reads voltage at 2/3 and SOC at 4/5.
  * No gauge configuration, calibration, reset or profile writes are used. */
 static uint8_t sample[4],phase,percent;
-static uint16_t measured_soc;
+static uint16_t measured_soc,voltage;
 static bool valid;
-static uint32_t next_sample,last_good,voltage,successes,failures;
+static uint32_t next_sample,last_good,successes,failures;
 static bool charge_started,charge_raw,charge_stable,charge_valid;
 static uint32_t charge_changed;
 static void delay(void){wait_us(5);}

@@ -41,7 +41,7 @@ def keyboard_menu(window):
         MenuSeparator(),
         *[MenuAction(title, pane(section)) for title, section in (
             ('Keys', 'keys'), ('Lighting', 'lighting'), ('Devices', 'devices'),
-            ('Screen', 'screen'), ('Macros', 'macros'), ('Notifications', 'status'))],
+            ('Screen', 'screen'), ('Battery', 'battery'), ('Macros', 'macros'), ('Notifications', 'status'))],
     ])]
 
 

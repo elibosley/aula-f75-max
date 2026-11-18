@@ -124,7 +124,7 @@ void f75_record_encode(const f75_config *c,uint32_t generation,uint8_t out[F75_R
     copy_bytes(out+112,fields,sizeof(fields));out[125]=c->light_mode;out[126]=c->os_auto_mask;out[127]=c->companion;
     /* Reserved metadata byte: exported support, never trusted as config input.
      * Old firmware exports zero here; record size/version and effect IDs stay stable. */
-    out[128]=F75_LIGHT_EFFECT_COUNT;put32(out+156,f75_crc32(out,156));
+    out[128]=F75_LIGHT_EFFECT_COUNT;out[129]=1;put32(out+156,f75_crc32(out,156));
 }
 bool f75_record_decode(const uint8_t in[F75_RECORD_BYTES],f75_config *c,uint32_t *generation) {
     if(!same_bytes(in,"F75S",4)||in[4]<1||in[4]>6||in[6]!=F75_RECORD_BYTES||in[7]||get32(in+156)!=f75_crc32(in,156))return false;

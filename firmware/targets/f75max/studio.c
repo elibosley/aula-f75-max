@@ -162,13 +162,17 @@ static void power_snapshot(uint8_t out[24],uint32_t now){
     f75_battery_diagnostics(gauge);bool valid=f75_battery_raw_soc(&soc);
     bool charge_known=f75_battery_charging(&charging);
     f75_budget budget=f75_board_power_budget(&state,now);
-    memset(out,0,24);out[0]=1;
-    out[1]=valid|(charge_known<<1)|(charging<<2)|(f75_board_usb_active(now)<<3)|(f75_radio_connected()<<4);
-    out[2]=valid?(uint8_t)gauge[1]:255;out[3]=budget.stage;
+    memset(out,0,24);out[0]=2;
+    out[1]=valid|(charge_known<<1)|(charging<<2)|(f75_board_usb_active(now)<<3)|(f75_radio_connected()<<4)|(budget.stage<<5);
+    uint16_t estimate=valid?f75_battery_estimate(&f75_custom_config,soc):UINT16_MAX;
+    memcpy(out+2,&estimate,2);
     uint16_t mv=valid?(uint16_t)gauge[2]:0;
     memcpy(out+4,&mv,2);memcpy(out+6,&soc,2);memcpy(out+8,&now,4);
     memcpy(out+12,&gauge[5],4);
-    uint32_t config_crc=f75_crc32((const uint8_t*)&state.config,sizeof(state.config));
+    uint8_t configuration[sizeof(state.config)+3];memcpy(configuration,&state.config,sizeof(state.config));
+    memcpy(configuration+sizeof(state.config),&f75_custom_config.battery_full_soc,2);
+    configuration[sizeof(state.config)+2]=f75_custom_config.battery_decimals;
+    uint32_t config_crc=f75_crc32(configuration,sizeof(configuration));
     memcpy(out+16,&config_crc,4);uint32_t activity=f75_matrix_activity_epoch;
     memcpy(out+20,&activity,4);
 }
@@ -914,9 +918,8 @@ static void make_frame(uint32_t now) {
         if(charging)frame.power_state=F75_POWER_CHARGING;
         else if(frame.power_state==F75_POWER_UNKNOWN)frame.power_state=F75_POWER_BATTERY;
     }
-    uint8_t battery;
-    if(f75_battery_percent(&battery))snprintf(frame.status_right,sizeof(frame.status_right),"%u%%",battery);
-    else snprintf(frame.status_right,sizeof(frame.status_right),"--%%");
+    uint16_t battery;
+    f75_battery_label(frame.status_right,f75_battery_raw_soc(&battery)?f75_battery_estimate(&f75_custom_config,battery):UINT16_MAX,f75_custom_config.battery_decimals);
     snprintf(frame.host_label,sizeof(frame.host_label),"%s",state.config.names[active_slot]);
     snprintf(frame.os, sizeof(frame.os), "%s", state.config.os[active_slot]==F75_MAC?"MAC":state.config.os[active_slot]==F75_ANDROID?"AND":"WIN");
     frame.os_source=!(state.config.os_auto_mask&(1u<<active_slot))?2:(os_evidence_mask&(1u<<active_slot))?1:0;
