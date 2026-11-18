@@ -18,7 +18,7 @@ Bluetooth command 11 has no settings session, offset, count, or body. It rejects
 active settings transfers. Existing Info, capabilities, and fast settings
 formats remain unchanged. Payload version 1 is `<BBBBHHIIII`: version, flags,
 percent, policy stage, millivolts, raw SOC, uptime, gauge timestamp,
-configuration CRC32, and activity epoch. Flags are gauge-valid, charge-known,
+core-configuration CRC32, and activity epoch. Flags are gauge-valid, charge-known,
 charging, USB-configured, and radio-connected, from bit 0 to bit 4.
 
 `scripts/battery_benchmark.py --sample` reads one sample. `--record` runs for a
@@ -29,12 +29,18 @@ The output is private, exclusively created JSONL. Existing runs are never
 overwritten. Recording requires explicit confirmation that the cable is out.
 
 A discharge result rejects USB power, an active or unknown charging input,
-stale gauge data, configuration changes, MCU resets, host sleep gaps, and clock
+stale gauge data, core-configuration changes, MCU resets, host sleep gaps, and clock
 discontinuities. A Bluetooth disconnect is an observation failure, not proof
 that the battery is empty. A time-limited interval or the 5% reserve cutoff is
 not reported as a full-charge-to-shutdown measurement. The firmware identity
 in the log is supplied from the verified installation record, not attested by
 the device. A gauge SOC difference is not a current or energy measurement.
+
+The CRC covers the core configuration. It does not cover custom per-key colors,
+custom screen colors, bindings, or macros. Keep those unchanged too; this
+telemetry cannot automatically detect edits to the custom configuration. Retain
+the initial complete settings snapshot with the private test records and check
+it again at the end. A change invalidates a claim of matched test conditions.
 
 Polling itself consumes some power. Keep the same interval in repeat trials
 and establish its effect with a separate trial before making a precise runtime
