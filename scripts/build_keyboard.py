@@ -119,6 +119,7 @@ def prepare():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepare-only", action="store_true")
+    parser.add_argument("--radio-sleep-qualification", action="store_true", help="Enable experimental stock radio idle command for physical wake qualification")
     parser.add_argument("--usb-only", action="store_true", help="Omit display initialization and its first-frame timer")
     parser.add_argument("--clean", action="store_true", help="Delete only this target's compiled objects before building")
     parser.add_argument("--output-dir", type=Path, default=ROOT / 'analysis/UNFLASHED')
@@ -135,6 +136,8 @@ def main():
         rules = out / 'rules.mk'
         rules.write_text(rules.read_text() + '\nOPT_DEFS += -DF75_USB_ONLY=1\n')
     rules = out / 'rules.mk'
+    if args.radio_sleep_qualification:
+        rules.write_text(rules.read_text() + '\nOPT_DEFS += -DF75_RADIO_IDLE_SLEEP=1\n')
     rules.write_text(rules.read_text() + f'\nOPT_DEFS += -ffile-prefix-map={ROOT}=/f75 -fdebug-prefix-map={ROOT}=/f75\n')
     if args.prepare_only:
         print(out)
@@ -172,6 +175,11 @@ def main():
     assert data[0x38000:0x3a000] == b'\xff'*8192, 'Application overlaps customization records'
     assert data[0x3e800:0x3f000] == b'\xff'*2048, 'Application overlaps Bluetooth route journal'
     assert data[-4:] == struct.pack("<I", 0xAAAA5555)
+    sections = subprocess.check_output([str(toolchain / "arm-none-eabi-objdump"), '-h', str(elf)], text=True)
+    power = next(line.split() for line in sections.splitlines() if len(line.split()) > 5 and line.split()[1] == '.f75_power_text')
+    power_section = dict(address=int(power[3], 16), bytes=int(power[2], 16), limit=0x3e800)
+    assert power_section['address'] == int(power[4], 16) == 0x3a000
+    assert 0 < power_section['bytes'] <= power_section['limit'] - power_section['address'], 'Power code overlaps the route journal'
     dest = args.output_dir.resolve()
     dest.mkdir(parents=True, exist_ok=True)
     artifacts = {}
@@ -231,6 +239,8 @@ def main():
         "stock_source_sha256": STOCK_SHA,
         "target": TARGET,
         "profile": "usb_only" if args.usb_only else "full_ui",
+        "radio_sleep_qualification": args.radio_sleep_qualification,
+        "power_code_section": power_section,
         "usb_identity": "feed:f750 F75 Max WIRED TEST",
         "family_memory_assumption": "SN32 family 0x32 chip 0x05; 256 KiB flash / 32 KiB SRAM target",
         "reproducibility": {"source_date_epoch": 0, "qmk_version_mode": "skip-all", "clean": args.clean},

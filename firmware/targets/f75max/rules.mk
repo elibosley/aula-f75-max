@@ -16,3 +16,6 @@ QUANTUM_LIB_SRC += spi_master.c
 # GCC 15 diagnoses fallthrough in this pinned upstream SPI driver.
 OPT_DEFS += -Wno-error=implicit-fallthrough
 
+# New power routines use the free bank above the two customization records.
+LDFLAGS += -Wl,--section-start=.f75_power_text=0x3a000
+

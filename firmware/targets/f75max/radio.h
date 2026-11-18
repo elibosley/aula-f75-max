@@ -16,3 +16,6 @@ bool f75_radio_seen(void);
 bool f75_radio_connected(void);
 bool f75_radio_busy(void);
 void f75_radio_diagnostics(uint32_t out[6]);
+
+/* Qualification-only stock idle command; acknowledgments are not power measurements. */
+void f75_radio_idle(bool eligible, uint32_t now);

@@ -1146,6 +1146,16 @@ void housekeeping_task_user(void) {
     f75_pet_tick(&pet, now);
     f75_rgb_tick(&state, now);
     screen_budget=f75_board_power_budget(&state,now);
+#ifndef F75_USB_ONLY
+    bool idle_radio=screen_budget.stage==F75_SLEEP&&state.pairing==F75_PAIR_IDLE&&
+        !pending_boot&&!pending_save&&!pending_host_os&&!radio_switch_pending&&
+        !macro_player.active&&!mouse_buttons&&!fn&&!boot_held&&!benchmark_active&&
+        !transfer.phase&&!bluetooth_settings.replying&&!bluetooth_display.active&&
+        !bluetooth_read_reply&&!frame_pending;
+    for(unsigned i=0;i<256&&idle_radio;++i)if(key_owners[i])idle_radio=false;
+    for(unsigned i=0;i<MATRIX_ROWS&&idle_radio;++i)if(matrix_get_row(i))idle_radio=false;
+    f75_radio_idle(idle_radio,now);
+#endif
     if(!screen_budget.screen&&!benchmark_active){
         if(panel_ready)f75_panel_backlight(false);
         screen_dark=true;frame_pending=false;

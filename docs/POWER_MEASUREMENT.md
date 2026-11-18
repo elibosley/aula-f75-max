@@ -133,3 +133,48 @@ retention, and wake handshake are not yet mapped. Do not send guessed commands
 or change radio firmware to make a power-saving claim. Keep speculative MCU
 or radio sleep out of the daily-use image until its wake and recovery paths
 have passed both linked-image tests and physical trials.
+
+## Radio idle qualification candidate
+
+`build_keyboard.py --radio-sleep-qualification` enables a separate experimental
+image. Normal builds leave this behavior disabled. The stock application sets
+its BT idle command to `0x55` at `0x204`; executing its actual TX dispatcher at
+`0x45e4` with that state produces `A6 55 FB`. The linked-image regression also
+executes this stock packager, rather than trusting a copied packet constant.
+
+The candidate requests that command only on the selected Bluetooth route after
+the configured Sleep timeout, with no held matrix key, macro, mouse button,
+pairing, settings transfer, save, boot request, or pending display frame. The
+radio queue must be empty, with no partial RX or pending acknowledgment, and
+quiet for 100 ms. The existing bounded UART retry policy applies. A missing
+acknowledgment latches failure instead of repeatedly sending idle requests.
+
+The first new input reselects the same existing Bluetooth slot before queuing
+its report and key release. It never requests pairing or changes bonds. This
+wake prelude is also required when the idle acknowledgment was lost, because
+an unknown command outcome cannot prove that the controller stayed awake.
+Receiver idle behavior is not enabled. Diagnostic radio status bits 4..7 now
+show phase 0 (normal), 1 (idle pending), 2 (idle UART-acknowledged), 3 (wake
+pending), or 4 (control timeout).
+
+A UART acknowledgment establishes only the transport outcome. Physical testing
+must establish continued connection behavior and first-key delivery before
+this becomes a default build feature. No radio-current reduction is claimed.
+The MCU remains in the existing interrupt-preserving ordinary Sleep mode in
+this qualification image. MCU deep sleep additionally needs a retained RTC
+timebase, GPIO wake handling, and physical USB/UART wake qualification; those
+are not supplied by the radio command alone. Keep the running baseline image
+unchanged until that test is intentionally concluded or interrupted.
+
+The new radio control routines occupy the previously unused flash bank starting
+at `0x3a000`. The build checks the section's load/run address and upper bound
+`0x3e800`, and still requires both customization records, the route journal,
+and legacy settings pages to be blank in a canonical image. This preserves
+the existing programming backup/restore boundaries and protected recovery.
+
+Executing stock GPIO wake setup at `0xda4` gives interrupt masks `0xc0400`
+(A), `0x8c004` (B), and `0x80000` (D). These cover the six matrix sense inputs
+and both selector contacts. They do not arm the encoder phases A2/A3, UART RX
+B6, or charging input B17. Copying that setup alone would not establish all
+of the custom firmware's wake requirements. The USB power input remains
+unmapped; the charge input is not a substitute for cable detection.
