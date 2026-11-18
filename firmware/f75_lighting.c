@@ -33,8 +33,10 @@ void f75_lighting_frame(const f75_config *config,uint8_t brightness,uint32_t now
     if(!config||!output)return;
     if(brightness>100)brightness=100;
     unsigned speed=config->speed>100?100:config->speed;
-    unsigned period=24000u-speed*180u;
-    unsigned phase=config->reduced_motion?0:((now%period)*256u/period);
+    /* Frequency follows the slider: 50% is the former 100% (six seconds),
+     * 100% takes three seconds, and 0% freezes the pattern. */
+    unsigned period=speed?300000u/speed:300000u;
+    unsigned phase=config->reduced_motion||!speed?0:((now%period)*256u/period);
     unsigned peak=brightness*127u/100u;
     for(unsigned row=0;row<6;++row)for(unsigned col=0;col<15;++col){
         unsigned color[3];

@@ -511,7 +511,7 @@ def rgb_test():
     for effect in range(5):
         trial=Candidate();trial.call('f75_rgb_init');trial.call('f75_init',SYMBOLS['state'],0,0)
         trial.byte(SYMBOLS['USBD1'],4)
-        trial.byte(SYMBOLS['state']+104,100);trial.byte(SYMBOLS['state']+105,100)
+        trial.byte(SYMBOLS['state']+104,100);trial.byte(SYMBOLS['state']+105,50)
         trial.byte(SYMBOLS['state']+106,effect)
         previous=first=None
         for now in range(1000,7001,25):

@@ -4,7 +4,8 @@
 #include <string.h>
 int main(void){
     f75_config c;f75_defaults(&c);uint8_t frames[F75_LIGHT_EFFECT_COUNT][270],previous[270],first[270],out[272];unsigned largest=0;
-    c.speed=100;
+    /* Keep the original six-second smoothness bounds at their new 50% point. */
+    c.speed=50;
     for(unsigned effect=0;effect<F75_LIGHT_EFFECT_COUNT;++effect){
         c.effect=effect;
         for(unsigned b=0;b<=100;b+=25){
@@ -35,7 +36,16 @@ int main(void){
         c.effect=(uint8_t)effect;f75_record_encode(&c,7,record);
         assert(record[128]==F75_LIGHT_EFFECT_COUNT&&f75_record_decode(record,&restored,&generation));
         assert(restored.effect==effect&&generation==7);
+        for(unsigned now=0;now<=3000;now+=25){
+            c.speed=100;f75_lighting_frame(&c,100,now,first);
+            c.speed=50;f75_lighting_frame(&c,100,now*2u,previous);
+            assert(!memcmp(first,previous,270));
+        }
+        c.speed=0;f75_lighting_frame(&c,100,0,first);f75_lighting_frame(&c,100,123456u,previous);
+        assert(!memcmp(first,previous,270));
     }
+    c.effect=5;c.speed=50;f75_lighting_frame(&c,100,3000,first);
+    assert(first[0]==0&&first[90]==127&&first[180]==127); /* Former 100% midpoint. */
     c.effect=F75_LIGHT_EFFECT_COUNT;assert(!f75_config_valid(&c));
     printf("Lighting checks passed: %u distinct patterns, max PWM delta %u/25ms, minimum pair distance %u.\n",F75_LIGHT_EFFECT_COUNT,largest,minimum);
 }

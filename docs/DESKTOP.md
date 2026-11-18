@@ -67,6 +67,13 @@ Bluetooth settings require the enrolled keyboard to pass the Constant-padding qu
 
 Studio displays loading, automatic saving, and verification progress. Byte percentages describe the current transfer step, not the whole operation. Save is complete only after readback verification. An interrupted or failed request retains editor changes and requires reading the keyboard before retrying; Studio never automatically repeats a Save. The sign-mode firmware candidate shows transfer progress on the selected companion’s sign.
 
+## Lighting effects
+
+Lighting movement controls frequency. At 50%, an animation cycle takes six
+seconds, matching the previous firmware's 100% setting. At 100%, it takes three
+seconds. At 0%, the pattern stays still. Reduced motion also freezes the
+pattern. Still and Gradient remain static at every movement setting.
+
 ## Lock and Fn lights
 
 With indicator firmware installed, **Lighting → Lock and Fn lights** sets separate Caps Lock and Fn-held colors. Caps follows the active computer’s lock state, including remapped keys. Holding Fn temporarily highlights Caps and Fn; release restores the current palette or Caps feedback. Color changes save automatically and remain after restart. Older firmware shows these controls disabled. See [indicator behavior and verification](INDICATORS.md).
