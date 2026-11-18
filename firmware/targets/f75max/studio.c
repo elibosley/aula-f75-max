@@ -157,6 +157,22 @@ static bool send_menu_rows(unsigned index){
     }
     memcpy(signatures.menu.rows+frame_y-24,current,sizeof(current));return true;
 }
+static void power_snapshot(uint8_t out[24],uint32_t now){
+    uint32_t gauge[6];uint16_t soc=65535;bool charging=false;
+    f75_battery_diagnostics(gauge);bool valid=f75_battery_raw_soc(&soc);
+    bool charge_known=f75_battery_charging(&charging);
+    f75_budget budget=f75_board_power_budget(&state,now);
+    memset(out,0,24);out[0]=1;
+    out[1]=valid|(charge_known<<1)|(charging<<2)|((USB_DRIVER.state==USB_ACTIVE)<<3)|(f75_radio_connected()<<4);
+    out[2]=valid?(uint8_t)gauge[1]:255;out[3]=budget.stage;
+    uint16_t mv=valid?(uint16_t)gauge[2]:0;
+    memcpy(out+4,&mv,2);memcpy(out+6,&soc,2);memcpy(out+8,&now,4);
+    memcpy(out+12,&gauge[5],4);
+    uint32_t config_crc=f75_crc32((const uint8_t*)&state.config,sizeof(state.config));
+    memcpy(out+16,&config_crc,4);uint32_t activity=f75_matrix_activity_epoch;
+    memcpy(out+20,&activity,4);
+}
+
 #ifndef F75_USB_ONLY
 static virtual_timer_t startup_timer;
 extern uint32_t __ram0_end__;
@@ -323,7 +339,10 @@ static void bluetooth_display_receive(uint8_t led, uint32_t now) {
         if(accepted&&!bluetooth_settings.response[5])transfer_note(seconds==9?"Sending settings":transfer.save?"Saving settings":"Applying changes",254,now);
     }
     else if (operation == 4) {
-        bool accepted=f75_bluetooth_receive(&bluetooth_settings,&transfer,data+3,length,now,&state.config,&f75_custom_config,&clock_state);
+        bool accepted;
+        if(data[11]==11){uint8_t snapshot[24];power_snapshot(snapshot,now);
+            accepted=f75_bluetooth_power_receive(&bluetooth_settings,&transfer,data+3,length,now,snapshot);
+        }else accepted=f75_bluetooth_receive(&bluetooth_settings,&transfer,data+3,length,now,&state.config,&f75_custom_config,&clock_state);
         if(accepted&&!bluetooth_settings.response[5]){
             uint8_t command=data[11];unsigned offset=(unsigned)data[12]|((unsigned)data[13]<<8);
             unsigned count=(unsigned)data[14]|((unsigned)data[15]<<8);
@@ -487,6 +506,11 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
         uint8_t response[32]={'F','7','5','W'};uint32_t values[6];
         memcpy(response+4,data+4,4);f75_battery_diagnostics(values);
         memcpy(response+8,values,sizeof(values));raw_hid_send(response,sizeof(response));return;
+    }
+    if(!memcmp(data,"F75b",4)){
+        uint8_t response[32]={'F','7','5','c'};
+        memcpy(response+4,data+4,4);power_snapshot(response+8,timer_read32());
+        raw_hid_send(response,sizeof(response));return;
     }
     /* Deliberate, fixed diagnostic actions. No settings, memory addresses,
      * radio, flash or boot options are accepted by this protocol. */

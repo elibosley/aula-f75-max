@@ -22,7 +22,7 @@ class ReplyState(ctypes.Structure):
                 ('started', ctypes.c_uint32), ('owns', ctypes.c_bool), ('replying', ctypes.c_bool)]
 
 
-def run(image, consumer_only=False, clock_only=False):
+def run(image, consumer_only=False, clock_only=False, power_only=False):
     with System(image) as m:
         m.until('housekeeping_task_user')
 
@@ -57,11 +57,11 @@ def run(image, consumer_only=False, clock_only=False):
         nonce = 0
         token = 0x98317265
 
-        def rpc(command, offset=0, count=0, body=b''):
+        def rpc(command, offset=0, count=0, body=b'', session=None):
             nonlocal nonce
             nonce += 1
             prefix = struct.pack('<I', nonce)
-            request = prefix + struct.pack('<IBHH', token, command, offset, count) + body
+            request = prefix + struct.pack('<IBHH', token if session is None else session, command, offset, count) + body
             before = len(trace()); symbols(request)
             for _ in range(240):
                 step(20)
@@ -106,6 +106,34 @@ def run(image, consumer_only=False, clock_only=False):
         assert rpc(0) == (0, 0, struct.pack('<BHHB', 3, BUNDLE_BYTES, 256, 48))
         assert rpc(6) == (0, 0, b'\x07')
         config_before = m.read(m.symbols['state'], 116)
+        if power_only:
+            from battery_benchmark import decode_snapshot
+            tick=decode_snapshot(rpc(11,session=0)[2])['uptime_ms']
+            m.write(m.symbols['state']+116,struct.pack('<I',(tick-600000)&0xffffffff));step(80)
+            activity_before=m.read(m.symbols['state']+116,4)
+            for _ in range(2):
+                status,phase,payload=rpc(11,session=0);assert (status,phase)==(0,0)
+                power=decode_snapshot(payload)
+                assert power['gauge_valid'] is False and not power['usb_configured']
+                assert power['stage'] in ('off','sleep') and power['radio_connected']
+                assert m.read(m.symbols['state']+116,4)==activity_before,'Telemetry woke the display'
+                assert m.read(m.symbols['state'],116)==config_before
+            assert rpc(11)[0]==3
+            assert rpc(11,offset=1,session=0)[0]==3
+            assert rpc(1)[0]==0 and rpc(11,session=0)[0]==1
+            assert rpc(5)[0]==0 and rpc(11,session=0)[0]==0
+            m.write(m.symbols['key_owners']+4,b'\1');m.write(m.symbols['key_owners']+0xe1,b'\1')
+            before=len(trace());assert rpc(11,session=0)[0]==0
+            raw=trace()[before:]
+            packets=[raw[i:i+10] for i in range(len(raw)-9) if raw[i]==0xa1 and sum(raw[i:i+9])&255==raw[i+9]]
+            assert packets and all(p[1]==2 and p[3]==4 and p[8]==0 for p in packets),'Telemetry changed a held key or modifier'
+            m.write(m.symbols['key_owners']+4,b'\0');m.write(m.symbols['key_owners']+0xe1,b'\0')
+            assert not m.endpoint_in(1)
+            assert m.read32(HOST+0x5c)==0,'Telemetry wrote flash'
+            return dict(status='passed',candidate_sha256=hashlib.sha256(Path(image).read_bytes()).hexdigest(),
+                        uart_readonly_power_snapshot=True,usb_not_enumerated=True,unknown_gauge_preserved=True,
+                        display_stays_asleep=True,configuration_unchanged=True,flash_writes=0,
+                        settings_session_isolation=True,held_keys_preserved=True,physical_bluetooth_link_tested=False)
         assert rpc(7, 0, 4, struct.pack('<I', 45240)) == (0, 0, struct.pack('<I', 45240))
         assert m.read(m.symbols['clock_state'] + 8, 1) == b'\1'
         assert rpc(7, 0, 4, struct.pack('<I', 86400))[0] == 3

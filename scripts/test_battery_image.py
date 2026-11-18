@@ -34,10 +34,12 @@ fw.callback('f75_battery_read_register',gauge)
 for t in range(1000,1004):fw.call('f75_battery_task',t)
 assert calls==[2,3,4,5]
 assert fw.call('f75_battery_percent',SCRATCH)==1 and fw.byte(SCRATCH)==50
+assert fw.call('f75_battery_raw_soc',SCRATCH)==1 and fw.cpu.mem_read(SCRATCH,2)==b'\x00\x30'
 fw.call('f75_battery_diagnostics',SCRATCH)
 assert struct.unpack('<6I',fw.cpu.mem_read(SCRATCH,24))[:4]==(1,50,4000,1)
 fw.callback('f75_battery_read_register',lambda args:0)
 fw.call('f75_battery_task',40000);assert fw.call('f75_battery_percent',SCRATCH)==0
+fw.byte(SCRATCH,0xa5);assert fw.call('f75_battery_raw_soc',SCRATCH)==0 and fw.byte(SCRATCH)==0xa5
 for values in [(0,0,0x30,0),(0x32,0,0xff,0xff)]:
  fw=Candidate();registers=dict(zip(range(2,6),values));fw.callback('f75_battery_read_register',gauge)
  for t in range(1000,1004):fw.call('f75_battery_task',t)

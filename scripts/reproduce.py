@@ -92,6 +92,8 @@ def main():
         receipt['verified_dependencies'] = verify_sources()
         receipt['python_lock_sha256'] = sha(ROOT / 'requirements-build.lock')
         receipt['build_script_sha256'] = sha(ROOT / 'scripts/build_keyboard.py')
+        run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_battery_benchmark.py'],
+            out / 'battery-benchmark-tests.log')
         for profile in ['usb_only', 'full_ui']:
             print(f'Building {profile} twice from clean objects...', flush=True)
             for attempt_name in ['a', 'b']:
@@ -135,6 +137,7 @@ def main():
                     'bluetooth-settings': 'test_bluetooth_settings_system.py',
                     'fast-bluetooth': 'test_fast_bluetooth_system.py',
                     'bluetooth-clock': 'test_bluetooth_clock_system.py',
+                    'battery-telemetry': 'test_battery_telemetry_system.py',
                     'bluetooth-consumer': 'test_bluetooth_consumer_system.py',
                 }
                 for name, script in scripts.items():

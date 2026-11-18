@@ -40,3 +40,8 @@ bool f75_bluetooth_fast_receive(f75_bluetooth *b, f75_transfer *t,
     const f75_config *config, const f75_custom *custom);
 void f75_bluetooth_fast_complete(f75_bluetooth *b, f75_transfer *t,
     const f75_config *config, const f75_custom *custom);
+/* Optional command 11 reads a fixed versioned power snapshot. It never owns
+ * a settings session, applies settings, wakes the screen, or writes flash. */
+bool f75_bluetooth_power_receive(f75_bluetooth *b, f75_transfer *t,
+    const uint8_t *request, unsigned length, uint32_t now,
+    const uint8_t snapshot[24]);

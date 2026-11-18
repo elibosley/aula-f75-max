@@ -4,5 +4,6 @@
 #include <stdint.h>
 void f75_battery_task(uint32_t now);
 bool f75_battery_percent(uint8_t *percent);
+bool f75_battery_raw_soc(uint16_t *soc);
 bool f75_battery_charging(bool *charging);
 void f75_battery_diagnostics(uint32_t out[6]);

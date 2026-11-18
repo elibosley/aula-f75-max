@@ -6,6 +6,7 @@
  * 0x63, A14 clock and A15 data. Stock reads voltage at 2/3 and SOC at 4/5.
  * No gauge configuration, calibration, reset or profile writes are used. */
 static uint8_t sample[4],phase,percent;
+static uint16_t measured_soc;
 static bool valid;
 static uint32_t next_sample,last_good,voltage,successes,failures;
 static bool charge_started,charge_raw,charge_stable,charge_valid;
@@ -64,9 +65,10 @@ void f75_battery_task(uint32_t now){
     if(mv<2800u||mv>4500u||raw_soc>25600u){++failures;return;}
     /* Preserve the supplier's conversion at 0x7bc2: raw SOC * 100 / 24576. */
     unsigned value=raw_soc*100u/24576u;
-    percent=value>100u?100u:value;voltage=mv;last_good=now;valid=true;++successes;
+    percent=value>100u?100u:value;measured_soc=raw_soc;voltage=mv;last_good=now;valid=true;++successes;
 }
 bool f75_battery_percent(uint8_t *out){if(valid)*out=percent;return valid;}
+bool f75_battery_raw_soc(uint16_t *out){if(valid)*out=measured_soc;return valid;}
 bool f75_battery_charging(bool *out){if(charge_valid)*out=charge_stable;return charge_valid;}
 void f75_battery_diagnostics(uint32_t out[6]){
     out[0]=valid;out[1]=valid?percent:255u;out[2]=voltage;

@@ -340,6 +340,12 @@ class BluetoothKeyboard:
         # evidence or clock state. Do not invent USB diagnostic fields.
         return None
 
+    def power_snapshot(self):
+        # Fixed read-only command; no settings session or capability changes.
+        nonce = secrets.token_bytes(4)
+        request = nonce + bytes(4) + bytes([11]) + bytes(4)
+        return self._exchange([self.probe, '--settings-request'], request, 11, 0, False)['payload']
+
     def sync_clock(self, seconds):
         if type(seconds) is not int or not 0 <= seconds < 86400:
             raise ValueError('Clock needs seconds since local midnight')

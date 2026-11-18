@@ -40,6 +40,31 @@ static uint8_t request(unsigned command, unsigned offset, unsigned count, const 
 
 int main(void) {
     f75_defaults(&c); f75_custom_defaults(&custom);
+    /* Read-only telemetry has an independent, fixed-size RPC. It cannot
+     * steal or extend a settings transfer, even with a matching token. */
+    uint8_t power_request[14]={1,2,3,4};power_request[8]=11;
+    uint8_t power_snapshot[24]={1,0x13,95,2};
+    f75_config saved_config=c;f75_custom saved_custom=custom;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot));
+    assert(b.response_length==39&&!memcmp(b.response,power_request,4));
+    assert(b.response[4]==11&&b.response[5]==0&&!memcmp(b.response+11,power_snapshot,24));
+    assert(!memcmp(&saved_config,&c,sizeof(c))&&!memcmp(&saved_custom,&custom,sizeof(custom)));
+    assert(!b.owns_transfer&&t.phase==0&&t.token==0);
+    assert(!f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot));
+    b.replying=false;power_request[4]=1;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot)&&b.response[5]==3);
+    b.replying=false;power_request[4]=0;power_request[9]=1;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot)&&b.response[5]==3);
+    b.replying=false;power_request[9]=0;power_request[11]=1;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot)&&b.response[5]==3);
+    b.replying=false;power_request[11]=0;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,14,now,power_snapshot)&&b.response[5]==3);
+    for(unsigned phase=1;phase<=3;phase++){
+        b.replying=false;t.phase=phase;t.touched=now;
+        assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot)&&b.response[5]==1);
+        assert(t.phase==phase&&!b.owns_transfer);
+    }
+    memset(&b,0,sizeof(b));memset(&t,0,sizeof(t));
     assert(request(0, 0, 0, NULL, 0) == 0 && b.response[11] == 3);
     assert(request(6, 0, 0, NULL, 0) == 0 && b.response[11] == 7);
     assert(request(6, 1, 0, NULL, 0) == 3);
