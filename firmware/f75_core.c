@@ -27,7 +27,7 @@ void f75_defaults(f75_config *c) {
 }
 bool f75_config_valid(const f75_config *c) {
     if(c->companion>3)return false;
-    if(c->active_host>=F75_HOSTS||c->caps_swap>1||c->power>F75_DESK||c->brightness>100||c->speed>100||c->effect>4||c->wheel>2||c->face>3||c->reduced_motion>1||c->light_mode>1||(c->bonded_mask&0xe0)||(c->os_auto_mask&0xe0)) return false;
+    if(c->active_host>=F75_HOSTS||c->caps_swap>1||c->power>F75_DESK||c->brightness>100||c->speed>100||c->effect>=F75_LIGHT_EFFECT_COUNT||c->wheel>2||c->face>3||c->reduced_motion>1||c->light_mode>1||(c->bonded_mask&0xe0)||(c->os_auto_mask&0xe0)) return false;
     for(unsigned i=0;i<F75_HOSTS;i++) if(c->os[i]>F75_ANDROID||!c->names[i][0]||!has_zero(c->names[i],sizeof(c->names[i]))) return false;
     return true;
 }
@@ -121,7 +121,10 @@ void f75_record_encode(const f75_config *c,uint32_t generation,uint8_t out[F75_R
     clear_bytes(out,F75_RECORD_BYTES);copy_bytes(out,"F75S",4);out[4]=6;out[6]=F75_RECORD_BYTES;put32(out+8,generation);
     copy_bytes(out+12,c->os,F75_HOSTS);copy_bytes(out+17,c->names,sizeof(c->names));
     const uint8_t fields[]={c->active_host,c->bonded_mask,c->caps_swap,c->power,c->brightness,c->speed,c->effect,c->wheel,c->face,c->reduced_motion,c->color[0],c->color[1],c->color[2]};
-    copy_bytes(out+112,fields,sizeof(fields));out[125]=c->light_mode;out[126]=c->os_auto_mask;out[127]=c->companion;put32(out+156,f75_crc32(out,156));
+    copy_bytes(out+112,fields,sizeof(fields));out[125]=c->light_mode;out[126]=c->os_auto_mask;out[127]=c->companion;
+    /* Reserved metadata byte: exported support, never trusted as config input.
+     * Old firmware exports zero here; record size/version and effect IDs stay stable. */
+    out[128]=F75_LIGHT_EFFECT_COUNT;put32(out+156,f75_crc32(out,156));
 }
 bool f75_record_decode(const uint8_t in[F75_RECORD_BYTES],f75_config *c,uint32_t *generation) {
     if(!same_bytes(in,"F75S",4)||in[4]<1||in[4]>6||in[6]!=F75_RECORD_BYTES||in[7]||get32(in+156)!=f75_crc32(in,156))return false;

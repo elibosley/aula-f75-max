@@ -42,7 +42,7 @@ def handle(handler):
  desktop=getattr(handler.server,'desktop',False)
  probe=getattr(handler.server,'bluetooth_status_probe',None) if desktop else None
  if handler.command=='GET':
-  respond({'csrf':TOKEN,'layout':LAYOUT,'protocol':1,'desktop':desktop,'bluetooth_status':probe is not None,'bluetooth_settings':probe is not None});return True
+  respond({'csrf':TOKEN,'layout':LAYOUT,'protocol':1,'desktop':desktop,'bluetooth_status':probe is not None,'bluetooth_settings':probe is not None,'power_telemetry':True,'lighting_effects':json.loads((ROOT/'ui/lighting-effects.json').read_text())});return True
  if handler.headers.get('Origin')!='http://'+host or not secrets.compare_digest(handler.headers.get('X-F75-CSRF',''),TOKEN):
   respond({'error':'Reload this page before applying settings'},403);return True
  if not LOCK.acquire(False):respond({'error':'Keyboard is busy; wait for the current request'},423);return True
@@ -70,7 +70,7 @@ def handle(handler):
    result['transport']=transport;result['board_identity']=identity
    respond(result)
    return True
-  if action not in ('read','apply','save','clock'):raise ValueError('Unknown hardware action')
+  if action not in ('read','apply','save','clock','power'):raise ValueError('Unknown hardware action')
   if body.get('operation_id') is not None:
    PROGRESS.begin(body['operation_id'],action);tracked=body['operation_id']
   transport,identity=resolve_connection(body,probe)
@@ -82,7 +82,17 @@ def handle(handler):
    if tracked:PROGRESS.update(tracked,'verifying' if verifying and phase in ('reading','checking') else phase,completed,total)
   connection.progress=report;connection.expected_board=identity
   with connection as keyboard:
-   if body['action']=='clock':
+   if body['action']=='power':
+    # Use the already authorized desktop app's normal helper context. This
+    # returns fixed cached telemetry without settings reads, saves or key data.
+    from battery_benchmark import decode_snapshot
+    if transport=='bluetooth':payload=keyboard.power_snapshot()
+    else:
+     reply=keyboard.raw_request(b'F75b')
+     if reply[:4]!=b'F75c':raise RuntimeError('Power snapshot reply did not verify')
+     payload=reply[8:]
+    result={'power':decode_snapshot(payload)}
+   elif body['action']=='clock':
     report('clock');result=keyboard.sync_clock(body['seconds'])
    elif body['action']=='read':result={'document':decode(keyboard.read()),'read':True}
    else:
@@ -97,7 +107,7 @@ def handle(handler):
     expected=decode(data)
     for key in ['names','lighting','light_mode','reduced_motion','screen_color','companion','power','wheel','indicators']:
      if result['document'][key]!=expected[key]:raise RuntimeError('Settings readback differs: '+key)
-   if body['action']!='clock':
+   if body['action'] not in ('clock','power'):
     result['host_status']=keyboard.host_status()
     result['document']['indicator_supported']=bool((result['host_status'] or {}).get('indicator_supported') or getattr(keyboard,'indicator_support',False))
     result['document']['bluetooth_clock_supported']=bool((result['host_status'] or {}).get('bluetooth_clock_supported') or getattr(keyboard,'clock_support',False))

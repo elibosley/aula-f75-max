@@ -2,7 +2,7 @@
   'use strict';
   const HOSTS = ['usb', 'bt1', 'bt2', 'bt3', 'rf'];
   const SECTIONS = ['Devices', 'Keys', 'Lighting', 'Power', 'Focus'];
-  const EFFECTS = ['Still', 'Tidal', 'Rain', 'Trails', 'Constellation'];
+  const EFFECTS = (root.F75_LIGHTING_CATALOG || require('./lighting-effects.json')).map(effect=>effect.name);
   const POLICIES = {
     Balanced: { dim: 15000, off: 45000, sleep: 180000, rgbCap: 40, screen: 65, fps: 12 },
     Endurance: { dim: 8000, off: 25000, sleep: 90000, rgbCap: 18, screen: 40, fps: 8 },

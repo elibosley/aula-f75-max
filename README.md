@@ -7,6 +7,7 @@ This is an experimental community board port. The physical selector remains auth
 ## Make it yours
 
 - Choose from 24 lighting and screen accent presets, use an exact RGB hex color, or paint individual keys and layers.
+- Choose from 25 lighting effects, including six rainbow patterns, aurora, sunset, ocean, fire, candy, matrix streams, twinkle, checkerboard, marquee, comet, pinwheel, breathing, a still gradient, and a scanner. Existing effects keep their saved IDs. New choices unlock when the connected keyboard reports support; older firmware keeps its original five choices.
 - Pick a screen accent and light or dark appearance. Text contrast adjusts with the theme.
 - Save names and Mac, Windows, Android, or Auto layouts for each connection.
 - Switch Bluetooth slots with **Fn+1/2/3**. On Home, **Fn+wheel click** returns to the previous Bluetooth slot. The shortcut uses the last two selected slots during the current session.

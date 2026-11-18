@@ -94,6 +94,7 @@ def main():
         receipt['build_script_sha256'] = sha(ROOT / 'scripts/build_keyboard.py')
         run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_battery_benchmark.py'],
             out / 'battery-benchmark-tests.log')
+        run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_lighting_catalog.py'], out / 'lighting-catalog-tests.log')
         for profile in ['usb_only', 'full_ui']:
             print(f'Building {profile} twice from clean objects...', flush=True)
             for attempt_name in ['a', 'b']:

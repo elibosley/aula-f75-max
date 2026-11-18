@@ -123,6 +123,7 @@ def decode(data):
          'power':core[115],'wheel':core[119],
          'names':[core[17+i*19:36+i*19].split(b'\0')[0].decode('ascii') for i in range(5)],
          'lighting':{'color':'#'+core[122:125].hex(),'brightness':core[116],'speed':core[117],'effect':core[118]},
+         'lighting_effect_count':core[128] if 5<=core[128]<=25 else 5,
          'light_mode':bool(core[125]),'reduced_motion':bool(core[121]),'companion':core[127] if core[4]>=6 else 3,'record_version':core[4],
          'screen_color':'#'+custom[2513:2516].hex() if custom[4]>=2 and custom[2512] else None,
          'indicators':{'custom':custom[4]>=3,'caps':bool(custom[2516]&1) if custom[4]>=3 else True,'fn':bool(custom[2516]&2) if custom[4]>=3 else True,
@@ -153,7 +154,10 @@ def encode(document):
    if not isinstance(name,str) or not name.strip() or len(name)>18 or any(ord(c)<32 or ord(c)>126 for c in name):raise ValueError('Use 1–18 plain letters, numbers or punctuation for a device name')
    data[17+i*19:36+i*19]=name.encode('ascii').ljust(19,b'\0')
  if 'lighting' in document:
-  lighting=document['lighting'];data[122:125]=color(lighting['color']);data[116]=integer(lighting['brightness'],0,100);data[117]=integer(lighting['speed'],0,100);data[118]=integer(lighting['effect'],0,4)
+  lighting=document['lighting'];data[122:125]=color(lighting['color']);data[116]=integer(lighting['brightness'],0,100);data[117]=integer(lighting['speed'],0,100)
+  supported=data[128] if 5<=data[128]<=25 else 5
+  if type(lighting['effect']) is int and lighting['effect']>=supported:raise ValueError('Install the expanded lighting firmware before using this effect')
+  data[118]=integer(lighting['effect'],0,supported-1)
  for key,offset in [('light_mode',125),('reduced_motion',121)]:
   if key in document:
    if type(document[key]) is not bool:raise ValueError(key+' must be boolean')

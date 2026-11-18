@@ -873,7 +873,7 @@ static void make_frame(uint32_t now) {
     static const char *companions[]={"Mochi","Pip","Ren","Lumi"};
     static const char *faces[]={"Orbit","Minimal","Stars","Companion"};
     static const char *wheels[] = {"Volume", "Scroll", "Brightness"};
-    static const char *effects[] = {"Still", "Tidal", "Rain", "Trails", "Constellation"};
+    static const char *effects[] = F75_LIGHT_EFFECT_NAMES;
     static const char *power[] = {"Balanced", "Endurance", "Desk", "Save settings"};
     memset(&frame, 0, sizeof(frame));
     uint8_t page = navigation.page;

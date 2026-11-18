@@ -4,6 +4,7 @@ const transferProgress=new F75TransferProgress($('#transfer-progress'));
 const colorPresets=[['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['Ocean','#a4c8f2'],['Peach','#edc08c'],['White','#ffffff'],['Blossom','#ffd3e7'],['Buttercream','#fff0b3'],['Seafoam','#c0f2df'],['Periwinkle','#b3bfff'],['Candy','#ff75b5'],['Coral','#ff806f'],['Cherry','#ed4667'],['Tangerine','#ff9b45'],['Sunflower','#ffd447'],['Lime','#b9ef61'],['Jade','#42d69b'],['Teal','#32bcb4'],['Cyan','#59dcf2'],['Azure','#4ba4ff'],['Indigo','#8072ee'],['Violet','#bd75f2'],['Fuchsia','#ed63d2'],['Warm white','#ffedd6']];
 let settings=null,observedHost=null,csrf='',layout=[],chosen=null,layer=0,slot=0,busy=false,dirty=false;
 let desktop=false,displayReady=false,bluetoothAccess=null;
+let lightingEffects=[];
 const editableFields=['os','auto_mask','caps_swap','face','power','wheel','names','lighting','light_mode','reduced_motion','companion','screen_color','indicators','keys','colors','layer_colors','macros'];
 let autoSaving=false;
 let resolvedTransport=null,connectionReady=false,connectionSnapshot=null,settingsBoard=null,settingsRoute=null,detecting=false,autoReadKey=null;
@@ -273,6 +274,16 @@ function macro(){
 }
 function render(){selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
 function lighting(){
+ const supported=settings.lighting_effect_count??5;
+ for(const item of $('#light-effect').options)item.disabled=Number(item.value)>=supported;
+ $('#effect-support').textContent=supported<lightingEffects.length?'Install the expanded lighting firmware to unlock all '+lightingEffects.length+' effects.':'';
+ const effect=lightingEffects[settings.lighting.effect];
+ $('#effect-description').textContent=effect?.description||'';
+ const ownPalette=settings.lighting.effect>=5&&![22,24].includes(settings.lighting.effect);
+ $('#palette-settings').hidden=ownPalette;
+ $('#effect-color-note').textContent=ownPalette?'This effect uses its own colors. Per-key colors still override the pattern.':'';
+ for(const input of [$('#main-color'),$('#main-color-hex'),...$('#light-presets').children])input.disabled=ownPalette;
+ $('#light-speed').disabled=[0,23].includes(settings.lighting.effect);
  const indicators=settings.indicators||{caps:true,fn:true,caps_color:'#a8ead4',fn_color:'#c8aaf6',custom:false};
  $('#caps-light').checked=indicators.caps;$('#fn-light').checked=indicators.fn;
  for(const [name,id] of [['caps_color','caps-light'],['fn_color','fn-light']]){$('#'+id+'-color').value=indicators[name];$('#'+id+'-hex').value=indicators[name].toUpperCase();}
@@ -301,7 +312,7 @@ function colorInput(picker,hex,set){
 }
 colorInput('main-color','main-color-hex',color=>settings.lighting.color=color);
 colorInput('screen-accent','screen-accent-hex',color=>settings.screen_color=color);
-$('#light-effect').onchange=()=>{settings.lighting.effect=Number($('#light-effect').value);mark();};
+$('#light-effect').onchange=()=>{const effect=Number($('#light-effect').value);if(effect>=(settings.lighting_effect_count??5))return;settings.lighting.effect=effect;mark();lighting();};
 for(const [name,id] of [['brightness','light-brightness'],['speed','light-speed']])$('#'+id).oninput=()=>{settings.lighting[name]=Number($('#'+id).value);$('#'+name+'-value').textContent=settings.lighting[name]+'%';mark();};
 $('#quiet-motion').onchange=()=>{settings.reduced_motion=$('#quiet-motion').checked;mark();};
 $('#palette-all').onclick=()=>{settings.colors=settings.colors.map(layer=>layer.map(()=>null));settings.layer_colors=[null,null,null];mark();};
@@ -334,6 +345,15 @@ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();
 (async()=>{
  try{
   const response=await fetch('/api/hardware');if(!response.ok)throw Error('Hardware editor unavailable');const data=await response.json();csrf=data.csrf;layout=data.layout;
+  lightingEffects=data.lighting_effects||[];
+  if(lightingEffects.length){
+   $('#light-effect').replaceChildren();
+   for(const group of new Set(lightingEffects.map(effect=>effect.group))){
+    const parent=document.createElement('optgroup');parent.label=group;
+    for(const effect of lightingEffects.filter(effect=>effect.group===group))option(parent,effect.id,effect.name);
+    $('#light-effect').append(parent);
+   }
+  }
   desktop=data.desktop===true;
   $('#settings-transport option[value="bluetooth"]').disabled=data.bluetooth_settings!==true;
   if(desktop){

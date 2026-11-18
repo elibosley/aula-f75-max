@@ -35,7 +35,7 @@ class Navigation(C.Structure):
     _fields_=[(n,C.c_uint8) for n in ['page','cursor','volume','editing','wheel_divisor','edit_streak']]+[('wheel_pending',C.c_int8),('last_direction',C.c_int8),('last_turn',C.c_uint32)]
 class Motion(C.Structure):
     _fields_=[(n,C.c_int32) for n in ['selection','velocity','slide','slide_velocity']]+[(n,C.c_uint32) for n in ['last_step','last_input']]+[('context',C.c_uint16),('selected',C.c_uint8),('flags',C.c_uint8)]
-HOSTS=['usb','bt1','bt2','bt3','rf'];POWERS=['Balanced','Endurance','Desk'];EFFECTS=['Still','Tidal','Rain','Trails','Constellation'];WHEELS=['Volume','Scroll','Brightness'];FACES=['Orbit','Minimal','Constellation','Chibi']
+HOSTS=['usb','bt1','bt2','bt3','rf'];POWERS=['Balanced','Endurance','Desk'];EFFECTS=[effect['name'] for effect in json.loads((ROOT/'ui/lighting-effects.json').read_text())];WHEELS=['Volume','Scroll','Brightness'];FACES=['Orbit','Minimal','Constellation','Chibi']
 PAGES=['Home','Menu','Devices','Keys','Lighting','Power','Focus','Screen']
 PState=C.POINTER(State);PConfig=C.POINTER(Config);U32=C.c_uint32;U8=C.c_uint8
 def bind(name,args,restype=None):

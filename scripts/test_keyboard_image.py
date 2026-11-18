@@ -481,7 +481,7 @@ def rgb_test():
     fw.call('f75_rgb_tick',SYMBOLS['state'],1000)
     data=bytes(fw.cpu.mem_read(SYMBOLS['duties'],540))
     assert any(data) and max(data)<=35
-    for effect in range(5):
+    for effect in range(25):
         for level in [0,28,100]:
             trial=Candidate();trial.call('f75_rgb_init')
             trial.call('f75_init',SYMBOLS['state'],0,0)
@@ -529,7 +529,7 @@ def rgb_test():
         assert data==first, ('cycle discontinuity',effect)
     return dict(stock_pwm_channels_disabled_between_rows=True,stock_board_outputs_initialized=True,gpio_released_for_pwm=True,shared_irq_matrix_coordinates=90,main_loop_snapshot_has_no_peripheral_writes=True,calm_effects_maximum_pwm_delta_per25ms=maximum_delta,
                 still_is_static=True,no_animated_key_blackouts=True,
-                all_five_effects_bounded=True,zero_brightness_extinguishes=True,
+                all_five_effects_bounded=True,all_25_effects_bounded=True,zero_brightness_extinguishes=True,
                 supplier_pin_mux=True,encoder_pins_preserved=True,blank_during_matrix_scan=True,
                 hardware_row_timeout=True,key_scan_preserves_lighting_phase=True,suspend_extinguishes_rows=True,system_counter_untouched=True,
                 brightness_duty_bounded=True,physical_color_order='not_observed')
