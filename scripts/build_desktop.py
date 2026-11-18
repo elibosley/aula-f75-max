@@ -21,6 +21,8 @@ def main():
     if with_bluetooth and sys.platform != 'darwin':
         parser.error('The Bluetooth helper requires macOS.')
     subprocess.run([sys.executable, str(ROOT / 'scripts' / 'build_preview.py')], check=True)
+    if sys.platform == 'darwin':
+        subprocess.run([sys.executable, str(ROOT / 'scripts' / 'build_native.py')], check=True)
     suffix = '-bluetooth-preview' if args.local_bluetooth_preview else ''
     work = ROOT / '.runtime' / ('desktop-build' + suffix)
     dist = ROOT / 'dist' / ('desktop' + suffix)
@@ -28,10 +30,15 @@ def main():
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--windowed', '--name', 'F75 Studio',
                '--workpath', str(work), '--specpath', str(work), '--distpath', str(dist),
                '--add-data', f'{ROOT / "ui"}:ui', '--add-data', f'{BOARD_MAP}:firmware/targets/f75max',
+               '--add-data', f'{ROOT / "firmware/targets/s75pro/model.json"}:firmware/targets/s75pro',
                '--add-data', f'{ROOT / "LICENSE"}:licenses',
                '--add-data', f'{ROOT / "THIRD_PARTY_NOTICES.md"}:licenses']
     if sys.platform == 'darwin':
+        command.extend(('--add-binary', '/opt/homebrew/lib/libusb-1.0.dylib:.',
+                        '--add-data', f'{ROOT / "analysis/libf75.dylib"}:analysis'))
         command.extend(('--osx-bundle-identifier', 'com.f75studio.desktop' + suffix.replace('-', '.', 1)))
+    if (ROOT / 'firmware/releases').is_dir():
+        command.extend(('--add-data', f'{ROOT / "firmware/releases"}:firmware/releases'))
     command.append(str(ROOT / 'scripts' / 'desktop.py'))
     subprocess.run(command, cwd=ROOT, check=True)
     if with_bluetooth:

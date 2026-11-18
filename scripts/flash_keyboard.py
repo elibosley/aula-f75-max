@@ -8,7 +8,6 @@ can remain cached during a ROM jump; ACK validation establishes ROM admission.
 import argparse
 import array
 import datetime
-import fcntl
 import hashlib
 import json
 import os
@@ -103,8 +102,11 @@ def load_candidate(expected):
     return data
 
 
-def verify_system_checks(data, elf, build, system):
+def verify_system_checks(data, elf, build, system, *, require_factory_loader=True):
     """Offline admission only; a modeled pass does not qualify physical recovery."""
+    factory = system.get('factory_loader', {})
+    factory_verified = factory.get('status') == 'passed'
+    factory_optional = not require_factory_loader and factory.get('required') is False and factory.get('status') == 'not_run'
     cases = {(c['wheel_held'], c['magic'], c['reached'])
              for c in system.get('reset_recovery', {}).get('cases', [])}
     expected = {(False, False, 'c_runtime'), (True, False, 'rom_boundary'),
@@ -117,14 +119,25 @@ def verify_system_checks(data, elf, build, system):
             and system.get('unmodeled_mmio_accesses') == 0
             and system.get('clock_states', {}).get('valid_handoff_values_reach_main') == list(range(16))
             and system.get('usb', {}).get('configured') is True
-            and system.get('factory_loader', {}).get('status') == 'passed'
+            and (factory_verified or factory_optional)
             and cases == expected):
         raise ValueError('Candidate lacks matching complete ARM system checks and reset-recovery cases')
 
 
+def libusb_library(name):
+    from ctypes.util import find_library
+    import sys
+    bundled = Path(getattr(sys, '_MEIPASS', ROOT))
+    for filename in ('libusb-1.0.dylib', 'libusb-1.0.so', 'libusb-1.0.dll'):
+        path = bundled / filename
+        if path.is_file():
+            return str(path)
+    return find_library('usb-1.0') or find_library('libusb-1.0')
+
+
 class Rom:
     def __init__(self, vid=0x0c45, pid=0x800a):
-        self.backend = usb.backend.libusb1.get_backend(find_library=lambda _: '/opt/homebrew/lib/libusb-1.0.dylib')
+        self.backend = usb.backend.libusb1.get_backend(find_library=libusb_library)
         devices = list(usb.core.find(find_all=True, idVendor=vid, idProduct=pid, backend=self.backend))
         if len(devices) != 1:
             raise RuntimeError('Exactly one requested USB target must be present')
@@ -239,6 +252,7 @@ def main():
         image=preserve_settings(image,json.loads(args.settings_backup.read_text()),args.expected_current_checksum,route_reserved=json.loads(IMAGE.with_suffix('.json').read_text()).get('route_memory')==dict(address=0x3e800,bytes=2048,entry_bytes=16))
     root = ROOT / '.runtime'; root.mkdir(mode=0o700, exist_ok=True)
     lock = os.open(root / 'keyboard-flash.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    import fcntl
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     attempt = uuid.uuid4().hex
     receipt = ROOT / 'analysis' / f'flash-{attempt}.json'

@@ -77,3 +77,10 @@ pattern. Still and Gradient remain static at every movement setting.
 ## Lock and Fn lights
 
 With indicator firmware installed, **Lighting → Lock and Fn lights** sets separate Caps Lock and Fn-held colors. Caps follows the active computer’s lock state, including remapped keys. Holding Fn temporarily highlights Caps and Fn; release restores the current palette or Caps feedback. Color changes save automatically and remain after restart. Older firmware shows these controls disabled. See [indicator behavior and verification](INDICATORS.md).
+
+
+## S75 Pro development build
+
+The Firmware and simulator page includes a 135 × 240 portrait S75 Pro preview using the shared C controls and renderer. It provides Home and menu navigation, wheel controls, companion selection and simulated typing. The C preview is packaged in the macOS build. Windows and Linux retain the editor and report the preview platform requirement.
+
+The USB installation workflow and button are present. Installation requires a bundled release qualified for the exact model and original firmware version. The S75 board port is still in development, so its installation button remains unavailable. Display and matrix routine simulation do not qualify the complete controller firmware or recovery path. See the [S75 Pro target status](../firmware/targets/s75pro/README.md).

@@ -6,7 +6,7 @@
 #include "f75_visitor_assets.h"
 #include "f75_sprite.h"
 
-typedef struct { uint8_t y,rows;uint16_t *pixels; } tile;
+typedef struct { uint16_t y,rows;uint16_t *pixels;uint16_t width; } tile;
 static uint16_t changed_band(int top,int bottom){
     if(top<0)top=0;
     if(bottom>128)bottom=128;
@@ -66,16 +66,16 @@ uint16_t f75_changed_tiles(const f75_view *a,const f75_view *b){
     if(a->link_state==F75_LINK_CONNECTING||a->link_state==F75_LINK_PAIRING)dirty|=7u;
     return dirty;
 }
-static void dot(tile *t,int x,int y,uint16_t color){if(x>=0&&x<128&&y>=t->y&&y<t->y+t->rows)t->pixels[(y-t->y)*128+x]=color;}
+static void dot(tile *t,int x,int y,uint16_t color){if(x>=0&&x<t->width&&y>=t->y&&y<t->y+t->rows)t->pixels[(y-t->y)*t->width+x]=color;}
 static void rect(tile *t,int x,int y,int w,int h,uint16_t color){
     int right=x+w,bottom=y+h;
     if(x<0)x=0;
-    if(right>128)right=128;
+    if(right>t->width)right=t->width;
     if(y<t->y)y=t->y;
     if(bottom>t->y+t->rows)bottom=t->y+t->rows;
     if(x>=right||y>=bottom)return;
     for(int yy=y;yy<bottom;yy++){
-        uint16_t *out=t->pixels+(yy-t->y)*128+x;
+        uint16_t *out=t->pixels+(yy-t->y)*t->width+x;
         for(int xx=x;xx<right;xx++)*out++=color;
     }
 }
@@ -136,9 +136,9 @@ static int text_width(const char *s,unsigned limit,int scale){int width=0;for(un
 /* Exact /15 for the 0..952 weighted color range, without M0 software division. */
 static unsigned color_div15(unsigned value){return (value*0x8889u)>>19;}
 static void blend_dot(tile *t,int x,int y,uint16_t color,unsigned alpha){
-    if(!alpha||x<0||x>=128||y<t->y||y>=t->y+t->rows)return;
+    if(!alpha||x<0||x>=t->width||y<t->y||y>=t->y+t->rows)return;
     if(alpha==15){dot(t,x,y,color);return;}
-    uint16_t bg=t->pixels[(y-t->y)*128+x];unsigned inverse=15-alpha;
+    uint16_t bg=t->pixels[(y-t->y)*t->width+x];unsigned inverse=15-alpha;
     unsigned r=color_div15(((color>>11)&31)*alpha+((bg>>11)&31)*inverse+7);
     unsigned g=color_div15(((color>>5)&63)*alpha+((bg>>5)&63)*inverse+7);
     unsigned b=color_div15((color&31)*alpha+(bg&31)*inverse+7);
@@ -148,7 +148,7 @@ static void draw_glyph(tile *t,const f75_glyph *g,int x,int y,int scale,uint16_t
     const uint8_t *pixels=scale>1?f75_font_large_pixels:scale==0?f75_font_compact_pixels:f75_font_small_pixels;
     int left=x+g->x,top=y+g->y;
     int first_y=t->y>top?t->y-top:0,last_y=t->y+t->rows-top;
-    int first_x=left<0?-left:0,last_x=128-left;
+    int first_x=left<0?-left:0,last_x=t->width-left;
     if(last_y>g->height)last_y=g->height;
     if(last_x>g->width)last_x=g->width;
     for(int yy=first_y;yy<last_y;yy++)for(int xx=first_x;xx<last_x;xx++){
@@ -157,7 +157,7 @@ static void draw_glyph(tile *t,const f75_glyph *g,int x,int y,int scale,uint16_t
     }
 }
 static void text(tile *t,const char *s,unsigned limit,int x,int y,int scale,uint16_t color){
-    int available=121-x;bool clipped=text_width(s,limit,scale)>available;
+    int available=t->width-7-x;bool clipped=text_width(s,limit,scale)>available;
     int ellipsis=3*glyph('.',scale)->advance;if(clipped)available-=ellipsis;
     int used=0;
     for(unsigned n=0;n<limit&&s[n];n++){
@@ -166,7 +166,7 @@ static void text(tile *t,const char *s,unsigned limit,int x,int y,int scale,uint
     }
     if(clipped)for(unsigned i=0;i<3;i++){const f75_glyph *g=glyph('.',scale);draw_glyph(t,g,x+used,y,scale,color);used+=g->advance;}
 }
-static void centered(tile *t,const char *s,unsigned limit,int y,int scale,uint16_t color){int x=(128-text_width(s,limit,scale))/2;text(t,s,limit,x<7?7:x,y,scale,color);}
+static void centered(tile *t,const char *s,unsigned limit,int y,int scale,uint16_t color){int x=(t->width-text_width(s,limit,scale))/2;text(t,s,limit,x<7?7:x,y,scale,color);}
 static int32_t magnitude(int32_t n){return n<0?-n:n;}
 static uint16_t readable_accent(uint16_t color,bool light){
     unsigned r=((color>>11)&31)*255/31,g=((color>>5)&63)*255/63,b=(color&31)*255/31;
@@ -227,7 +227,7 @@ static void pet_sprite(tile *t,const f75_view *v,uint16_t accent){
      * matrix and USB work run between slices, including the first wake key. */
     if(bottom>top&&!f75_sprite_step(&decoder,sprite,sizeof(sprite),(size_t)bottom*80)){valid=false;return;}
     for(int y=top;y<bottom;y++){
-        uint16_t *out=t->pixels+(24+y+bob-t->y)*128+24;
+        uint16_t *out=t->pixels+(24+y+bob-t->y)*t->width+24;
         const uint8_t *row=sprite+(size_t)y*60;
         const uint16_t *palette=f75_companion_palette[character];
         for(int x=0;x<80;x+=4,row+=3){
@@ -332,7 +332,7 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
     uint16_t ACCENT=v->light_mode?0x1ba8:0xaf5a,MUTED=v->light_mode?0x4aeb:0xadf6,LINE=v->light_mode?0xcdf4:0x29e6;
     if(v->custom_accent)ACCENT=readable_accent(v->accent,v->light_mode);
     if(v->alert_pulse)BG=v->light_mode?0xded6:0x2349;
-    tile t={y,rows,pixels};for(unsigned i=0;i<(unsigned)rows*128;i++)pixels[i]=BG;
+    tile t={y,rows,pixels,128};for(unsigned i=0;i<(unsigned)rows*128;i++)pixels[i]=BG;
     if(v->home&&!v->timer){
         text(&t,v->status_left,7,7,7,1,ACCENT);
         int icon_x=11+text_width(v->status_left,7,1);
@@ -388,5 +388,32 @@ bool f75_render_tile(const f75_view *v,uint8_t y,uint8_t rows,uint16_t *pixels,s
         }
     }
     if(!(companion&&v->pet_info)){centered(&t,v->footer,20,117,0,MUTED);}
+    return true;
+}
+
+
+bool f75_render_portrait_menu_tile(const f75_view *v,uint16_t y,uint8_t rows,
+                                    uint16_t *pixels,size_t capacity){
+    if(!v||!pixels||!rows||rows>F75_TILE_ROWS||y>=240||rows>240-y||capacity<(size_t)rows*135)return false;
+    uint16_t bg=v->light_mode?0xef7b:0x08a2,ink=v->light_mode?0x1125:0xe7bc;
+    uint16_t accent=v->light_mode?0x1ba8:0xaf5a,muted=v->light_mode?0x4aeb:0xadf6,line_color=v->light_mode?0xcdf4:0x29e6;
+    if(v->custom_accent)accent=readable_accent(v->accent,v->light_mode);
+    if(v->alert_pulse)bg=v->light_mode?0xded6:0x2349;
+    for(unsigned i=0;i<(unsigned)rows*135;i++)pixels[i]=bg;
+    tile t={y,rows,pixels,135};
+    text(&t,v->title,19,9,8,1,accent);rect(&t,8,23,119,1,line_color);
+    int x=v->motion?v->content_x:0;
+    int highlight=v->motion?v->highlight_y*34/15:(int)v->selected*34;
+    if(v->selected<5)soft_rect(&t,5+x,40+highlight,123,22,v->editing?line_color:accent);
+    for(unsigned i=0;i<5;i++){
+        bool covered=v->selected<5&&magnitude((int32_t)i*34-highlight)<11;
+        text(&t,v->rows[i],19,10+x,44+(int)i*34,1,covered&&!v->editing?bg:ink);
+    }
+    if(v->menu_count>1){
+        unsigned position=v->menu_position<v->menu_count?v->menu_position:v->menu_count-1u;
+        rect(&t,131,40,1,158,line_color);
+        rect(&t,130,40+(int)(position*146u/(v->menu_count-1u)),3,12,accent);
+    }
+    centered(&t,v->footer,20,226,0,muted);
     return true;
 }

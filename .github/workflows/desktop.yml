@@ -7,6 +7,15 @@ on:
       - 'desktop/**'
       - 'requirements-desktop.txt'
       - 'scripts/build_desktop.py'
+      - 'scripts/build_native.py'
+      - 'scripts/firmware_installer.py'
+      - 'scripts/flash_keyboard.py'
+      - 'scripts/recovery_image.py'
+      - 'scripts/serve_native.py'
+      - 'scripts/display_types.py'
+      - 'firmware/f75_*.c'
+      - 'firmware/f75_*.h'
+      - 'firmware/targets/s75pro/**'
       - 'scripts/build_preview.py'
       - 'scripts/desktop.py'
       - 'scripts/hardware_api.py'
@@ -48,6 +57,9 @@ jobs:
       - name: Install Linux desktop libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0 libnss3 libasound2t64
+      - name: Install macOS USB library
+        if: runner.os == 'macOS'
+        run: brew install libusb
       - name: Bundle app
         run: |
           python -m pip install -r requirements-desktop.txt

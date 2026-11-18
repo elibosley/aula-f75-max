@@ -1,0 +1,267 @@
+{
+  "status": "passed",
+  "supplier_image_sha256": "bcc5f633d21f6219b9eebfec2c00b76a4f6bc3246babbe2e157478b26398d598",
+  "drive_pins": [
+    "P0.4",
+    "P0.5",
+    "P2.0",
+    "P2.1",
+    "P2.2",
+    "P2.3",
+    "P0.6",
+    "P0.7",
+    "P2.4",
+    "P2.5",
+    "P2.6",
+    "P2.7",
+    "P2.14",
+    "P2.8",
+    "P2.9"
+  ],
+  "sense_pins": [
+    {
+      "pin": "P1.14",
+      "sense_bit": 0
+    },
+    {
+      "pin": "P1.15",
+      "sense_bit": 1
+    },
+    {
+      "pin": "P1.19",
+      "sense_bit": 2
+    },
+    {
+      "pin": "P3.19",
+      "sense_bit": 3
+    },
+    {
+      "pin": "P0.19",
+      "sense_bit": 4
+    },
+    {
+      "pin": "P0.18",
+      "sense_bit": 5
+    }
+  ],
+  "display": {
+    "init_commands": [
+      {
+        "command": 17,
+        "data": []
+      },
+      {
+        "command": 54,
+        "data": [
+          0
+        ]
+      },
+      {
+        "command": 58,
+        "data": [
+          5
+        ]
+      },
+      {
+        "command": 33,
+        "data": []
+      },
+      {
+        "command": 178,
+        "data": [
+          5,
+          5,
+          0,
+          51,
+          51
+        ]
+      },
+      {
+        "command": 183,
+        "data": [
+          35
+        ]
+      },
+      {
+        "command": 187,
+        "data": [
+          34
+        ]
+      },
+      {
+        "command": 192,
+        "data": [
+          44
+        ]
+      },
+      {
+        "command": 194,
+        "data": [
+          1
+        ]
+      },
+      {
+        "command": 195,
+        "data": [
+          19
+        ]
+      },
+      {
+        "command": 196,
+        "data": [
+          32
+        ]
+      },
+      {
+        "command": 198,
+        "data": [
+          15
+        ]
+      },
+      {
+        "command": 208,
+        "data": [
+          164,
+          161
+        ]
+      },
+      {
+        "command": 214,
+        "data": [
+          161
+        ]
+      },
+      {
+        "command": 224,
+        "data": [
+          112,
+          6,
+          12,
+          8,
+          9,
+          39,
+          46,
+          52,
+          70,
+          55,
+          19,
+          19,
+          37,
+          42
+        ]
+      },
+      {
+        "command": 225,
+        "data": [
+          112,
+          4,
+          8,
+          9,
+          7,
+          3,
+          44,
+          66,
+          66,
+          56,
+          20,
+          20,
+          39,
+          44
+        ]
+      },
+      {
+        "command": 33,
+        "data": []
+      },
+      {
+        "command": 41,
+        "data": []
+      },
+      {
+        "command": 54,
+        "data": [
+          0
+        ]
+      }
+    ],
+    "offset_x": 52,
+    "offset_y": 40,
+    "gpio_writes": [
+      {
+        "address": 1074020388,
+        "size": 4,
+        "value": 131072,
+        "instruction": 31500
+      },
+      {
+        "address": 1074020356,
+        "size": 4,
+        "value": 131072,
+        "instruction": 31512
+      },
+      {
+        "address": 1074020392,
+        "size": 4,
+        "value": 131072,
+        "instruction": 31518
+      },
+      {
+        "address": 1074020388,
+        "size": 4,
+        "value": 131072,
+        "instruction": 31530
+      },
+      {
+        "address": 1074044932,
+        "size": 4,
+        "value": 16384,
+        "instruction": 31546
+      },
+      {
+        "address": 1074028584,
+        "size": 4,
+        "value": 256,
+        "instruction": 31556
+      },
+      {
+        "address": 1074028580,
+        "size": 4,
+        "value": 256,
+        "instruction": 31946
+      },
+      {
+        "address": 1074028584,
+        "size": 4,
+        "value": 256,
+        "instruction": 31402
+      },
+      {
+        "address": 1074028580,
+        "size": 4,
+        "value": 256,
+        "instruction": 31420
+      }
+    ],
+    "stubbed_routines": [
+      "spi_initialization",
+      "millisecond_delay",
+      "panel_command_output",
+      "panel_data_output"
+    ],
+    "physical_verified": false
+  },
+  "emulated_routines": [
+    "matrix_drive",
+    "matrix_sense",
+    "panel_init",
+    "panel_orientation"
+  ],
+  "stubbed_routines": [
+    "configure_matrix_outputs",
+    "clear_matrix_outputs",
+    "select_matrix_drive",
+    "settle_delay"
+  ],
+  "full_system_emulated": false,
+  "hardware_tested": false
+}

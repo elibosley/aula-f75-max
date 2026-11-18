@@ -116,6 +116,10 @@ class SystemAdmissionContract(unittest.TestCase):
                           dict(wheel_held=held, magic=magic, reached='rom_boundary' if held or magic else 'c_runtime')
                           for held, magic in [(False,False),(True,False),(False,True),(True,True)]]})
         verify_system_checks(image, elf, build, result)
+        optional = dict(result, factory_loader={'status': 'not_run', 'required': False})
+        with self.assertRaises(ValueError):
+            verify_system_checks(image, elf, build, optional)
+        verify_system_checks(image, elf, build, optional, require_factory_loader=False)
         for field, changed in [('candidate_sha256', 'wrong'), ('elf_sha256', 'wrong'),
                                ('profile', 'full_ui'), ('status', 'failed'),
                                ('function_stubs', ['chSysInit']), ('unmodeled_mmio_accesses', 1),

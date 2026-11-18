@@ -1,0 +1,8 @@
+.display-simulator{display:flex;align-items:center;justify-content:center;gap:40px;padding:24px 0;flex-wrap:wrap}
+.panel-housing{padding:12px;background:#172027;border:1px solid #35404a;border-radius:16px;box-shadow:0 8px 20px #0002}
+#panel-preview{display:block;max-width:100%;image-rendering:pixelated}
+.simulator-controls{width:220px;max-width:100%}
+.simulator-controls>.field{display:grid;grid-template-columns:1fr;gap:8px}
+.simulator-controls .color-tools{margin:12px 0}
+#firmware-progress{display:block;width:100%;margin-top:18px}
+#firmware-progress[hidden]{display:none}
