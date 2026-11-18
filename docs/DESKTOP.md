@@ -2,6 +2,19 @@
 
 Download the archive for your platform from a successful [Desktop builds run](https://github.com/elibosley/aula-f75-max/actions/workflows/desktop.yml). Extract the complete archive. Open **F75 Studio.app** on Apple Silicon macOS, **F75 Studio.exe** inside the extracted folder on Windows x64, or the **F75 Studio** executable inside the extracted folder on Linux x64. The builds are development packages. Windows uses the system [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/). Linux uses Qt 6 on an active desktop session.
 
+On macOS, install the complete real app bundle at `/Applications/F75 Studio.app`.
+Do not use a symlink into a checkout, a worktree, or a build directory as the
+installed app. Quit the previous copy before updating it and remove its old
+shortcut and registered build copies. Keep the Bluetooth helper inside
+`F75 Studio.app/Contents/Helpers`; it does not need a separate installed app.
+Local enrollment and transport qualification belong in
+`~/Library/Application Support/F75 Studio/.runtime`, outside the signed bundle.
+The installed helper's `F75ProjectRoot` metadata points to the enclosing
+`F75 Studio` support directory. Preserve both `host-bindings.json` and
+`ble-padding-qualified.json` when moving an existing installation, then verify
+the finished bundle's signatures. Reinstalling the app does not reset keyboard
+settings, macros, pairings, or recovery firmware.
+
 Studio starts in **Automatic** connection mode. It reads the selected USB route, or uses the enrolled Bluetooth keyboard connected to this Mac when the keyboard is on Bluetooth. A diagnostic USB cable can remain attached while Bluetooth is selected. Settings and notifications share this connection. You can also choose USB or Bluetooth explicitly. Studio checks connections between operations and never repeats an interrupted save over another transport. Changes save automatically after a 900 ms pause, including persistence across keyboard restarts. Sliders and text entry are grouped into one save; returning to an unchanged value avoids a write. You can keep editing during a save: newer edits stay visible and go next using the last verified baseline. A failed save keeps the draft and pauses automatic writes until you choose Retry save or Reload. Incomplete macros and invalid fields wait for correction. The header shows waiting, saving, saved, or error state. Reload asks before discarding pending edits. Closing the desktop window warns when changes have not finished saving. You can configure per-key actions and colors, macros, saved device names and layouts, lighting, companions, wheel action, and power settings. Studio uses the USB settings interface provided by the community firmware.
 
 On Linux, if your desktop user cannot open the keyboard, install the included `70-f75-studio.rules` in `/etc/udev/rules.d/`, reload udev rules, and reconnect the cable. The rule targets USB ID `feed:f750` and grants access to the active desktop user.
@@ -30,7 +43,17 @@ Create a separate Python environment and install `requirements-desktop.txt`. Run
 
 ## Local Mac Bluetooth
 
-Run `python scripts/build_desktop.py --with-bluetooth` in the desktop environment. Open `dist/desktop/F75 Studio.app`. This includes the Bluetooth helper in the regular Mac app and uses this checkout's enrolled keyboard identity. Personal enrollment and qualification files stay outside the app archive. Published archives currently include USB support. The older `--local-bluetooth-preview` build flag remains available for a separate development bundle.
+Run `python scripts/build_desktop.py --with-bluetooth` in the desktop environment. The build output is `dist/desktop/F75 Studio.app`; install the complete bundle in `/Applications` for daily use. The development build initially uses this checkout's enrolled keyboard identity. Migrate its private enrollment and qualification files to Application Support and update the installed helper's metadata as described above. Personal enrollment and qualification files stay outside the published app archive. Published archives currently include USB support. The older `--local-bluetooth-preview` build flag remains available for a separate development bundle.
+
+An enabled Input Monitoring switch can retain the code-signature requirement
+of an older ad hoc development build. Toggling the switch or re-adding the app
+may leave that requirement unchanged. If macOS logs specifically report
+`Failed to match existing code requirement` for `com.f75studio.desktop`, quit
+Studio, reset only its stale record with
+`tccutil reset ListenEvent com.f75studio.desktop`, and add the exact
+`/Applications/F75 Studio.app` copy again in Input Monitoring. Verify a real
+Bluetooth settings read afterward. Do not reset other apps' permissions or
+infer access from the switch alone.
 
 Bluetooth Apply and Save upload changed windows and verify the complete live snapshot CRC, without downloading all unchanged settings again. New firmware also advertises compressed initial reads; older supported firmware uses its explicitly negotiated raw format. Both paths validate records and snapshot identity. See [animation and transfer efficiency](ANIMATION_AND_TRANSFER.md) for the measured test and wire contract.
 
