@@ -92,7 +92,7 @@ def validate_discharge(rows, max_gap):
             if value['firmware_sha256'] != first['firmware_sha256'] or value['power']['config_crc32'] != first['power']['config_crc32']:
                 raise ValueError('Firmware or configuration changed during the run')
         elapsed = row['monotonic_seconds'] - previous['monotonic_seconds']
-        if not math.isfinite(elapsed) or not 0 < elapsed <= max_gap:
+        if not math.isfinite(elapsed) or elapsed <= 0 or (max_gap is not None and elapsed > max_gap):
             raise ValueError('Missing samples, clock discontinuity, or host sleep invalidated continuous timing')
         device_elapsed = (row['power']['uptime_ms'] - previous['power']['uptime_ms']) & 0xffffffff
         if abs(device_elapsed / 1000 - elapsed) > 10:
@@ -100,10 +100,17 @@ def validate_discharge(rows, max_gap):
     return rows[-1]['monotonic_seconds'] - first['monotonic_seconds']
 
 
-def summarize(rows, max_gap=660):
-    elapsed = validate_discharge(rows, max_gap)
+def summarize(rows, max_gap=660, allow_sampling_gaps=False):
+    elapsed = validate_discharge(rows, None if allow_sampling_gaps else max_gap)
+    gaps = [dict(after=previous.get('observed_at'), before=row.get('observed_at'),
+                 elapsed_seconds=row['monotonic_seconds'] - previous['monotonic_seconds'])
+            for previous, row in zip(rows, rows[1:])
+            if row['monotonic_seconds'] - previous['monotonic_seconds'] > max_gap]
     start, end = rows[0]['power'], rows[-1]['power']
     return dict(status='measured_interval', samples=len(rows), elapsed_hours=elapsed / 3600,
+                sampling_gaps=gaps, continuous_sampling_verified=not gaps,
+                start_estimate_percent=start.get('estimate_percent'),
+                end_estimate_percent=end.get('estimate_percent'),
                 start_percent=start['percent'], end_percent=end['percent'],
                 raw_soc_drop=start['raw_soc'] - end['raw_soc'],
                 start_millivolts=start['millivolts'], end_millivolts=end['millivolts'],
@@ -135,16 +142,17 @@ def record(args):
                 raise ValueError('Cable power, unknown charge state, or unavailable gauge invalidates discharge recording')
             rows.append(row)
             if len(rows) > 1:
-                validate_discharge(rows[-2:], args.interval * 2 + 60)
+                validate_discharge(rows[-2:], None if getattr(args, 'allow_sampling_gaps', False) else args.interval * 2 + 60)
                 if power['config_crc32'] != rows[0]['power']['config_crc32']:
                     raise ValueError('Configuration changed during discharge recording')
             output.write(json.dumps(row, separators=(',', ':')) + '\n'); output.flush(); os.fsync(output.fileno())
-            if power['percent'] <= 5 or time.monotonic() - started >= args.duration:
+            if power.get('estimate_percent', power['percent']) <= 5 or time.monotonic() - started >= args.duration:
                 break
             time.sleep(max(0, min(args.interval, args.duration - (time.monotonic() - started))))
-    result = summarize(rows, args.interval * 2 + 60)
-    result['termination'] = '5-percent reserve' if rows[-1]['power']['percent'] <= 5 else 'finite-duration limit'
+    result = summarize(rows, args.interval * 2 + 60, getattr(args, 'allow_sampling_gaps', False))
+    result['termination'] = '5-percent reserve' if rows[-1]['power'].get('estimate_percent', rows[-1]['power']['percent']) <= 5 else 'finite-duration limit'
     print(json.dumps(result, indent=2))
+    return result
 
 
 def main():
@@ -161,9 +169,11 @@ def main():
     p.add_argument('--interval', type=int, default=300)
     p.add_argument('--duration', type=int, default=86400)
     p.add_argument('--output', type=Path)
+    p.add_argument('--allow-sampling-gaps', action='store_true',
+                   help='Keep explicitly reported Bluetooth sample gaps in the interval')
     a = p.parse_args()
     if a.summarize:
-        print(json.dumps(summarize([json.loads(line) for line in a.summarize.read_text().splitlines()], a.interval * 2 + 60), indent=2))
+        print(json.dumps(summarize([json.loads(line) for line in a.summarize.read_text().splitlines()], a.interval * 2 + 60, a.allow_sampling_gaps), indent=2))
     elif a.record:
         if not a.output or not a.probe or not a.board:
             p.error('--record requires --output, --probe, and the enrolled --board identity')
