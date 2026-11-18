@@ -22,6 +22,29 @@ def stock_oracle(stock):
  assert packets==[bytes.fromhex('a655fb')],packets
  return dict(stock_sha256=hashlib.sha256(data).hexdigest(),dispatcher_address='0x45e4',payload_address='0x20000105',transmit_packet=packets[0].hex(),radio_power_state_measured=False)
 
+def stock_wake_oracle(stock):
+ from unicorn import Uc,UC_ARCH_ARM,UC_MODE_THUMB,UC_MODE_MCLASS,UC_HOOK_CODE
+ from unicorn.arm_const import UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC,UC_ARM_REG_R0
+ data=stock.read_bytes();assert hashlib.sha256(data).hexdigest()=='a7d458754f3cc3aed7c8956f854148e081bc63f524da230a8ea8d3b3b3a4b5e9'
+ cpu=Uc(UC_ARCH_ARM,UC_MODE_THUMB|UC_MODE_MCLASS);cpu.mem_map(0,0x40000);cpu.mem_write(0,data);cpu.mem_map(0x20000000,0x8000)
+ for address,value in [(0x200000e4,1),(0x200000e6,1),(0x200000eb,1),(0x2000005f,1)]:cpu.mem_write(address,bytes([value]))
+ cpu.reg_write(UC_ARM_REG_SP,0x20007000);cpu.reg_write(UC_ARM_REG_LR,0x3ff01)
+ cpu.emu_start(0x45e5,0x3ff00,count=10000)
+ assert cpu.mem_read(0x200000ef,1)==b'\1' and cpu.mem_read(0x2000005f,1)==b'\1','Stock did not retain first key while requesting wake'
+ packets=[];delays=[];ack_snapshots=[]
+ def hook(cpu,address,size,context):
+  if address==0x12f00:
+   packets.append(bytes(cpu.mem_read(0x200025da,cpu.mem_read(0x20000279,1)[0])));cpu.reg_write(UC_ARM_REG_PC,cpu.reg_read(UC_ARM_REG_LR))
+  elif address==0x7d98:
+   delays.append(cpu.reg_read(UC_ARM_REG_R0));cpu.reg_write(UC_ARM_REG_PC,cpu.reg_read(UC_ARM_REG_LR))
+  elif address==0x45bc:ack_snapshots.append(address)
+  elif address==0x4934:cpu.emu_stop()
+ cpu.hook_add(UC_HOOK_CODE,hook);cpu.reg_write(UC_ARM_REG_SP,0x20007000);cpu.reg_write(UC_ARM_REG_LR,0x3ff01)
+ cpu.emu_start(0x45e5,0x3ff00,count=10000)
+ assert packets==[bytes.fromhex('a600a6')] and delays==[3] and not ack_snapshots,(packets,delays,ack_snapshots)
+ assert cpu.mem_read(0x2000005f,1)==b'\1','Wake consumed the pending key'
+ return dict(stock_wake_packet=packets[0].hex(),settle_milliseconds=3,first_key_retained=True,ack_retry_snapshot_armed=False,hardware_tested=False)
+
 def run(image, disabled=False):
  with System(image) as m:
   m.until('housekeeping_task_user');auto_ack=True
@@ -75,7 +98,7 @@ def run(image, disabled=False):
   # No pairing, slot reset, or overwritten first key: wake selection precedes
   # the actual keyboard report and its key-up, using the existing bound slot.
   offset=len(trace());key(4,True);key(4,False);step(40);data=trace()[offset:]
-  wake=bytes.fromhex('a631d7');down=bytes.fromhex('a10000040000000000a5');up=bytes.fromhex('a10000000000000000a1')
+  wake=bytes.fromhex('a600a6');down=bytes.fromhex('a10000040000000000a5');up=bytes.fromhex('a10000000000000000a1')
   assert wake in data and down in data and up in data,data.hex()
   assert data.index(wake)<data.index(down)<data.rindex(up);assert bytes.fromhex('a651f7') not in data
   assert phase()==0 and m.read(m.symbols['active_slot'],1)==b'\1'
@@ -97,7 +120,7 @@ def run(image, disabled=False):
   m.write32(HOST+0x200,1<<3);m.write32(HOST+0x204,1<<2);step(100);inject(bytes.fromhex('5b328d'));step(120)
   offset=len(trace());age();assert bytes.fromhex('a655fb') not in trace()[offset:],'Unqualified receiver idle command was sent' 
   assert m.read32(HOST+8)==0
- return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),hardware_writes=False,stock_command='a655fb',sleep_request_one_per_idle_period=True,first_key_and_release_preserved=True,wake_reselects_same_bond_without_pairing=True,stale_ack_before_transmit_rejected=True,uncertain_sleep_ack_still_wakes_before_first_report=True,receiver_sleep_not_enabled=True,held_keys_block_request=True,missing_ack_bounded_to_three_transmissions=True,retained_control_trace_preserves_idle_and_late_ack=True,encoded_host_payloads_not_retained=True,rf_sleep_measured=False,deep_mcu_sleep=False,physical_wake_qualification='pending')
+ return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),hardware_writes=False,stock_command='a655fb',sleep_request_one_per_idle_period=True,first_key_and_release_preserved=True,stock_wake_preamble_without_repairing=True,stale_ack_before_transmit_rejected=True,uncertain_sleep_ack_still_wakes_before_first_report=True,receiver_sleep_not_enabled=True,held_keys_block_request=True,missing_ack_bounded_to_three_transmissions=True,retained_control_trace_preserves_idle_and_late_ack=True,encoded_host_payloads_not_retained=True,rf_sleep_measured=False,deep_mcu_sleep=False,physical_wake_qualification='pending')
 
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--stock',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--expect-disabled',action='store_true');a=p.parse_args();r=run(a.image,a.expect_disabled);r['stock_oracle']=stock_oracle(a.stock);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+ p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--stock',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--expect-disabled',action='store_true');a=p.parse_args();r=run(a.image,a.expect_disabled);r['stock_oracle']=stock_oracle(a.stock);r['stock_wake_oracle']=stock_wake_oracle(a.stock);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

@@ -145,6 +145,13 @@ def connection_order(image):
   with System(image) as m:
    m.until('keyboard_post_init_user');m.write32(HOST+0x204,0)
    m.until('housekeeping_task_user');m.advance(3);m.pump()
+   # Startup now sends the stock untracked wake preamble first. Reach the
+   # subsequent ACK-tracked slot command before testing event/ACK ordering.
+   for _ in range(6):
+    if m.read(m.symbols['waiting'],1)==b'\1':break
+    m.advance(1);m.pump()
+   wire=m.read(0x61000000,m.read32(HOST+0x40))
+   assert wire.startswith(bytes.fromhex('a600a6')) and bytes.fromhex('a631d7') in wire
    def inject(packet):
     for byte in packet:m.write32(HOST+0x44,byte)
     m.advance(2);m.pump()

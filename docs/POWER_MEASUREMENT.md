@@ -149,10 +149,15 @@ radio queue must be empty, with no partial RX or pending acknowledgment, and
 quiet for 100 ms. The existing bounded UART retry policy applies. A missing
 acknowledgment latches failure instead of repeatedly sending idle requests.
 
-The first new input reselects the same existing Bluetooth slot before queuing
-its report and key release. It never requests pairing or changes bonds. This
-wake prelude is also required when the idle acknowledgment was lost, because
-an unknown command outcome cannot prove that the controller stayed awake.
+The first new input sends the stock wake preamble `A6 00 A6`, waits 3 ms,
+then continues its queued report and key release. The stock dispatcher takes
+this path while a key report is pending and its radio-busy flag is set. It
+does not arm the normal ACK/retry snapshot for this preamble. The custom
+adapter follows that behavior instead of treating slot selection as wake.
+Startup also wakes the retained radio before sending its selected-slot command.
+This never requests pairing or changes bonds. The preamble is also required
+when the idle acknowledgment was lost: an unknown outcome cannot prove that
+the controller stayed awake.
 Receiver idle behavior is not enabled. Diagnostic radio status bits 4..7 now
 show phase 0 (normal), 1 (idle pending), 2 (idle UART-acknowledged), 3 (wake
 pending), or 4 (control timeout).
@@ -198,3 +203,10 @@ snapshot. No key report is recorded. Encoded LED-padding payloads and unknown
 RX payload bytes are masked. Timestamps show parsing/transmission, not measured
 RF activity or wire-level arrival timing. The trace uses exactly 24 bytes and
 the existing 4096-byte minimum heap reservation remains enforced.
+
+The stock wake oracle executes two dispatcher passes: the first keeps the
+pending key and sets the wake flag, and the second sends `A6 00 A6`, calls
+the 3 ms delay, and reaches RX processing without arming the ACK snapshot.
+A separate linked ARM adapter check verifies that the next packet is blocked
+at 1 and 2 ms and permitted at 3 ms. These are software checks; physical wake
+and radio-current measurements remain separate gates.
