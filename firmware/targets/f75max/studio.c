@@ -163,7 +163,7 @@ static void power_snapshot(uint8_t out[24],uint32_t now){
     bool charge_known=f75_battery_charging(&charging);
     f75_budget budget=f75_board_power_budget(&state,now);
     memset(out,0,24);out[0]=1;
-    out[1]=valid|(charge_known<<1)|(charging<<2)|((USB_DRIVER.state==USB_ACTIVE)<<3)|(f75_radio_connected()<<4);
+    out[1]=valid|(charge_known<<1)|(charging<<2)|(f75_board_usb_active(now)<<3)|(f75_radio_connected()<<4);
     out[2]=valid?(uint8_t)gauge[1]:255;out[3]=budget.stage;
     uint16_t mv=valid?(uint16_t)gauge[2]:0;
     memcpy(out+4,&mv,2);memcpy(out+6,&soc,2);memcpy(out+8,&now,4);
@@ -903,7 +903,7 @@ static void make_frame(uint32_t now) {
         else if(radio_switch_pending||f75_radio_selection_status()==F75_RADIO_SELECT_PENDING)frame.link_state=F75_LINK_CONNECTING;
     }
     bool charging=false;
-    frame.power_state=USB_DRIVER.state==USB_ACTIVE?F75_POWER_EXTERNAL:F75_POWER_UNKNOWN;
+    frame.power_state=f75_board_usb_active(now)?F75_POWER_EXTERNAL:F75_POWER_UNKNOWN;
     if(f75_battery_charging(&charging)){
         if(charging)frame.power_state=F75_POWER_CHARGING;
         else if(frame.power_state==F75_POWER_UNKNOWN)frame.power_state=F75_POWER_BATTERY;

@@ -21,6 +21,18 @@ percent, policy stage, millivolts, raw SOC, uptime, gauge timestamp,
 core-configuration CRC32, and activity epoch. Flags are gauge-valid, charge-known,
 charging, USB-configured, and radio-connected, from bit 0 to bit 4.
 
+USB-configured requires both the configured driver state and an advancing
+host SOF frame counter within the last 100 ms. On this self-powered board, the
+driver can retain `USB_ACTIVE` after cable removal. That cached state must not
+drive the USB-power icon, battery power limits, or discharge admission. The
+existing SN32 `USB_FRMNO` register supplies the evidence without enabling an
+extra interrupt; the charging input remains separate.
+
+This is live USB data-link evidence, not a mapped VBUS sensor. A charge-only
+cable or a suspended computer with a full, non-charging battery cannot be
+excluded by those two software observations alone. The cable must physically
+remain unplugged throughout a battery-only trial.
+
 `scripts/battery_benchmark.py --sample` reads one sample. `--record` runs for a
 finite duration, with a minimum five-minute interval and a 5% reserve cutoff.
 Use the existing enrolled Mac probe and exact board identity. A persistent
@@ -28,7 +40,7 @@ service manager must own a long run; an interactive shell is not the waiter.
 The output is private, exclusively created JSONL. Existing runs are never
 overwritten. Recording requires explicit confirmation that the cable is out.
 
-A discharge result rejects USB power, an active or unknown charging input,
+A discharge result rejects live USB traffic, an active or unknown charging input,
 stale gauge data, core-configuration changes, MCU resets, host sleep gaps, and clock
 discontinuities. A Bluetooth disconnect is an observation failure, not proof
 that the battery is empty. A time-limited interval or the 5% reserve cutoff is

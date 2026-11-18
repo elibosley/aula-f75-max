@@ -64,6 +64,15 @@ class Candidate(Firmware):
     def callback(self, name, callback):
         self.callbacks[SYMBOLS[name]] = callback
 
+    def usb_frame(self, now, prime=False):
+        # A configured driver does not itself supply SOF evidence. Model the
+        # host's read-only frame counter explicitly in these isolated fixtures.
+        self.now = now
+        if prime and 'f75_board_usb_active' in SYMBOLS:
+            self.word(0x4005c060, (now-1)&2047)
+            self.call('f75_board_usb_active', (now-1)&0xffffffff)
+        self.word(0x4005c060, now&2047)
+
     def on_code(self, cpu, address, size, data):
         if address in self.callbacks:
             args = [cpu.reg_read(r) for r in [UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3]]
@@ -128,6 +137,7 @@ class Candidate(Firmware):
                 for _ in range(30):self.call('begin_row')
             self.call('matrix_scan_custom', SCRATCH+0x20)
         self.byte(SYMBOLS['USBD1'],4)  # configured USB state for the isolated adapter fixture
+        self.usb_frame(self.now, prime=True)
         self.events.clear()
 
 
@@ -478,6 +488,7 @@ def rgb_test():
     assert fw.word(0x40008000)==before, 'RGB changed the RTOS free counter'
     fw.call('f75_init',SYMBOLS['state'],0,0)
     fw.byte(SYMBOLS['USBD1'],4) # this case measures full-brightness USB operation
+    fw.usb_frame(1000, prime=True)
     fw.call('f75_rgb_tick',SYMBOLS['state'],1000)
     data=bytes(fw.cpu.mem_read(SYMBOLS['duties'],540))
     assert any(data) and max(data)<=35
@@ -486,6 +497,7 @@ def rgb_test():
             trial=Candidate();trial.call('f75_rgb_init')
             trial.call('f75_init',SYMBOLS['state'],0,0)
             trial.byte(SYMBOLS['USBD1'],4)
+            trial.usb_frame(1000, prime=True)
             trial.byte(SYMBOLS['state']+104,level)
             trial.byte(SYMBOLS['state']+106,effect)
             trial.call('f75_rgb_tick',SYMBOLS['state'],1000)
@@ -511,10 +523,12 @@ def rgb_test():
     for effect in range(5):
         trial=Candidate();trial.call('f75_rgb_init');trial.call('f75_init',SYMBOLS['state'],0,0)
         trial.byte(SYMBOLS['USBD1'],4)
+        trial.usb_frame(1000, prime=True)
         trial.byte(SYMBOLS['state']+104,100);trial.byte(SYMBOLS['state']+105,50)
         trial.byte(SYMBOLS['state']+106,effect)
         previous=first=None
         for now in range(1000,7001,25):
+            trial.usb_frame(now)
             # Consume the completed buffer without modeling an optical output.
             trial.byte(SYMBOLS['pending'],0)
             trial.call('f75_rgb_tick',SYMBOLS['state'],now)

@@ -139,6 +139,7 @@ def main():
                     'fast-bluetooth': 'test_fast_bluetooth_system.py',
                     'bluetooth-clock': 'test_bluetooth_clock_system.py',
                     'battery-telemetry': 'test_battery_telemetry_system.py',
+                    'usb-link': 'test_usb_link_system.py',
                     'bluetooth-consumer': 'test_bluetooth_consumer_system.py',
                 }
                 for name, script in scripts.items():

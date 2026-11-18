@@ -2,3 +2,4 @@
 #pragma once
 #include "f75_core.h"
 f75_budget f75_board_power_budget(const f75_state *state,uint32_t now);
+bool f75_board_usb_active(uint32_t now);
