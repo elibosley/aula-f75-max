@@ -99,10 +99,13 @@ The captured supplier application explicitly writes `2` before WFI at
 `0x0290` and `0x08c0`, then restores clocks, scan configuration, and radio
 state. Its shallow-sleep path writes `4` at `0x1126`. These are useful software
 oracles, not proof that a copied sequence will work with the custom scheduler.
-The custom source currently yields to ChibiOS's WFI idle thread but does not
-explicitly select a PMU mode. Reaching WFI alone therefore does not establish
-the hardware's low-power mode. Measuring and verifying shallow sleep comes
-before claiming savings from it.
+The pinned SonixQMK `SN_SN32F290/configs/chconf.h` already selects ordinary
+MCU Sleep: its idle-enter hook writes `4` to `SN_PMU->CTRL`, and its idle-leave
+hook restores `0`. These hooks are linked into the current firmware. The
+linked-image idle test now checks both register values around the real WFI
+and interrupt wake path. Earlier documentation overlooked these inherited
+hooks; ordinary MCU Sleep is already implemented. Its current savings have
+not been measured. Deep sleep and radio sleep remain separate work.
 
 Before enabling deep sleep, establish and test:
 

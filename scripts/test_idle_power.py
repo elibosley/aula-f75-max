@@ -28,7 +28,9 @@ def run(image):
   # Execute the real scheduler's idle function, including its WFI, and
   # return through actual interrupt-driven wakeup. No function stub here.
   m.until('__idle_thread');assert m.read(m.symbols['__idle_thread'],2)==bytes.fromhex('30bf')
+  assert m.read32(0x40032040)==4,'ChibiOS idle-enter did not select MCU Sleep mode'
   m.advance(5);m.pump()
+  assert m.read32(0x40032040)==0,'ChibiOS idle-leave did not restore normal mode'
   yielded=struct.unpack_from('<I',query(b'F75d'),28)[0]>>16;assert yielded>0
   for bank in (0x40000000,0x40002000,0x40004000):assert m.read32(bank)==0,'Idle PWM timer still running'
   assert m.read32(0x400020a4)==0,'Idle PWM mux still attached'
@@ -79,6 +81,6 @@ def run(image):
   age();assert power()[4]==511;assert m.read32(0x40006000)==0
   key(keymap.index(4),True);step(25);assert power()[4]==255 and m.read32(0x40006000)==0
   key(keymap.index(4),False);step(20);assert m.read32(HOST+8)==0
- return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'idle_row_period_511_active_255':True,'idle_pwm_banks_stopped_mux_detached':True,'dark_color_frames_stop':True,'idle_thread_WFI_reached_and_interrupt_wake_executes':True,'metadata_does_not_wake':True,'real_usb_15ms_pulses':96,'companions_covered':4,'idle_pulse_rows':[0,1,14],'idle_phases_per_key':8,'fn_and_held_wheel_wake':True,'wheel_wake_cases':8,'wheel_input_deadline_ms':50,'max_wheel_input_wake_us':max(wheel_input_us),'fresh_frame_deadline_ms':100,'max_fresh_frame_wake_us':max(wheel_wake_us),'click_after_wake_preserved':True,'diagnostic_suspend_preserved':True,'deep_sleep_or_battery_endurance':'not_claimed'}
+ return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'idle_row_period_511_active_255':True,'idle_pwm_banks_stopped_mux_detached':True,'dark_color_frames_stop':True,'idle_thread_WFI_reached_and_interrupt_wake_executes':True,'pmu_sleep_mode_4_at_WFI_normal_0_after_wake':True,'metadata_does_not_wake':True,'real_usb_15ms_pulses':96,'companions_covered':4,'idle_pulse_rows':[0,1,14],'idle_phases_per_key':8,'fn_and_held_wheel_wake':True,'wheel_wake_cases':8,'wheel_input_deadline_ms':50,'max_wheel_input_wake_us':max(wheel_input_us),'fresh_frame_deadline_ms':100,'max_fresh_frame_wake_us':max(wheel_wake_us),'click_after_wake_preserved':True,'diagnostic_suspend_preserved':True,'deep_sleep_or_battery_endurance':'not_claimed'}
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--output',type=Path,required=True);a=p.parse_args();r=run(a.image);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
