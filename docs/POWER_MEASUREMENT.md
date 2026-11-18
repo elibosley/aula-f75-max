@@ -128,10 +128,10 @@ Before enabling deep sleep, establish and test:
   recovery entry must prevent sleep. Verify byte-exact protected recovery and
   first-key delivery after physical wake.
 
-Radio sleep is separate. Its supplier-controller command, acknowledgment,
-retention, and wake handshake are not yet mapped. Do not send guessed commands
-or change radio firmware to make a power-saving claim. Keep speculative MCU
-or radio sleep out of the daily-use image until its wake and recovery paths
+Radio sleep is separate. The qualification section below documents the recovered
+supplier-controller idle command and wake handshake. Do not send guessed
+commands or change radio firmware to make a power-saving claim. Keep speculative
+MCU or radio sleep out of the daily-use image until its wake and recovery paths
 have passed both linked-image tests and physical trials.
 
 ## Radio idle qualification candidate
@@ -146,7 +146,8 @@ The candidate requests that command only on the selected Bluetooth route after
 the configured Sleep timeout, with no held matrix key, macro, mouse button,
 pairing, settings transfer, save, boot request, or pending display frame. The
 radio queue must be empty, with no partial RX or pending acknowledgment, and
-quiet for 100 ms. The existing bounded UART retry policy applies. A missing
+quiet for 100 ms. The sleep command has a 100 ms acknowledgment deadline with
+two retries. Reports and slot selection retain their 10 ms deadline. A missing
 acknowledgment latches failure instead of repeatedly sending idle requests.
 
 The first new input sends the stock wake preamble `A6 00 A6`, waits 3 ms,
@@ -203,6 +204,14 @@ snapshot. No key report is recorded. Encoded LED-padding payloads and unknown
 RX payload bytes are masked. Timestamps show parsing/transmission, not measured
 RF activity or wire-level arrival timing. The trace uses exactly 24 bytes and
 the existing 4096-byte minimum heap reservation remains enforced.
+
+The next physical BT2 trial retained normal `61 0D 0A` replies parsed 12 ms
+and 30 ms after the final sleep transmission. Both arrived after the old 10 ms
+deadline. The user then confirmed that the first `w` in `wake` appeared
+immediately and all four letters arrived. The original Desk profile was
+restored without Save; saved settings remained unchanged. This validates that
+physical first-key path, but does not measure radio current. A linked-image
+regression now checks a 40 ms sleep acknowledgment without retransmission.
 
 The stock wake oracle executes two dispatcher passes: the first keeps the
 pending key and sets the wake flag, and the second sends `A6 00 A6`, calls

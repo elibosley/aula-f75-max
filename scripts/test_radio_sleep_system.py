@@ -108,6 +108,20 @@ def run(image, disabled=False):
   # injected. Real held-input state and release ordering must remain intact.
   key(4,True);offset=len(trace());age();assert bytes.fromhex('a655fb') not in trace()[offset:]
   key(4,False);step(120)
+  # Real hardware returned idle ACKs after the normal 10 ms report deadline.
+  # A 40 ms sleep ACK must complete one transmission, without a false timeout.
+  auto_ack=False;offset=len(trace());now=m.read32(m.symbols['state']+116)
+  m.write(m.symbols['state']+116,struct.pack('<I',(now-181000)&0xffffffff))
+  for _ in range(100):
+   step(2)
+   if bytes.fromhex('a655fb') in trace()[offset:]:break
+  assert phase()==1 and waiting(),phase()
+  step(40);assert phase()==1 and waiting()
+  assert trace()[offset:].count(bytes.fromhex('a655fb'))==1,'Sleep retried before its delayed ACK'
+  inject(bytes.fromhex('610d0a'));assert phase()==2
+  step(250);assert trace()[offset:].count(bytes.fromhex('a655fb'))==1
+  auto_ack=True;key(4,True);key(4,False);step(120)
+  assert control_trace(True)==bytes(24)
   # A timed-out sleep request has at most the existing three transmissions.
   # It latches failure rather than continuously retrying on every main loop.
   auto_ack=False;offset=len(trace());age();step(300);data=trace()[offset:]
@@ -120,7 +134,7 @@ def run(image, disabled=False):
   m.write32(HOST+0x200,1<<3);m.write32(HOST+0x204,1<<2);step(100);inject(bytes.fromhex('5b328d'));step(120)
   offset=len(trace());age();assert bytes.fromhex('a655fb') not in trace()[offset:],'Unqualified receiver idle command was sent' 
   assert m.read32(HOST+8)==0
- return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),hardware_writes=False,stock_command='a655fb',sleep_request_one_per_idle_period=True,first_key_and_release_preserved=True,stock_wake_preamble_without_repairing=True,stale_ack_before_transmit_rejected=True,uncertain_sleep_ack_still_wakes_before_first_report=True,receiver_sleep_not_enabled=True,held_keys_block_request=True,missing_ack_bounded_to_three_transmissions=True,retained_control_trace_preserves_idle_and_late_ack=True,encoded_host_payloads_not_retained=True,rf_sleep_measured=False,deep_mcu_sleep=False,physical_wake_qualification='pending')
+ return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),hardware_writes=False,stock_command='a655fb',sleep_request_one_per_idle_period=True,first_key_and_release_preserved=True,stock_wake_preamble_without_repairing=True,stale_ack_before_transmit_rejected=True,uncertain_sleep_ack_still_wakes_before_first_report=True,receiver_sleep_not_enabled=True,held_keys_block_request=True,missing_ack_bounded_to_three_transmissions=True,sleep_ack_delayed_40ms_without_retry=True,retained_control_trace_preserves_idle_and_late_ack=True,encoded_host_payloads_not_retained=True,rf_sleep_measured=False,deep_mcu_sleep=False,physical_wake_qualification='pending')
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--stock',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--expect-disabled',action='store_true');a=p.parse_args();r=run(a.image,a.expect_disabled);r['stock_oracle']=stock_oracle(a.stock);r['stock_wake_oracle']=stock_wake_oracle(a.stock);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

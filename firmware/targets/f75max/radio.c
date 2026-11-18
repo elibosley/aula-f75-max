@@ -167,9 +167,10 @@ void f75_radio_task(uint32_t now, void (*receive_led)(uint8_t, uint32_t)){
         input[input_length++]=value;
         if(input_length==3){receive_packet(now,receive_led);input_length=0;}
     }
-    /* The supplier retries twice, at 5ms intervals. A bounded retry cannot
-     * wedge USB, rendering, or recovery when the radio is powered off. */
-    if(waiting&&now-sent_at>=10u){
+    /* Physical idle ACKs arrive after the normal report deadline. Give only
+     * the sleep command 100 ms; retain the 10 ms report/selection policy.
+     * Two retries remain bounded when the radio is powered off. */
+    if(waiting&&now-sent_at>=(queue[tail].kind==COMMAND_SLEEP?100u:10u)){
         waiting=false;offset=0;
         if(++retries>2){
             packet *p=&queue[tail];
