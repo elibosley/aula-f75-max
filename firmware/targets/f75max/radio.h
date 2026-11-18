@@ -19,3 +19,5 @@ void f75_radio_diagnostics(uint32_t out[6]);
 
 /* Qualification-only stock idle command; acknowledgments are not power measurements. */
 void f75_radio_idle(bool eligible, uint32_t now);
+void f75_radio_trace(uint8_t out[24]);
+void f75_radio_trace_reset(void);

@@ -6,6 +6,7 @@ Injected UART acknowledgments do not emulate radio sleep or establish savings.
 import argparse,hashlib,json,struct
 from pathlib import Path
 from system_emulator import System,HOST
+from test_system_emulator import enumerate_usb
 
 def stock_oracle(stock):
  from unicorn import Uc,UC_ARCH_ARM,UC_MODE_THUMB,UC_MODE_MCLASS,UC_HOOK_CODE
@@ -46,6 +47,17 @@ def run(image, disabled=False):
   m.write32(HOST+0x204,0);step(120);inject(bytes.fromhex('5b328d'));step(120)
   assert m.read(m.symbols['connected'],1)==b'\1'
   assert b'\xa6\x55\xfb' not in trace(),'Active typing route requested radio sleep'
+  enumerate_usb(m)
+  def control_trace(clear=False):
+   payload=b'CLRTRACE'+bytes(16) if clear else bytes(24)
+   m.endpoint_out(3,b'F75Ltrce'+payload);step(5);reply=m.endpoint_in(2)
+   assert reply and reply[:8]==b'F75Ltrce';return reply[8:]
+  assert control_trace(True)==bytes(24)
+  inject(bytes.fromhex('5ae03a'));masked=control_trace()
+  assert masked[12:15]==bytes.fromhex('5a0000'),'Encoded host payload was retained'
+  # Close the deliberately opened status frame through its real neutral symbol.
+  inject(bytes.fromhex('5a005a'))
+  assert control_trace(True)==bytes(24)
   if disabled:
    offset=len(trace());age();step(250)
    assert bytes.fromhex('a655fb') not in trace()[offset:] and phase()==0
@@ -59,6 +71,7 @@ def run(image, disabled=False):
   step(160);data=trace()[offset:]
   assert data.count(bytes.fromhex('a655fb'))==1,data.hex();assert phase()==2,phase()
   step(250);assert trace()[offset:].count(bytes.fromhex('a655fb'))==1,'Idle command repeated'
+  idle_trace=control_trace();assert idle_trace[20:23]==bytes.fromhex('a655fb') and idle_trace[12:15]==bytes.fromhex('610d0a')
   # No pairing, slot reset, or overwritten first key: wake selection precedes
   # the actual keyboard report and its key-up, using the existing bound slot.
   offset=len(trace());key(4,True);key(4,False);step(40);data=trace()[offset:]
@@ -66,6 +79,8 @@ def run(image, disabled=False):
   assert wake in data and down in data and up in data,data.hex()
   assert data.index(wake)<data.index(down)<data.rindex(up);assert bytes.fromhex('a651f7') not in data
   assert phase()==0 and m.read(m.symbols['active_slot'],1)==b'\1'
+  retained=control_trace();assert retained[:23]==idle_trace[:23] and retained[23]==idle_trace[23]|128,'Wake overwrote the retained idle exchange'
+  assert control_trace(True)==bytes(24)
   # Held keys block sleep even when an artificial old activity timestamp is
   # injected. Real held-input state and release ordering must remain intact.
   key(4,True);offset=len(trace());age();assert bytes.fromhex('a655fb') not in trace()[offset:]
@@ -75,12 +90,14 @@ def run(image, disabled=False):
   auto_ack=False;offset=len(trace());age();step(300);data=trace()[offset:]
   assert data.count(bytes.fromhex('a655fb'))==3,data.hex();assert phase()==4
   step(300);assert trace()[offset:].count(bytes.fromhex('a655fb'))==3
+  inject(bytes.fromhex('610d0a'));assert phase()==4,'Late ACK fabricated a completed sleep transition'
+  late=control_trace();assert late[12:15]==bytes.fromhex('610d0a') and late[15]&7==4 and not late[15]&8
   auto_ack=True;offset=len(trace());key(4,True);key(4,False);step(40);data=trace()[offset:]
   assert wake in data and down in data and up in data and data.index(wake)<data.index(down),'Uncertain sleep ACK lost wake-before-report ordering'
   m.write32(HOST+0x200,1<<3);m.write32(HOST+0x204,1<<2);step(100);inject(bytes.fromhex('5b328d'));step(120)
   offset=len(trace());age();assert bytes.fromhex('a655fb') not in trace()[offset:],'Unqualified receiver idle command was sent' 
   assert m.read32(HOST+8)==0
- return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),hardware_writes=False,stock_command='a655fb',sleep_request_one_per_idle_period=True,first_key_and_release_preserved=True,wake_reselects_same_bond_without_pairing=True,stale_ack_before_transmit_rejected=True,uncertain_sleep_ack_still_wakes_before_first_report=True,receiver_sleep_not_enabled=True,held_keys_block_request=True,missing_ack_bounded_to_three_transmissions=True,rf_sleep_measured=False,deep_mcu_sleep=False,physical_wake_qualification='pending')
+ return dict(status='passed',candidate_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),hardware_writes=False,stock_command='a655fb',sleep_request_one_per_idle_period=True,first_key_and_release_preserved=True,wake_reselects_same_bond_without_pairing=True,stale_ack_before_transmit_rejected=True,uncertain_sleep_ack_still_wakes_before_first_report=True,receiver_sleep_not_enabled=True,held_keys_block_request=True,missing_ack_bounded_to_three_transmissions=True,retained_control_trace_preserves_idle_and_late_ack=True,encoded_host_payloads_not_retained=True,rf_sleep_measured=False,deep_mcu_sleep=False,physical_wake_qualification='pending')
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--stock',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--expect-disabled',action='store_true');a=p.parse_args();r=run(a.image,a.expect_disabled);r['stock_oracle']=stock_oracle(a.stock);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

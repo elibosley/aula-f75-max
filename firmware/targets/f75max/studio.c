@@ -512,6 +512,12 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
         memcpy(response+4,data+4,4);power_snapshot(response+8,timer_read32());
         raw_hid_send(response,sizeof(response));return;
     }
+    if(!memcmp(data,"F75L",4)){
+        uint8_t response[32]={'F','7','5','L'};
+        if(!memcmp(data+8,"CLRTRACE",8))f75_radio_trace_reset();
+        memcpy(response+4,data+4,4);f75_radio_trace(response+8);
+        raw_hid_send(response,sizeof(response));return;
+    }
     /* Deliberate, fixed diagnostic actions. No settings, memory addresses,
      * radio, flash or boot options are accepted by this protocol. */
     if (!memcmp(data,"F75T",4) && !memcmp(data+8,"F75DIAG!",8)) {

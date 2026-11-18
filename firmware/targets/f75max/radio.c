@@ -31,6 +31,25 @@ static uint8_t radio_sleep_phase;
 static bool radio_sleep_attempted;
 static uint32_t radio_last_io;
 static bool wake_radio(void) __attribute__((section(".f75_power_text"),noinline));
+/* Exactly 24 bytes: the last two parsed RX controls and last TX control.
+ * No key reports or encoded host configuration payloads are retained. */
+typedef struct { uint32_t at; uint8_t a,b,c,state; } radio_control_event;
+static radio_control_event radio_control_trace[3];
+static void __attribute__((section(".f75_power_text"),noinline)) trace_control(uint32_t now,bool tx,uint8_t a,uint8_t b,uint8_t c){
+    if(radio_control_trace[2].state&0x80u)return;
+    if(!tx){
+        radio_control_trace[0]=radio_control_trace[1];
+        if(a!=0x61&&a!=0x5b&&!(a==0x5a&&b<8)){b=0;c=0;}
+    }
+    radio_control_event event={now,a,b,c,(uint8_t)(radio_sleep_phase|((uint8_t)waiting<<3)|(retries<<4))};
+    radio_control_trace[tx?2:1]=event;
+}
+void __attribute__((section(".f75_power_text"),noinline)) f75_radio_trace(uint8_t out[24]){
+    memcpy(out,radio_control_trace,24);
+}
+void __attribute__((section(".f75_power_text"),noinline)) f75_radio_trace_reset(void){
+    memset(radio_control_trace,0,sizeof(radio_control_trace));
+}
 
 static bool enqueue(uint8_t type,const uint8_t *data,uint8_t length) {
     if(type!=0xa6&&!wake_radio())return false;
@@ -57,6 +76,9 @@ static bool wake_radio(void){
     if(radio_sleep_phase==RADIO_SLEEP_PENDING&&!waiting&&!offset&&head!=tail&&queue[tail].kind==COMMAND_SLEEP){
         tail=(tail+1u)&15u;radio_sleep_phase=RADIO_AWAKE;return true;
     }
+    /* Preserve the idle exchange before wake reports replace the last RX.
+     * Bit 7 belongs only to this diagnostic snapshot, not to the live phase. */
+    radio_control_trace[2].state|=0x80u;
     /* Reselect the existing bonded slot before the first queued report.
      * This is the established normal-mode command, never a pairing command. */
     if(!command(selected==4?0x30:0x30+selected,COMMAND_WAKE))return false;
@@ -103,6 +125,7 @@ void f75_radio_init(void){
 }
 static void receive_packet(uint32_t now, void (*receive_led)(uint8_t, uint32_t)){
     uint8_t a=input[0],b=input[1];
+    trace_control(now,false,a,b,input[2]);
     if(a==0x61){
         if(b!=0x0d||input[2]!=0x0a){++errors;return;}
         radio_last_io=now;seen=true;++rx_packets;
@@ -173,6 +196,7 @@ void f75_radio_task(uint32_t now, void (*receive_led)(uint8_t, uint32_t)){
     if(transmit(p->bytes,p->length,&offset)){
         if(p->generation&&p->generation==command_generation)route_started=true;
         ++tx_packets;waiting=true;sent_at=now;radio_last_io=now;
+        if(p->bytes[0]==0xa6)trace_control(now,true,p->bytes[0],p->bytes[1],p->bytes[2]);
     }
 }
 bool f75_radio_select(uint8_t slot){

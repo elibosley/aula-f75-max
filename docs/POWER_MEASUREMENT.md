@@ -178,3 +178,23 @@ and both selector contacts. They do not arm the encoder phases A2/A3, UART RX
 B6, or charging input B17. Copying that setup alone would not establish all
 of the custom firmware's wake requirements. The USB power input remains
 unmapped; the charge input is not a substitute for cable detection.
+
+### Physical idle-command observation and bounded trace
+
+The first cabled BT2 qualification reached the configured Sleep timeout and
+sent the idle command three times, then reported the existing UART timeout.
+The test restored the original Desk profile without Save and verified the
+complete live settings snapshot byte-for-byte. That outcome does not establish
+radio sleep or an efficiency gain. The generic-ACK assumption needs hardware
+evidence before this feature can become a default build option.
+
+Fixed USB request `F75L` returns exactly 24 bytes: three eight-byte entries
+`<IBBBB>` containing parser uptime, three control bytes, and state. Entries
+hold the previous RX, latest RX, and last transmitted A6 control. State bits
+0..2 carry the qualification phase, bit 3 the pending-ACK state, and bits
+4..5 the retry count. Bit 7 in the last TX entry marks the snapshot frozen
+before the next wake attempt. A `CLRTRACE` payload clears only this diagnostic
+snapshot. No key report is recorded. Encoded LED-padding payloads and unknown
+RX payload bytes are masked. Timestamps show parsing/transmission, not measured
+RF activity or wire-level arrival timing. The trace uses exactly 24 bytes and
+the existing 4096-byte minimum heap reservation remains enforced.
