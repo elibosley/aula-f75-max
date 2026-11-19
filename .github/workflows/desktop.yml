@@ -23,6 +23,12 @@ on:
       - 'scripts/keyboard_*.py'
       - 'firmware/targets/f75max/board-map.json'
       - 'ui/**'
+  pull_request:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        default: ''
   workflow_dispatch:
 permissions:
   contents: read
@@ -51,6 +57,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_sha || github.sha }}
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
@@ -83,9 +90,13 @@ jobs:
           'dist/desktop/F75 Studio/F75 Studio' --check
           cp desktop/70-f75-studio.rules 'dist/desktop/F75 Studio/'
           tar -czf dist/F75-Studio-linux-x64.tar.gz -C dist/desktop 'F75 Studio'
+      - name: Record release asset identity
+        run: python scripts/release_artifacts.py stamp --asset dist/${{ matrix.archive }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: F75-Studio-${{ matrix.platform }}
-          path: dist/${{ matrix.archive }}
+          name: release-desktop-${{ matrix.platform }}
+          path: |
+            dist/${{ matrix.archive }}
+            dist/${{ matrix.archive }}.json
           if-no-files-found: error
           retention-days: 30

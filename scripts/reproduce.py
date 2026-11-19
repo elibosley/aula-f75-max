@@ -68,6 +68,7 @@ def verify_sources():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--target', choices=['f75max','s75pro'], default='f75max')
     parser.add_argument('--bootstrap', action='store_true', help='Fetch pinned sources/tools and build QEMU first')
     parser.add_argument('--source-only', action='store_true', help='Run public build checks without private research captures')
     args = parser.parse_args()
@@ -79,9 +80,11 @@ def main():
     except BlockingIOError:
         raise SystemExit('A reproduction run is already active; no duplicate build was started')
     attempt = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8]
-    out = ROOT / 'analysis/repro/runs' / attempt
+    base = ROOT / 'analysis/repro' / args.target
+    out = base / 'runs' / attempt
+    artifact = args.target + '-wired-test'
     out.mkdir(parents=True)
-    receipt = dict(status='running', attempt=attempt, hardware_writes=False,
+    receipt = dict(status='running', attempt=attempt, target=args.target, hardware_writes=False,
                    python=sys.version, platform=os.uname().sysname + ' ' + os.uname().machine,
                    profiles={}, scope='Two complete clean builds per profile, same host and source directory')
     path = out / 'receipt.json'
@@ -95,24 +98,24 @@ def main():
         run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_battery_benchmark.py'],
             out / 'battery-benchmark-tests.log')
         run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_lighting_catalog.py'], out / 'lighting-catalog-tests.log')
-        for profile in ['usb_only', 'full_ui']:
+        for profile in (['full_ui'] if args.target=='s75pro' else ['usb_only','full_ui']):
             print(f'Building {profile} twice from clean objects...', flush=True)
             for attempt_name in ['a', 'b']:
                 dest = out / profile / attempt_name
                 dest.mkdir(parents=True)
-                command = [sys.executable, 'scripts/build_keyboard.py', '--clean', '--output-dir', str(dest)]
+                command = [sys.executable, 'scripts/build_keyboard.py', '--target', args.target, '--clean', '--output-dir', str(dest)]
                 if profile == 'usb_only': command.append('--usb-only')
                 run(command, dest / 'driver.log')
             a, b = out / profile / 'a', out / profile / 'b'
             compared = {}
             for suffix in ['bin', 'elf']:
-                filename = 'f75max-wired-test.' + suffix
+                filename = artifact + '.' + suffix
                 assert sha(a / filename) == sha(b / filename), f'{profile} {suffix} is not reproducible'
                 compared[suffix] = sha(b / filename)
             assert sha(a / 'build-inputs.json') == sha(b / 'build-inputs.json'), 'Build inputs changed between clean builds'
-            env = dict(os.environ, F75_IMAGE=str(b / 'f75max-wired-test.bin'), F75_TEST_RECEIPT=str(b / 'adapter-tests.json'))
+            env = dict(os.environ, F75_IMAGE=str(b / (artifact + '.bin')), F75_TEST_RECEIPT=str(b / 'adapter-tests.json'))
             run([sys.executable, 'scripts/test_keyboard_image.py'], b / 'adapter-tests.log', env=env)
-            run([sys.executable, 'scripts/test_system_emulator.py', str(b / 'f75max-wired-test.bin'),
+            run([sys.executable, 'scripts/test_system_emulator.py', str(b / (artifact + '.bin')),
                  '--output', str(b / 'system-tests.json')]+(['--source-only'] if args.source_only else []), b / 'system-tests.log')
             result = json.loads((b / 'system-tests.json').read_text())
             assert result['status'] == 'passed' and result['candidate_sha256'] == compared['bin']
@@ -142,6 +145,8 @@ def main():
                     'usb-link': 'test_usb_link_system.py',
                     'bluetooth-consumer': 'test_bluetooth_consumer_system.py',
                 }
+                if args.target=='s75pro':
+                    scripts={key:scripts[key] for key in ['settings','radio','custom','battery','idle-power']}
                 for name, script in scripts.items():
                     print(f'Checking {name} on the exact full_ui image...', flush=True)
                     target = b / (name + '-tests.json')
@@ -149,11 +154,11 @@ def main():
                     # owner Mac; hosted emulation can exceed the default 300s.
                     # Keep its assertions and finite deadline unchanged in scope.
                     timeout = 600 if name == 'bluetooth-settings' else 300
-                    run([sys.executable, 'scripts/' + script, str(b / 'f75max-wired-test.bin'),
+                    run([sys.executable, 'scripts/' + script, str(b / (artifact + '.bin')),
                          '--output', str(target)], b / (name + '-tests.log'), timeout=timeout)
                     check = json.loads(target.read_text())
                     assert check['status'] == 'passed' and check['candidate_sha256'] == compared['bin']
-                    assert sha(b / 'f75max-wired-test.bin') == compared['bin'], 'Test modified the input image'
+                    assert sha(b / (artifact + '.bin')) == compared['bin'], 'Test modified the input image'
                     focused[name] = str(target.relative_to(ROOT))
             receipt['profiles'][profile] = dict(status='passed', identical_clean_builds=2, sha256=compared,
                                                build_inputs_sha256=sha(b / 'build-inputs.json'),
@@ -164,7 +169,7 @@ def main():
         if not args.source_only:run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], out / 'research-tests.log')
         receipt['private_research_checks'] = 'not_run' if args.source_only else 'passed'
         receipt['status'] = 'passed'
-        full = out / 'full_ui/b/f75max-wired-test.bin'
+        full = out / 'full_ui/b' / (artifact + '.bin')
         # Verification creates an uninstalled artifact. Keep the installed
         # emulator/deployment pointer separate from this reproduction result.
         receipt['emulator_image'] = dict(image=str(full.relative_to(ROOT)), sha256=sha(full),
@@ -175,7 +180,7 @@ def main():
         raise
     finally:
         path.write_text(json.dumps(receipt, indent=2) + '\n')
-        latest = ROOT / 'analysis/repro/latest.json'
+        latest = base / 'latest.json'
         temporary = latest.with_suffix('.tmp')
         temporary.write_text(json.dumps(dict(status=receipt['status'], receipt=str(path.relative_to(ROOT))), indent=2) + '\n')
         temporary.replace(latest)
