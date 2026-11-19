@@ -85,11 +85,21 @@ def assemble(directory,commit,tag):
     return manifest
 
 
+def find_release(repo,tag):
+    # The tag endpoint only returns published releases. The authenticated list
+    # includes drafts, including those that do not have a Git tag yet.
+    pages=json.loads(subprocess.check_output(
+        ['gh','api','--paginate','--slurp',f'repos/{repo}/releases?per_page=100'],text=True))
+    matches=[release for page in pages for release in page if release.get('tag_name')==tag]
+    if len(matches)!=1:raise ValueError('Expected exactly one release for '+tag)
+    return matches[0]
+
+
 def publish(directory,commit,tag):
     manifest=assemble(directory,commit,tag)
     repo=os.environ['GH_REPO']
     if not re.fullmatch(r'[\w.-]+/[\w.-]+',repo):raise ValueError('Invalid release repository')
-    release=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/{tag}'],text=True))
+    release=find_release(repo,tag)
     if not release['draft']:
         raise ValueError('Release is already public; its assets will not be overwritten')
     # A draft may not have a Git tag yet. If a tag exists, it must resolve to
