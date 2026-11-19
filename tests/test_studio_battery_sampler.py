@@ -52,6 +52,20 @@ class StudioBatterySamplerTest(unittest.TestCase):
                                   expected_transport="bluetooth", expected_slot=2,
                                   board_identity=self.board))
 
+    def test_stale_decoded_measurement_retries_and_retains_exact_server_message(self):
+        with tempfile.TemporaryFile(mode='w+') as events:
+            self.sampler.event_log = events
+            with patch('studio_battery_sampler.urlopen', side_effect=[
+                    http_error(409, 'Invalid or stale gauge measurement'),
+                    response(dict(transport='bluetooth', board_identity=self.board,
+                                  power={'estimate_percent': 98.76}))]), \
+                    patch('studio_battery_sampler.time.sleep'):
+                self.assertEqual(self.read()['estimate_percent'], 98.76)
+            events.seek(0)
+            saved = [json.loads(line) for line in events]
+            self.assertEqual(saved[0]['error_message'], 'Invalid or stale gauge measurement')
+            self.assertEqual(saved[-1]['event'], 'recovered')
+
     def test_retries_are_bounded(self):
         with patch("studio_battery_sampler.urlopen", side_effect=TimeoutError) as request, \
                 patch("studio_battery_sampler.time.sleep"):
@@ -98,26 +112,26 @@ class LongOutageTest(unittest.TestCase):
     def advance(self, seconds):
         self.clock += seconds
 
-    def test_recovers_after_twenty_minutes_and_saves_logs_under_stdout_capture(self):
+    def test_recovers_after_ten_hours_and_saves_logs_under_stdout_capture(self):
         with tempfile.TemporaryFile(mode="w+") as events:
             with patch("studio_battery_sampler.urlopen", return_value=response(
                     dict(desktop=True, power_telemetry=True, csrf="test"))):
                 sampler = StudioSampler(self.manifest, lambda process: True,
-                                        deadline=8200, event_log=events)
+                                        deadline=87400, event_log=events)
             with patch("studio_battery_sampler.time.monotonic", side_effect=lambda: self.clock), \
                     patch("studio_battery_sampler.time.sleep", side_effect=self.advance), \
                     patch("studio_battery_sampler.urlopen", side_effect=[
-                        http_error(409, "No enrolled Bluetooth keyboard is connected.") for _ in range(25)
+                        http_error(409, "No enrolled Bluetooth keyboard is connected.") for _ in range(641)
                     ] + [response(dict(transport="bluetooth", board_identity=self.board,
                                        power={"estimate_percent": 90.91}))]), \
                     contextlib.redirect_stdout(io.StringIO()) as captured:
                 self.assertEqual(sampler.sample("bluetooth", board=self.board)["estimate_percent"], 90.91)
                 events.seek(0)
                 saved = [json.loads(line) for line in events]
-            self.assertGreater(saved[-1]["outage_seconds"], 1200)
+            self.assertGreater(saved[-1]["outage_seconds"], 36000)
             self.assertEqual(saved[-1]["event"], "recovered")
-            self.assertEqual(saved[-1]["failed_attempts"], 25)
-            self.assertEqual(sum(row["event"] == "retry" for row in saved), 25)
+            self.assertEqual(saved[-1]["failed_attempts"], 641)
+            self.assertEqual(sum(row["event"] == "retry" for row in saved), 641)
             self.assertEqual(captured.getvalue(), "")
 
     def test_outage_reaches_deadline_with_retry_history_still_on_disk(self):

@@ -17,7 +17,7 @@ from studio_battery_sampler import StudioReadError
 
 
 class StudioWorkerTest(unittest.TestCase):
-    def run_worker(self, recording_error=False, final_error=False):
+    def run_worker(self, recording_error=False, final_error=False, invalid_partial=False):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             manifest = dict(thread_id='thread', owner_host_id='local', campaign_id='campaign',
@@ -46,6 +46,8 @@ class StudioWorkerTest(unittest.TestCase):
             second = json.loads(json.dumps(first))
             second.update(observed_at='2026-11-18T00:30:00+00:00', monotonic_seconds=2800)
             second['power'].update(raw_soc=12050, percent=49, estimate_percent=49.00, uptime_ms=1900000)
+            if invalid_partial:
+                second['power']['config_crc32'] = 456
             def record(args):
                 args.output.write_text('\n'.join(json.dumps(row) for row in (first, second)) + '\n')
                 # This is written to the exact file handed to the real sampler.
@@ -53,7 +55,7 @@ class StudioWorkerTest(unittest.TestCase):
                 events.write('{"event":"retry"}\n')
                 events.flush()
                 if recording_error:
-                    raise StudioReadError('measurement_deadline')
+                    raise ValueError('Keyboard restarted or its clock disagrees with host elapsed time')
                 return summarize([first, second], allow_sampling_gaps=True)
             with patch.object(worker.runpy, 'run_path', return_value=observer), \
                     patch.object(worker, 'StudioSampler', return_value=sampler) as create_sampler, \
@@ -67,14 +69,16 @@ class StudioWorkerTest(unittest.TestCase):
             hold.terminate.assert_called_once()
             self.assertEqual((directory / 'events.jsonl').read_text(), '{"event":"retry"}\n')
             self.assertEqual(result['samples'], 2)
-            self.assertEqual(result['summary']['end_estimate_percent'], 49.00)
-            self.assertFalse(result['summary']['continuous_sampling_verified'])
+            if not invalid_partial:
+                self.assertEqual(result['summary']['end_estimate_percent'], 49.00)
+                self.assertFalse(result['summary']['continuous_sampling_verified'])
             return code, result, (directory / 'final-settings.bin').exists()
 
     def test_outage_at_deadline_preserves_partial_interval_and_final_snapshot(self):
         code, result, final_exists = self.run_worker(recording_error=True)
         self.assertEqual(code, 1)
-        self.assertEqual(result['error_category'], 'measurement_deadline')
+        self.assertEqual(result['error_category'], 'ValueError')
+        self.assertEqual(result['error_message'], 'Keyboard restarted or its clock disagrees with host elapsed time')
         self.assertTrue(result['complete_settings_match'])
         self.assertTrue(final_exists)
 
@@ -90,4 +94,12 @@ class StudioWorkerTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(result['conclusion'], 'success')
         self.assertTrue(result['complete_settings_match'])
+        self.assertTrue(final_exists)
+
+    def test_invalid_partial_summary_does_not_prevent_terminal_receipt(self):
+        code, result, final_exists = self.run_worker(recording_error=True, invalid_partial=True)
+        self.assertEqual(code, 1)
+        self.assertIsNone(result['summary'])
+        self.assertIn('configuration changed', result['summary_error']['message'])
+        self.assertIn('clock disagrees', result['error_message'])
         self.assertTrue(final_exists)

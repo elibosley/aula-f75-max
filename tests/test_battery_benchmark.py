@@ -111,4 +111,53 @@ class BatteryBenchmarkTest(unittest.TestCase):
             self.assertEqual(len(args.output.read_text().splitlines()), 2)
 
 
+    def test_clock_change_reported_only_with_explicit_opt_in(self):
+        rows = self.rows()
+        rows[1]['power']['uptime_ms'] = 1000
+        with self.assertRaisesRegex(ValueError, 'clock disagrees'):
+            summarize(rows, allow_sampling_gaps=True)
+        result = summarize(rows, allow_sampling_gaps=True, allow_clock_discontinuities=True)
+        self.assertFalse(result['device_clock_continuity_verified'])
+        self.assertFalse(result['continuous_sampling_verified'])
+        self.assertEqual(len(result['device_clock_discontinuities']), 1)
+        for change in ({'config_crc32': 456}, {'charging': True}):
+            modified = copy.deepcopy(rows)
+            modified[1]['power'].update(change)
+            with self.assertRaises(ValueError):
+                summarize(modified, allow_sampling_gaps=True, allow_clock_discontinuities=True)
+
+    def test_unavailable_reading_is_logged_and_retried_without_entering_samples(self):
+        clock = [1000.0]
+        first, last = [row['power'] for row in self.rows()]
+        first['estimate_percent'] = 50.0
+        last.update(estimate_percent=49.0, uptime_ms=460000)
+        invalid = dict(first, gauge_valid=False)
+        events = []
+        with tempfile.TemporaryDirectory() as directory:
+            args = argparse.Namespace(transport='bluetooth', cable_unplugged=True,
+                firmware_sha256='a'*64, interval=300, duration=360,
+                output=Path(directory)/'samples.jsonl', probe=None, board='board',
+                allow_sampling_gaps=True, allow_clock_discontinuities=True,
+                event_callback=lambda event, **fields: events.append(dict(event=event, **fields)))
+            with patch('battery_benchmark.time.monotonic', side_effect=lambda: clock[0]), \
+                 patch('battery_benchmark.time.sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+seconds)), \
+                 patch('battery_benchmark.sample', side_effect=[first, invalid, last]), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                result = record(args)
+            self.assertEqual(result['samples'], 2)
+            self.assertEqual(len(args.output.read_text().splitlines()), 2)
+            self.assertEqual(events[0]['event'], 'sample_rejected')
+            self.assertIn('unavailable', events[0]['error_message'])
+            self.assertFalse(events[0]['sample']['power']['gauge_valid'])
+
+    def test_power_and_unknown_estimates_cannot_enter_recording(self):
+        from battery_benchmark import validate_reading, RejectedReading
+        power = dict(self.rows()[0]['power'], estimate_percent=50.0)
+        for estimate in (float('nan'), float('inf'), True, None, -1, 101):
+            with self.subTest(estimate=estimate), self.assertRaises(RejectedReading):
+                validate_reading(dict(power, estimate_percent=estimate))
+        with self.assertRaisesRegex(ValueError, 'External power'):
+            validate_reading(dict(power, charging=True))
+
+
 if __name__=='__main__':unittest.main()

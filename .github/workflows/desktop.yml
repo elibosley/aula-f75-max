@@ -72,7 +72,10 @@ jobs:
           python -m pip install -r requirements-desktop.txt
           python scripts/build_desktop.py
       - name: Verify native shell behavior
-        run: python scripts/test_desktop_shell.py
+        run: |
+          python scripts/test_desktop_shell.py
+          python -m unittest discover -s tests -p 'test_desktop_version.py'
+          python -m unittest discover -s tests -p 'test_keyboard_diagnostics.py'
       - name: Verify and archive macOS app
         if: runner.os == 'macOS'
         run: |

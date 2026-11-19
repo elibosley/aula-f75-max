@@ -40,6 +40,7 @@ def main(directory):
     print('measurement_started job=' + manifest['job_id'], flush=True)
     conclusion, category = 'failure', 'startup'
     summary = settings_match = final_error = None
+    error_detail = final_error_detail = summary_error = None
     hold = sampler = None
     cleanup = 'not_started'
     events = None
@@ -68,13 +69,17 @@ def main(directory):
                                   firmware_sha256=manifest['firmware_sha256'], interval=300,
                                   duration=duration, output=directory / 'samples.jsonl',
                                   probe=Path(manifest['probe']), board=manifest['board_identity'],
-                                  allow_sampling_gaps=True)
+                                  allow_sampling_gaps=True, allow_clock_discontinuities=True,
+                                  event_callback=sampler.log_event)
         summary = benchmark.record(args)
         conclusion, category = 'success', None
     except Interrupted:
         conclusion, category = 'interrupted', 'worker_signal'
     except Exception as error:
         category = getattr(error, 'reason', type(error).__name__)
+        error_detail = str(error)[:2000]
+        if sampler is not None:
+            sampler.log_event('recording_error', error_category=category, error_message=error_detail)
     finally:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
@@ -88,6 +93,7 @@ def main(directory):
                     conclusion, category = 'failure', 'complete_settings_changed'
             except Exception as error:
                 final_error = error.reason if isinstance(error, StudioReadError) else type(error).__name__
+                final_error_detail = str(error)[:2000]
                 if conclusion == 'success':
                     conclusion, category = 'failure', 'final_settings_unavailable'
         if hold is not None:
@@ -99,19 +105,32 @@ def main(directory):
                 hold.kill()
                 hold.wait(timeout=5)
             cleanup = 'complete'
-        if sampler is not None:
-            sampler.log_event('recording_stopped', conclusion=conclusion, error_category=category)
-        if events is not None:
-            events.close()
         path = directory / 'samples.jsonl'
-        rows = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+        rows = []
+        if path.exists():
+            try:
+                for line in path.read_text().splitlines():
+                    rows.append(json.loads(line))
+            except Exception as error:
+                summary_error = dict(category=type(error).__name__, message=str(error)[:2000])
+                conclusion, category = 'failure', 'saved_samples_invalid'
         if summary is None and len(rows) >= 2:
-            summary = benchmark.summarize(rows, allow_sampling_gaps=True)
-            summary['termination'] = 'partial interval after ' + str(category)
+            try:
+                summary = benchmark.summarize(rows, allow_sampling_gaps=True, allow_clock_discontinuities=True)
+                summary['termination'] = 'partial interval after ' + str(category)
+            except Exception as error:
+                summary_error = dict(category=type(error).__name__, message=str(error)[:2000])
         result = dict(identity, observed_at_unix=time.time(), conclusion=conclusion,
-                      error_category=category, summary=summary, samples=len(rows),
+                      error_category=category, error_message=error_detail, summary=summary, samples=len(rows),
+                      summary_error=summary_error, final_settings_error_message=final_error_detail,
                       sleep_assertion_cleanup=cleanup, complete_settings_match=settings_match,
                       final_settings_error_category=final_error)
+        if sampler is not None:
+            sampler.log_event('recording_stopped', conclusion=conclusion, error_category=category,
+                              error_message=error_detail, summary_error=summary_error,
+                              final_settings_error_message=final_error_detail)
+        if events is not None:
+            events.close()
         atomic(directory / 'result.json', result)
         print('measurement_terminal conclusion=' + conclusion + ' samples=' + str(len(rows)), flush=True)
     return 0 if conclusion == 'success' else 1

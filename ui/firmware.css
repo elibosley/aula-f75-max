@@ -6,3 +6,5 @@
 .simulator-controls .color-tools{margin:12px 0}
 #firmware-progress{display:block;width:100%;margin-top:18px}
 #firmware-progress[hidden]{display:none}
+
+#diagnostics-report{white-space:pre-wrap;overflow-wrap:anywhere;max-height:24rem;overflow:auto;font-size:.85rem;line-height:1.5}#diagnostics-details{margin-top:1rem}#diagnostics-details summary{cursor:pointer}

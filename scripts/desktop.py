@@ -26,6 +26,28 @@ class DesktopState:
         from firmware_installer import FirmwareInstaller
         self.installer = FirmwareInstaller()
         self.previews = {}
+        self._diagnostic_report = None
+
+    def collect_s75_diagnostics(self):
+        from keyboard_diagnostics import collect
+        from keyboard_transport_lock import TransportLock
+        if self._pending_settings or self.installer.snapshot()['busy']:
+            raise ValueError('Wait for the current keyboard operation to finish before collecting diagnostics.')
+        # Enumeration never opens the keyboard or enters its bootloader.
+        self._diagnostic_report = None
+        with TransportLock():
+            report = collect(hid_backend().enumerate(0x0c45, 0x800a))
+        self._diagnostic_report = report
+        return report
+
+    def open_s75_diagnostic_issue(self):
+        import webbrowser
+        from keyboard_diagnostics import issue_url
+        if self._diagnostic_report is None:
+            raise ValueError('Collect and review the diagnostic report first.')
+        if not webbrowser.open(issue_url(self._diagnostic_report)):
+            raise RuntimeError('The browser could not open GitHub. Copy the report into a new repository issue.')
+        return {'opened': True}
 
     def firmware_availability(self):
         return self.installer.availability()
@@ -168,6 +190,14 @@ def main():
 def check(origin, use_keyboard):
     from urllib.request import Request
 
+    from keyboard_diagnostics import app_version
+    version = app_version()
+    if getattr(sys, 'frozen', False) and sys.platform == 'darwin':
+        import plistlib
+        info = Path(sys.executable).resolve().parent.parent / 'Info.plist'
+        metadata = plistlib.loads(info.read_bytes())
+        if any(metadata.get(key) != version for key in ('CFBundleShortVersionString', 'CFBundleVersion')):
+            raise RuntimeError('Native bundle version disagrees with the application version.')
     hid = hid_backend()
     if sys.platform == 'linux' and hid.__name__ != 'hidraw':
         raise RuntimeError('The Linux desktop package requires the hidraw backend.')
@@ -197,7 +227,7 @@ def check(origin, use_keyboard):
             raise RuntimeError('Keyboard settings read failed')
     if sys.stdout is not None:
         print(json.dumps({'desktop': 'passed', 'keyboard_read': use_keyboard,
-                          'hid_backend': hid.__name__, 'bluetooth_status': metadata['bluetooth_status'], 's75_simulator': simulator}))
+                          'hid_backend': hid.__name__, 'bluetooth_status': metadata['bluetooth_status'], 's75_simulator': simulator, 'version': version}))
 
 
 if __name__ == '__main__':

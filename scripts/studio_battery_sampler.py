@@ -19,6 +19,7 @@ TRANSIENT_CONFLICTS = (
     "Keyboard settings are busy.",
     "Keyboard transport is busy;",
     "Bluetooth settings session expired or changed.",
+    "Invalid or stale gauge measurement",
 )
 
 
@@ -38,6 +39,7 @@ def classify_http_error(error):
             message = json.loads(error.read(4096)).get("error")
         except (OSError, ValueError, AttributeError):
             message = None
+        error.studio_message = message[:2000] if isinstance(message, str) else None
         if isinstance(message, str) and message.startswith(TRANSIENT_CONFLICTS):
             return "bluetooth_unavailable", True
     return f"studio_http_{error.code}", False
@@ -89,12 +91,14 @@ class StudioSampler:
                 raise StudioReadError("measurement_deadline")
             request = Request(self.origin + "/api/hardware",
                               data=json.dumps(body).encode(), headers=self.headers)
+            detail = None
             try:
                 with urlopen(request, timeout=35 if remaining is None else min(35, remaining)) as response:
                     result = json.load(response)
             except HTTPError as error:
                 with error:
                     reason, retryable = classify_http_error(error)
+                    detail = getattr(error, "studio_message", None)
             except (TimeoutError, URLError, ConnectionError):
                 reason, retryable = "studio_connection_unavailable", True
             else:
@@ -110,13 +114,13 @@ class StudioSampler:
             if outage_started is None:
                 outage_started = time.monotonic()
             if not retryable or (self.deadline is None and attempt > len(RETRY_DELAYS)):
-                self.log_event("read_failed", action=action, reason=reason, attempts=attempt)
+                self.log_event("read_failed", action=action, reason=reason, error_message=detail, attempts=attempt)
                 raise StudioReadError(reason)
             delay = RETRY_DELAYS[attempt - 1] if attempt <= len(RETRY_DELAYS) else 60
             if self.deadline is not None:
                 delay = max(0, min(delay, self.deadline - time.monotonic()))
             self.log_event("retry", action=action, reason=reason, attempt=attempt,
-                           delay_seconds=delay, outage_seconds=time.monotonic() - outage_started)
+                           error_message=detail, delay_seconds=delay, outage_seconds=time.monotonic() - outage_started)
             time.sleep(delay)
 
     def sample(self, transport, probe=None, board=None):
