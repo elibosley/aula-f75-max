@@ -71,7 +71,7 @@ def sample(transport, probe=None, board=None):
     return decode_snapshot(data)
 
 
-def validate_discharge(rows, max_gap):
+def validate_discharge(rows, max_gap, allow_clock_discontinuities=False):
     if len(rows) < 2:
         raise ValueError('At least two battery-only samples are required')
     first = rows[0]
@@ -95,20 +95,29 @@ def validate_discharge(rows, max_gap):
         if not math.isfinite(elapsed) or elapsed <= 0 or (max_gap is not None and elapsed > max_gap):
             raise ValueError('Missing samples, clock discontinuity, or host sleep invalidated continuous timing')
         device_elapsed = (row['power']['uptime_ms'] - previous['power']['uptime_ms']) & 0xffffffff
-        if abs(device_elapsed / 1000 - elapsed) > 10:
+        if abs(device_elapsed / 1000 - elapsed) > 10 and not allow_clock_discontinuities:
             raise ValueError('Keyboard restarted or its clock disagrees with host elapsed time')
     return rows[-1]['monotonic_seconds'] - first['monotonic_seconds']
 
 
-def summarize(rows, max_gap=660, allow_sampling_gaps=False):
-    elapsed = validate_discharge(rows, None if allow_sampling_gaps else max_gap)
+def summarize(rows, max_gap=660, allow_sampling_gaps=False, allow_clock_discontinuities=False):
+    elapsed = validate_discharge(rows, None if allow_sampling_gaps else max_gap, allow_clock_discontinuities)
+    discontinuities = [dict(after=previous.get("observed_at"), before=row.get("observed_at"),
+                            host_elapsed_seconds=row["monotonic_seconds"] - previous["monotonic_seconds"],
+                            device_elapsed_seconds=((row["power"]["uptime_ms"] - previous["power"]["uptime_ms"]) & 0xffffffff) / 1000)
+                       for previous, row in zip(rows, rows[1:])
+                       if abs(((row["power"]["uptime_ms"] - previous["power"]["uptime_ms"]) & 0xffffffff) / 1000
+                              - (row["monotonic_seconds"] - previous["monotonic_seconds"])) > 10]
     gaps = [dict(after=previous.get('observed_at'), before=row.get('observed_at'),
                  elapsed_seconds=row['monotonic_seconds'] - previous['monotonic_seconds'])
             for previous, row in zip(rows, rows[1:])
             if row['monotonic_seconds'] - previous['monotonic_seconds'] > max_gap]
     start, end = rows[0]['power'], rows[-1]['power']
     return dict(status='measured_interval', samples=len(rows), elapsed_hours=elapsed / 3600,
-                sampling_gaps=gaps, continuous_sampling_verified=not gaps,
+                sampling_gaps=gaps, continuous_sampling_verified=not gaps and not discontinuities,
+                device_clock_discontinuities=discontinuities,
+                device_clock_continuity_verified=not discontinuities,
+                drop_percentage_points=round(start.get("estimate_percent", start["percent"]) - end.get("estimate_percent", end["percent"]), 2),
                 start_estimate_percent=start.get('estimate_percent'),
                 end_estimate_percent=end.get('estimate_percent'),
                 start_percent=start['percent'], end_percent=end['percent'],
@@ -116,6 +125,28 @@ def summarize(rows, max_gap=660, allow_sampling_gaps=False):
                 start_millivolts=start['millivolts'], end_millivolts=end['millivolts'],
                 full_charge_runtime_measured=False, efficiency_multiplier=None,
                 current_draw_measured=False, measurement='supplier gauge estimate, not energy or current')
+
+
+class RejectedReading(ValueError):
+    """A transient gauge reading must be retained but cannot enter the sample set."""
+
+
+def validate_reading(power):
+    if power.get('usb_configured') is not False or power.get('charging') is True:
+        raise ValueError('External power or unknown USB state invalidates discharge recording')
+    if power.get('gauge_valid') is not True or power.get('charging') is not False:
+        raise RejectedReading('Gauge or charging state is unavailable')
+    for key, low, high in (('millivolts', 2800, 4500), ('raw_soc', 0, 25600),
+                           ('percent', 0, 100), ('gauge_age_ms', 0, 29999),
+                           ('uptime_ms', 0, 0xffffffff), ('config_crc32', 0, 0xffffffff)):
+        if type(power.get(key)) is not int or not low <= power[key] <= high:
+            raise RejectedReading('Invalid gauge field: ' + key)
+    if power['percent'] != min(100, power['raw_soc'] * 100 // 24576):
+        raise RejectedReading('Gauge percentage and raw SOC disagree')
+    estimate = power.get('estimate_percent')
+    if (isinstance(estimate, bool) or not isinstance(estimate, (int, float))
+            or not math.isfinite(estimate) or not 0 <= estimate <= 100):
+        raise RejectedReading('Invalid gauge estimate_percent')
 
 
 def record(args):
@@ -131,6 +162,10 @@ def record(args):
     with os.fdopen(descriptor, 'w') as output:
         fcntl.flock(output, fcntl.LOCK_EX | fcntl.LOCK_NB)
         started = time.monotonic()
+        events = getattr(args, 'event_callback', lambda *a, **kw: None)
+        allow_clocks = getattr(args, 'allow_clock_discontinuities', False)
+        if allow_clocks and not getattr(args, 'allow_sampling_gaps', False):
+            raise ValueError('Clock discontinuities require explicit sampling-gap reporting')
         while True:
             power = sample('bluetooth', args.probe, args.board)
             row = dict(observed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -138,18 +173,32 @@ def record(args):
                        firmware_identity='operator-supplied installed-image identity; not device attestation',
                        power=power)
             # A powered/unknown sample cannot become a battery-runtime result.
-            if not power['gauge_valid'] or power['usb_configured'] or power['charging'] is not False:
-                raise ValueError('Cable power, unknown charge state, or unavailable gauge invalidates discharge recording')
+            try:
+                validate_reading(power)
+                if rows:
+                    validate_discharge([rows[-1], row], None if getattr(args, 'allow_sampling_gaps', False) else args.interval * 2 + 60, allow_clocks)
+                    if power['config_crc32'] != rows[0]['power']['config_crc32']:
+                        raise ValueError('Configuration changed during discharge recording')
+                    elapsed = row['monotonic_seconds'] - rows[-1]['monotonic_seconds']
+                    device_elapsed = ((power['uptime_ms'] - rows[-1]['power']['uptime_ms']) & 0xffffffff) / 1000
+                    if abs(device_elapsed - elapsed) > 10:
+                        events('device_clock_discontinuity', host_elapsed_seconds=elapsed,
+                               device_elapsed_seconds=device_elapsed,
+                               interpretation='Device clock changed; sleep or restart is not established')
+            except ValueError as error:
+                events('sample_rejected', error_category=type(error).__name__, error_message=str(error), sample=row)
+                if not isinstance(error, RejectedReading):
+                    raise
+                if time.monotonic() - started >= args.duration:
+                    raise ValueError('Recording deadline reached without a valid final reading') from error
+                time.sleep(min(60, max(0, args.duration - (time.monotonic() - started))))
+                continue
             rows.append(row)
-            if len(rows) > 1:
-                validate_discharge(rows[-2:], None if getattr(args, 'allow_sampling_gaps', False) else args.interval * 2 + 60)
-                if power['config_crc32'] != rows[0]['power']['config_crc32']:
-                    raise ValueError('Configuration changed during discharge recording')
             output.write(json.dumps(row, separators=(',', ':')) + '\n'); output.flush(); os.fsync(output.fileno())
             if power.get('estimate_percent', power['percent']) <= 5 or time.monotonic() - started >= args.duration:
                 break
             time.sleep(max(0, min(args.interval, args.duration - (time.monotonic() - started))))
-    result = summarize(rows, args.interval * 2 + 60, getattr(args, 'allow_sampling_gaps', False))
+    result = summarize(rows, args.interval * 2 + 60, getattr(args, 'allow_sampling_gaps', False), allow_clocks)
     result['termination'] = '5-percent reserve' if rows[-1]['power'].get('estimate_percent', rows[-1]['power']['percent']) <= 5 else 'finite-duration limit'
     print(json.dumps(result, indent=2))
     return result
@@ -169,11 +218,13 @@ def main():
     p.add_argument('--interval', type=int, default=300)
     p.add_argument('--duration', type=int, default=86400)
     p.add_argument('--output', type=Path)
+    p.add_argument('--allow-clock-discontinuities', action='store_true',
+                   help='Report device-clock changes without claiming continuous device timing')
     p.add_argument('--allow-sampling-gaps', action='store_true',
                    help='Keep explicitly reported Bluetooth sample gaps in the interval')
     a = p.parse_args()
     if a.summarize:
-        print(json.dumps(summarize([json.loads(line) for line in a.summarize.read_text().splitlines()], a.interval * 2 + 60, a.allow_sampling_gaps), indent=2))
+        print(json.dumps(summarize([json.loads(line) for line in a.summarize.read_text().splitlines()], a.interval * 2 + 60, a.allow_sampling_gaps, a.allow_clock_discontinuities), indent=2))
     elif a.record:
         if not a.output or not a.probe or not a.board:
             p.error('--record requires --output, --probe, and the enrolled --board identity')
