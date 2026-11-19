@@ -15,6 +15,7 @@ import sys
 import tarfile
 import uuid
 
+from release_artifacts import clean_worktree,head
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -72,6 +73,8 @@ def main():
     parser.add_argument('--bootstrap', action='store_true', help='Fetch pinned sources/tools and build QEMU first')
     parser.add_argument('--source-only', action='store_true', help='Run public build checks without private research captures')
     args = parser.parse_args()
+    clean_worktree()
+    source_commit=head()
     lock = ROOT / '.runtime/reproduce.lock'
     lock.parent.mkdir(exist_ok=True, mode=0o700)
     campaign_lock = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
@@ -84,7 +87,7 @@ def main():
     out = base / 'runs' / attempt
     artifact = args.target + '-wired-test'
     out.mkdir(parents=True)
-    receipt = dict(status='running', attempt=attempt, target=args.target, hardware_writes=False,
+    receipt = dict(status='running', attempt=attempt, target=args.target, source_commit=source_commit, hardware_writes=False,
                    python=sys.version, platform=os.uname().sysname + ' ' + os.uname().machine,
                    profiles={}, scope='Two complete clean builds per profile, same host and source directory')
     path = out / 'receipt.json'
@@ -168,6 +171,8 @@ def main():
             print(f'{profile}: reproducible; ARM adapter and full-system checks passed.', flush=True)
         if not args.source_only:run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], out / 'research-tests.log')
         receipt['private_research_checks'] = 'not_run' if args.source_only else 'passed'
+        clean_worktree()
+        assert head()==source_commit,'Source commit changed during reproduction'
         receipt['status'] = 'passed'
         full = out / 'full_ui/b' / (artifact + '.bin')
         # Verification creates an uninstalled artifact. Keep the installed

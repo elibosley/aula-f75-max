@@ -61,7 +61,7 @@ def assemble(directory,commit,tag):
                 proof=json.loads(archive.read('verification.json'))
                 if source.get('commit')!=commit or source.get('target')!=target:
                     raise ValueError('Firmware corresponding source identity mismatch')
-                if proof.get('status')!='passed' or proof.get('target')!=target:
+                if proof.get('status')!='passed' or proof.get('target')!=target or proof.get('source_commit')!=commit:
                     raise ValueError('Firmware verification did not pass')
                 if 'corresponding-source.tar.gz' not in archive.namelist():
                     raise ValueError('Firmware corresponding source is missing')

@@ -27,7 +27,7 @@ class ReleaseArtifactsTest(unittest.TestCase):
                         archive.writestr(f'{profile}/{target}-wired-test.elf',binary)
                         profiles[profile]=dict(status='passed',identical_clean_builds=2,sha256={ext:hashlib.sha256(binary).hexdigest() for ext in ('bin','elf')})
                     archive.writestr('SOURCE.json',json.dumps(dict(commit=COMMIT,target=target)))
-                    archive.writestr('verification.json',json.dumps(dict(status='passed',target=target,profiles=profiles)))
+                    archive.writestr('verification.json',json.dumps(dict(status='passed',source_commit=COMMIT,target=target,profiles=profiles)))
                     archive.writestr('corresponding-source.tar.gz',b'fixture source')
             else:path.write_bytes(name.encode())
             (root/(name+'.json')).write_text(json.dumps(dict(file=name,sha256=release.sha(path),bytes=path.stat().st_size,source_commit=COMMIT,version='0.2.0')))

@@ -2,7 +2,7 @@
 """Package only canonical firmware and sanitized verification receipts."""
 import argparse,hashlib,json,shutil,subprocess,io,tarfile
 from pathlib import Path
-from release_artifacts import clean_worktree
+from release_artifacts import clean_worktree,head
 ROOT=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--target',choices=['f75max','s75pro'],default='f75max')
@@ -12,6 +12,7 @@ artifact=args.target+'-wired-test'
 latest=json.loads((ROOT/'analysis/repro'/args.target/'latest.json').read_text())
 receipt=json.loads((ROOT/latest['receipt']).read_text())
 assert receipt['status']=='passed' and receipt['target']==args.target
+assert receipt['source_commit']==head(),'Verification is for another source commit'
 out=ROOT/'dist/firmware'/args.target
 if out.exists():shutil.rmtree(out)
 out.mkdir(parents=True)
