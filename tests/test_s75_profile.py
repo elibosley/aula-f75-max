@@ -25,6 +25,11 @@ class S75ProfileTest(unittest.TestCase):
         self.assertEqual(len(set(pins)),21)
         self.assertNotIn(board['encoder']['pin_a'],pins)
         self.assertNotIn(board['encoder']['pin_b'],pins)
+    def test_unqualified_f75_outputs_are_not_in_the_s75_adapter(self):
+        adapter=(ROOT/'firmware/targets/s75pro/board_adapter.h').read_text()
+        self.assertIn('#define F75_DEDICATED_CAPS_LED 0',adapter)
+        self.assertIn('#define F75_EXTERNAL_NOR 0',adapter)
+        self.assertNotIn('#define F75_STOCK_LOW_PINS',adapter)
     def test_codec_reserves_the_board_fn_and_preserves_model(self):
         for model,tag,fn,control in [('f75max',0,71,65),('s75pro',1,65,71)]:
             data=bytearray(fixture());data[130]=tag

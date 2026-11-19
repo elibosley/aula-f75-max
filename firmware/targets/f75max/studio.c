@@ -759,10 +759,12 @@ void keyboard_pre_init_user(void) {
      * A14/A15 are the recovered gauge clock/data. B1 is the active-high
      * dedicated Caps indicator (supplier routine 0xb48c). B0/B18 retain their
      * stock levels without assigning an unverified electrical purpose. */
-    static const pin_t stock_high[]={A13,A14,A15};
+    static const pin_t stock_high[]={F75_STOCK_HIGH_PINS};
+    for(unsigned i=0;i<sizeof(stock_high)/sizeof(stock_high[0]);++i){gpio_write_pin_high(stock_high[i]);gpio_set_pin_output(stock_high[i]);}
+#ifdef F75_STOCK_LOW_PINS
     static const pin_t stock_low[]={F75_STOCK_LOW_PINS};
-    for(unsigned i=0;i<3;++i){gpio_write_pin_high(stock_high[i]);gpio_set_pin_output(stock_high[i]);}
     for(unsigned i=0;i<sizeof(stock_low)/sizeof(stock_low[0]);++i){gpio_write_pin_low(stock_low[i]);gpio_set_pin_output(stock_low[i]);}
+#endif
     if(!F75_GAUGE_IDLE_HIGH){gpio_write_pin_low(A14);gpio_write_pin_low(A15);}
     gpio_set_pin_input_high(F75_ENCODER_A);
     gpio_set_pin_input_high(F75_ENCODER_B);
@@ -1152,7 +1154,9 @@ void housekeeping_task_user(void) {
        state.pair_slot==active_slot&&f75_radio_connected())state.pairing=F75_PAIR_IDLE;
     /* The separate board indicator follows the active host, independently of
      * RGB brightness, palettes, Fn overlays, and screen power management. */
+#if F75_DEDICATED_CAPS_LED
     gpio_write_pin(B1, f75_caps_lock_on());
+#endif
     f75_tick(&state, now);
     bool was_alert=focus.alert;
     f75_timer_tick(&focus, now);

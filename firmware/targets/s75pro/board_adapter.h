@@ -11,6 +11,10 @@
 #define F75_LED_ROW_COUNT 21
 #define F75_LED_SIDE_ROWS A0,A1,A2
 #define F75_LED_MASK_A 0x0b07u
-/* B0 is the encoder input on this board. Never drive it low. */
-#define F75_STOCK_LOW_PINS B1,B18
+/* Stock GPIO init (0x8e70) leaves B0/B1/B18 as inputs. B0 is the
+ * encoder. The S75 Caps routine updates key lighting, unlike F75 B1.
+ * External NOR wiring has not been qualified; leave A13 untouched. */
+#define F75_STOCK_HIGH_PINS A14,A15
+#define F75_DEDICATED_CAPS_LED 0
+#define F75_EXTERNAL_NOR 0
 #define F75_GAUGE_IDLE_HIGH 0

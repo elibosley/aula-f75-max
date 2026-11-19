@@ -477,8 +477,8 @@ def rgb_test():
         assert fw.word(base+0x44)&0xffff==255 and fw.word(base+0x14)&(1<<23)
     assert fw.word(0x40002050)&0xffff==255 and fw.word(0x40002018)&(1<<8)
     fw.call('keyboard_pre_init_user')
-    assert fw.word(GPIO[0])&0xe000==(0x2000 if S75 else 0xe000) and fw.word(GPIO[0]+4)&0xe000==0xe000
-    assert fw.word(GPIO[1])&(0x40002 if S75 else 0x40003)==0 and fw.word(GPIO[1]+4)&0x40003==(0x40002 if S75 else 0x40003)
+    assert fw.word(GPIO[0])&0xe000==(0 if S75 else 0xe000) and fw.word(GPIO[0]+4)&0xe000==(0xc000 if S75 else 0xe000)
+    assert fw.word(GPIO[1])&(0 if S75 else 0x40003)==0 and fw.word(GPIO[1]+4)&0x40003==(0 if S75 else 0x40003)
     before=fw.word(0x40008000)
     fw.word(0x40006004,77)
     fw.call('f75_rgb_pause')

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include QMK_KEYBOARD_H
+#include "board_adapter.h"
 #include "storage_probe.h"
 
 /* Supplier a7d45875: SPI1 init 0x12d28, read prefix 0x672c,
@@ -17,6 +18,7 @@ static bool byte(uint8_t tx, uint8_t *rx, uint16_t start) {
 }
 
 uint8_t f75_storage_probe(uint8_t operation,uint32_t address,uint8_t length,uint8_t *out) {
+    if(!F75_EXTERNAL_NOR)return 3; /* No unqualified board pins are driven. */
     if(!out || !length || length>18 || operation>1 ||
        (operation==0 && (address || length!=3)) ||
        (operation==1 && (address>=0x1000000u || length>0x1000000u-address)))return 1;

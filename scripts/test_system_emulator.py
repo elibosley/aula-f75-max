@@ -182,13 +182,13 @@ def rgb_runtime(machine):
     machine.until('housekeeping_task_user')
     assert machine.read32(0x400020a4)==0x7f0
     assert machine.read32(0x40044004)&0xf0==0 and machine.read32(0x40048004)&0x43ff==0
-    assert machine.read32(0x40044004)&0x6000==0x6000
+    assert machine.read32(0x40044004)&0x6000==(0x4000 if machine.target=="s75pro" else 0x6000)
     if 'f75_battery_task' in machine.symbols:
         # Gauge SDA A15 is released as an input between reads; A13 CS and
         # A14 clock retain their stock output directions.
         assert not machine.read32(0x40044004)&0x8000
     else:assert machine.read32(0x40044004)&0x8000
-    assert machine.read32(0x40046004)&0x40003==(0x40002 if machine.target=="s75pro" else 0x40003)
+    assert machine.read32(0x40046004)&0x40003==(0 if machine.target=="s75pro" else 0x40003)
     assert machine.read32(0x40008008)==255, 'RTOS clock rate changed'
     return dict(first=first,second=second,row_irq_advances=True,animation_buffers_advance=True,
                 pwm_disabled_during_key_sense=True,lighting_clock_advances_during_key_scan=True,key_sampling_owned_by_row_irq=True,rtos_timer4_free_running=True,
