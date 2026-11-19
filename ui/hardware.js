@@ -4,7 +4,10 @@ const transferProgress=new F75TransferProgress($('#transfer-progress'));
 const colorPresets=[['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['Ocean','#a4c8f2'],['Peach','#edc08c'],['White','#ffffff'],['Blossom','#ffd3e7'],['Buttercream','#fff0b3'],['Seafoam','#c0f2df'],['Periwinkle','#b3bfff'],['Candy','#ff75b5'],['Coral','#ff806f'],['Cherry','#ed4667'],['Tangerine','#ff9b45'],['Sunflower','#ffd447'],['Lime','#b9ef61'],['Jade','#42d69b'],['Teal','#32bcb4'],['Cyan','#59dcf2'],['Azure','#4ba4ff'],['Indigo','#8072ee'],['Violet','#bd75f2'],['Fuchsia','#ed63d2'],['Warm white','#ffedd6']];
 let settings=null,observedHost=null,csrf='',layout=[],chosen=null,layer=0,slot=0,busy=false,dirty=false;
 let desktop=false,displayReady=false,bluetoothAccess=null;
-const editableFields=['os','auto_mask','caps_swap','face','power','wheel','names','lighting','light_mode','reduced_motion','companion','screen_color','indicators','keys','colors','layer_colors','macros'];
+let lightingEffects=[];
+let modelLayouts={},visualKeys=F75_LAYOUT,activeModel=null;
+let batteryReading=null;
+const editableFields=['os','auto_mask','caps_swap','face','power','wheel','battery','names','lighting','light_mode','reduced_motion','companion','screen_color','indicators','keys','colors','layer_colors','macros'];
 let autoSaving=false;
 let resolvedTransport=null,connectionReady=false,connectionSnapshot=null,settingsBoard=null,settingsRoute=null,detecting=false,autoReadKey=null;
 function routeKey(){return JSON.stringify([connectionSnapshot?.choice.board_identity,resolvedTransport,connectionSnapshot?.choice.slot]);}
@@ -22,7 +25,7 @@ async function refreshConnection(){
   const label=resolvedTransport==='bluetooth'?'Bluetooth · BT'+snapshot.choice.slot:resolvedTransport==='usb'?'USB':null;
   $('#settings-transport option[value="auto"]').textContent=mode==='auto'&&label?'Automatic · '+label:'Automatic';
   $('#connection-state').textContent=connectionReady?'Connected':snapshot.choice.reason||'Disconnected';
-  $('#connection-intro').textContent=label?'F75 Max · '+label:'Connect your keyboard to load its settings.';
+  $('#connection-intro').textContent=label?(settings?.model==='s75pro'?'S75 Pro':'F75 Max')+' · '+label:'Connect your keyboard to load its settings.';
   document.body.dataset.connected=String(connectionReady);
   if(dirty&&!sameSettingsRoute()){$('#state-label').textContent='Waiting for keyboard';$('#message').textContent='Your edits are kept here. Reconnect the original keyboard and slot, or Reload to start over.';}
   $('#bluetooth-access').hidden=resolvedTransport!=='bluetooth'||bluetoothAccess==='granted';
@@ -52,6 +55,7 @@ function showSection(section,focus=false){
  $('#editor').hidden=section==='status';
  $('#apply-note').hidden=section==='status';
  if(focus)$('#section-title').focus({preventScroll:true});
+ if(section==='battery'&&settings&&!busy)refreshBattery();
  window.scrollTo({top:0,behavior:'instant'});
 }
 for(const link of document.querySelectorAll('[data-section]'))link.addEventListener('click',event=>{
@@ -60,7 +64,7 @@ for(const link of document.querySelectorAll('[data-section]'))link.addEventListe
 showSection('keys');
 
 // One small, consistent outline icon family; labels remain the accessible names.
-const navPaths={keys:'M3 5h18v14H3z M6 9h1m3 0h1m3 0h1m3 0h0 M6 12h1m3 0h1m3 0h1m3 0h0 M7 16h10',lighting:'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',devices:'M10 3l8 6-12 8m4 4 8-6L6 7m4-4v18',screen:'M3 4h18v13H3z M8 21h8m-4-4v4',macros:'M8 4v16l12-8z',status:'M5 17h14l-2-3V9a5 5 0 0 0-10 0v5z M10 21h4'};
+const navPaths={keys:'M3 5h18v14H3z M6 9h1m3 0h1m3 0h1m3 0h0 M6 12h1m3 0h1m3 0h1m3 0h0 M7 16h10',lighting:'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',devices:'M10 3l8 6-12 8m4 4 8-6L6 7m4-4v18',screen:'M3 4h18v13H3z M8 21h8m-4-4v4',battery:'M3 7h16v10H3z M21 10v4 M6 10v4m3-4v4m3-4v4',macros:'M8 4v16l12-8z',status:'M5 17h14l-2-3V9a5 5 0 0 0-10 0v5z M10 21h4'};
 for(const link of document.querySelectorAll('[data-section]')){
  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','nav-icon');svg.setAttribute('aria-hidden','true');
  const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',navPaths[link.dataset.section]);svg.append(path);link.prepend(svg);
@@ -68,9 +72,9 @@ for(const link of document.querySelectorAll('[data-section]')){
 window.F75Studio={navigate:section=>showSection(section,true),reload:()=>send('read'),clock:()=>send('clock')};
 window.addEventListener('pywebviewready',()=>window.pywebview.api.set_pending(dirty));
 
-const reserved=new Set([0,7,13,19,25,31,41,52,62,71,84]);
+const reserved=new Set([0,7,13,19,25,31,41,52,62,84]);
 const names={224:'Left Ctrl',225:'Left Shift',226:'Left Alt / Option',227:'Left Command / Windows',228:'Right Ctrl',229:'Right Shift',230:'Right Alt / Option',231:'Right Command / Windows',256:'Primary (Cmd / Ctrl)'};
-const logicalKeys=()=>[...new Map(F75_LAYOUT.filter(k=>k.label!=='Fn').map(k=>[k.usage,names[k.usage]||k.label])).entries()].concat([[228,'Right Ctrl'],[231,'Right Command / Windows']]);
+const logicalKeys=()=>[...new Map(visualKeys.filter(k=>k.label!=='Fn').map(k=>[k.usage,names[k.usage]||k.label])).entries()].concat([[228,'Right Ctrl'],[231,'Right Command / Windows']]);
 function option(select,value,label){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}
 function validationMessage(){
  if($('#editor input:invalid'))return 'Finish the highlighted field to save.';
@@ -121,6 +125,7 @@ const autoSave=new F75AutoSave({
   $('#message').textContent=error||{waiting:'Changes save after you pause.',saving:'Saving to your keyboard. You can keep editing.',saved:''}[state]||'';
   if(state==='saved'||state==='ready')setTimeout(()=>{if(!dirty&&!busy)transferProgress.dismiss();},1500);
   updateButtons();
+  if(state==='saved'&&activeSection==='battery')queueMicrotask(refreshBattery);
  }
 });
 function mark(){if(!busy)transferProgress.dismiss();autoSave.edited();updateButtons();paint();}
@@ -137,6 +142,7 @@ function updateButtons(){
  // A pending draft stays bound to its keyboard and transport until saved or reloaded.
  $('#settings-transport').disabled=busy||dirty;
  $('#bluetooth-allow').disabled=busy;$('#bluetooth-recheck').disabled=busy;
+ updateBatteryButtons();
  $('#settings-connection-note').hidden=true;
  const clockSupported=resolvedTransport==='usb'||!!settings?.bluetooth_clock_supported;
  $('#sync-clock').disabled=busy||!ready||!sameBoard||!settings||!clockSupported;
@@ -171,7 +177,7 @@ async function send(action){
   settings=result.document;observedHost=result.host_status;settingsBoard=result.board_identity;settingsRoute=routeKey();autoSave.loaded();
   render();transferProgress.finish(true);
  }catch(error){transferProgress.finish(false);$('#message').textContent=error.message;$('#state-label').textContent=dirty?'Changes kept in Studio':'Settings unavailable';}
- finally{busy=false;updateButtons();if(desktop&&action==='read')await refreshDisplay();}
+ finally{busy=false;updateButtons();if(desktop&&action==='read')await refreshDisplay();if(action==='read'&&activeSection==='battery')await refreshBattery();}
 }
 async function displayRequest(action, fields={}) {
  const response=await fetch('/api/hardware',{
@@ -221,7 +227,7 @@ async function sendDisplay(action) {
 }
 function paint(){
  if(!settings)return;
- for(const key of F75_LAYOUT){const b=$(`[data-key="${key.id}"]`),real=layout.find(x=>String(x.key_index)===key.id);if(!real)continue;
+ for(const key of visualKeys){const b=$(`[data-key="${key.id}"]`),real=layout.find(x=>String(x.key_index)===key.id);if(!real)continue;
   b.setAttribute('aria-pressed',String(chosen?.matrix===real.matrix));
   const color=settings.colors[layer][real.matrix]||settings.layer_colors[layer]||settings.colors[0][real.matrix]||'#a8ead4';b.style.setProperty('--key-color',color);
  }
@@ -232,7 +238,7 @@ function selection(){
  for(const [usage,label] of logicalKeys())option(select,usage,label);
  for(let i=0;i<8;i++)option(select,0x8000+i,'Macro '+(i+1));
  for(const [value,label] of [[0x40e9,'Volume up'],[0x40ea,'Volume down'],[0x40e2,'Mute'],[0x40cd,'Play / pause'],[0x2001,'Scroll up'],[0x2002,'Scroll down'],[0x2011,'Left mouse click'],[0x2012,'Right mouse click'],[0x2013,'Middle mouse click']])option(select,value,label);
- const locked=!chosen||layer===2||chosen.matrix===71||(layer===1&&reserved.has(chosen.matrix));
+ const locked=!chosen||layer===2||chosen.name==='Fn'||(layer===1&&(reserved.has(chosen.matrix)||chosen.name==='Fn'));
  select.disabled=locked;select.value=chosen&&layer<2?settings.keys[layer][chosen.matrix]:0;
  $('#binding-note').textContent=layer===2?'The Control layer uses the keyboard’s navigation controls. Its colors can be customized.':locked&&chosen?'This key is reserved for Fn, device switching or recovery. Its color can still change.':'Original follows the host layout: Caps sends Command on Mac and Ctrl on Windows or Android. Custom actions send their named keys.';
  $('#paint-key').disabled=!chosen;$('#inherit-key').disabled=!chosen;
@@ -271,8 +277,41 @@ function macro(){
   $('#steps').append(row);
  });
 }
-function render(){selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
+function buildKeyButtons(){
+ $('#keyboard').replaceChildren();
+  for(const key of visualKeys){const b=document.createElement('button');b.className='key';b.dataset.key=key.id;b.textContent=key.label;b.setAttribute('aria-label','Select '+key.label);b.setAttribute('aria-pressed','false');
+   Object.assign(b.style,{left:key.x/660*100+'%',top:key.y/280*100+'%',width:key.w/660*100+'%',height:key.h/280*100+'%'});
+   b.onclick=()=>{chosen=layout.find(x=>String(x.key_index)===key.id);selection();};$('#keyboard').append(b);
+  }
+ }
+function modelLayout(){
+ const identifier=settings.model||'f75max';
+ if(activeModel===identifier)return;
+ activeModel=identifier;chosen=null;
+ layout=modelLayouts[identifier]||layout;
+ visualKeys=F75_LAYOUT;
+ if(identifier==='s75pro'){
+  const left=Math.min(...layout.map(k=>Number(k.rect_left))),top=Math.min(...layout.map(k=>Number(k.rect_top)));
+  const width=Math.max(...layout.map(k=>Number(k.rect_left)+Number(k.rect_width)))-left;
+  const height=Math.max(...layout.map(k=>Number(k.rect_top)+Number(k.rect_height)))-top;
+  visualKeys=layout.map(k=>({id:String(k.key_index),label:k.name,usage:k.usage,
+    x:15+(Number(k.rect_left)-left)*630/width,y:18+(Number(k.rect_top)-top)*240/height,
+    w:Number(k.rect_width)*630/width,h:Number(k.rect_height)*240/height}));
+ }
+ buildKeyButtons();
+}
+function render(){modelLayout();renderBattery();selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
 function lighting(){
+ const supported=settings.lighting_effect_count??5;
+ for(const item of $('#light-effect').options)item.disabled=Number(item.value)>=supported;
+ $('#effect-support').textContent=supported<lightingEffects.length?'Install the expanded lighting firmware to unlock all '+lightingEffects.length+' effects.':'';
+ const effect=lightingEffects[settings.lighting.effect];
+ $('#effect-description').textContent=effect?.description||'';
+ const ownPalette=settings.lighting.effect>=5&&![22,24].includes(settings.lighting.effect);
+ $('#palette-settings').hidden=ownPalette;
+ $('#effect-color-note').textContent=ownPalette?'This effect uses its own colors. Per-key colors still override the pattern.':'';
+ for(const input of [$('#main-color'),$('#main-color-hex'),...$('#light-presets').children])input.disabled=ownPalette;
+ $('#light-speed').disabled=[0,23].includes(settings.lighting.effect);
  const indicators=settings.indicators||{caps:true,fn:true,caps_color:'#a8ead4',fn_color:'#c8aaf6',custom:false};
  $('#caps-light').checked=indicators.caps;$('#fn-light').checked=indicators.fn;
  for(const [name,id] of [['caps_color','caps-light'],['fn_color','fn-light']]){$('#'+id+'-color').value=indicators[name];$('#'+id+'-hex').value=indicators[name].toUpperCase();}
@@ -301,7 +340,7 @@ function colorInput(picker,hex,set){
 }
 colorInput('main-color','main-color-hex',color=>settings.lighting.color=color);
 colorInput('screen-accent','screen-accent-hex',color=>settings.screen_color=color);
-$('#light-effect').onchange=()=>{settings.lighting.effect=Number($('#light-effect').value);mark();};
+$('#light-effect').onchange=()=>{const effect=Number($('#light-effect').value);if(effect>=(settings.lighting_effect_count??5))return;settings.lighting.effect=effect;mark();lighting();};
 for(const [name,id] of [['brightness','light-brightness'],['speed','light-speed']])$('#'+id).oninput=()=>{settings.lighting[name]=Number($('#'+id).value);$('#'+name+'-value').textContent=settings.lighting[name]+'%';mark();};
 $('#quiet-motion').onchange=()=>{settings.reduced_motion=$('#quiet-motion').checked;mark();};
 $('#palette-all').onclick=()=>{settings.colors=settings.colors.map(layer=>layer.map(()=>null));settings.layer_colors=[null,null,null];mark();};
@@ -318,6 +357,54 @@ $('#caps').onchange=()=>{settings.caps_swap=$('#caps').checked;mark();};
 $('#companion').onchange=()=>{settings.companion=Number($('#companion').value);mark();};
 $('#wheel-mode').onchange=()=>{settings.wheel=Number($('#wheel-mode').value);mark();};
 $('#power-mode').onchange=()=>{settings.power=Number($('#power-mode').value);mark();};
+function updateBatteryButtons(){
+ const ready=!!settings&&connectionReady&&sameSettingsRoute()&&!busy&&!detecting;
+ const supported=!!settings?.battery?.supported;
+ $('#battery-refresh').disabled=!ready;
+ $('#battery-decimals').disabled=!ready||!supported;
+ $('#battery-full-confirm').disabled=!ready||!supported;
+ $('#battery-calibrate').disabled=!ready||!supported||dirty||!$('#battery-full-confirm').checked||!batteryReading?.gauge_valid||batteryReading.charging!==false||batteryReading.usb_configured||batteryReading.raw_soc<23040||batteryReading.raw_soc>25600;
+ $('#battery-reset').disabled=!ready||!supported||!settings?.battery?.full_soc;
+}
+function renderBattery(){
+ const battery=settings?.battery;
+ $('#battery-decimals').value=String(battery?.decimals??0);
+ $('#battery-calibration-state').textContent=!battery?.supported?'Update keyboard firmware to set decimal places and calibrate.':battery.full_soc?'Custom full-charge reference selected.':'Supplier reference selected. Full-charge calibration can remove its 100% plateau.';
+ if(batteryReading){
+  const p=batteryReading;
+  const value=p.estimate_percent;
+  $('#battery-reading').textContent=p.gauge_valid&&Number.isFinite(value)?`${value.toFixed(battery?.decimals??0)}% estimated · ${(p.millivolts/1000).toFixed(3)} V · ${p.charging===true?'Charging':p.charging===false?'Not charging':'Charging state unknown'}`:'Battery reading unavailable. Refresh after reconnecting.';
+ }
+ updateBatteryButtons();
+}
+async function batteryRequest(){
+ const response=await fetch('/api/hardware',{method:'POST',headers:{'Content-Type':'application/json','X-F75-CSRF':csrf},body:JSON.stringify({action:'power',...connectionFields('power')})});
+ const result=await response.json();if(!response.ok)throw Error(result.error||'Battery reading unavailable.');
+ batteryReading=result.power;return result.power;
+}
+async function refreshBattery(){
+ if(busy||detecting||!settings||!connectionReady||!sameSettingsRoute())return;
+ busy=true;updateButtons();$('#battery-message').textContent='Reading battery…';
+ try{await batteryRequest();$('#battery-message').textContent='Reading refreshed.';}
+ catch(error){batteryReading=null;$('#battery-reading').textContent='Battery reading unavailable.';$('#battery-message').textContent=error.message;}
+ finally{busy=false;renderBattery();updateButtons();}
+}
+$('#battery-refresh').onclick=refreshBattery;
+$('#battery-decimals').onchange=()=>{settings.battery.decimals=Number($('#battery-decimals').value);mark();renderBattery();};
+$('#battery-full-confirm').onchange=updateBatteryButtons;
+$('#battery-calibrate').onclick=async()=>{
+ if(busy||dirty||!settings?.battery?.supported||!$('#battery-full-confirm').checked)return;
+ busy=true;updateButtons();
+ try{
+  const p=await batteryRequest();
+  if(!p.gauge_valid||p.charging!==false||p.usb_configured||!Number.isInteger(p.raw_soc)||p.raw_soc<23040||p.raw_soc>25600)throw Error('Fully charge the battery, unplug USB, then refresh before calibrating.');
+  settings.battery.full_soc=p.raw_soc;$('#battery-full-confirm').checked=false;
+  busy=false;mark();$('#battery-message').textContent='Full-charge reference selected.';
+ }catch(error){$('#battery-message').textContent=error.message;}
+ finally{busy=false;renderBattery();updateButtons();}
+};
+$('#battery-reset').onclick=()=>{settings.battery.full_soc=0;$('#battery-full-confirm').checked=false;mark();renderBattery();$('#battery-message').textContent='Supplier reference selected.';};
+
 for(const [id,name] of [['caps-light','caps'],['fn-light','fn']])$('#'+id).onchange=()=>{settings.indicators[name]=$('#'+id).checked;settings.indicators.custom=true;mark();};
 for(const [id,name] of [['caps-light','caps_color'],['fn-light','fn_color']])colorInput(id+'-color',id+'-hex',value=>{settings.indicators[name]=value;settings.indicators.custom=true;});
 $('#display-send').onclick=()=>sendDisplay('set');
@@ -333,7 +420,16 @@ $('#copy-preset').onclick=()=>{settings.macros[slot]={repeat:false,steps:[{usage
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
 (async()=>{
  try{
-  const response=await fetch('/api/hardware');if(!response.ok)throw Error('Hardware editor unavailable');const data=await response.json();csrf=data.csrf;layout=data.layout;
+  const response=await fetch('/api/hardware');if(!response.ok)throw Error('Hardware editor unavailable');const data=await response.json();csrf=data.csrf;layout=data.layout;modelLayouts=data.model_layouts||{};
+  lightingEffects=data.lighting_effects||[];
+  if(lightingEffects.length){
+   $('#light-effect').replaceChildren();
+   for(const group of new Set(lightingEffects.map(effect=>effect.group))){
+    const parent=document.createElement('optgroup');parent.label=group;
+    for(const effect of lightingEffects.filter(effect=>effect.group===group))option(parent,effect.id,effect.name);
+    $('#light-effect').append(parent);
+   }
+  }
   desktop=data.desktop===true;
   $('#settings-transport option[value="bluetooth"]').disabled=data.bluetooth_settings!==true;
   if(desktop){
@@ -345,10 +441,7 @@ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();
    $('#settings-transport option[value="bluetooth"]').disabled=data.bluetooth_settings!==true;
   }
   showSection(document.querySelector(`[data-section][href="${location.hash}"]`)?.dataset.section||'keys');
-  for(const key of F75_LAYOUT){const b=document.createElement('button');b.className='key';b.dataset.key=key.id;b.textContent=key.label;b.setAttribute('aria-label','Select '+key.label);b.setAttribute('aria-pressed','false');
-   Object.assign(b.style,{left:key.x/660*100+'%',top:key.y/280*100+'%',width:key.w/660*100+'%',height:key.h/280*100+'%'});
-   b.onclick=()=>{chosen=layout.find(x=>String(x.key_index)===key.id);selection();};$('#keyboard').append(b);
-  }
+  buildKeyButtons();
   $('#settings-connection').hidden=false;
   await refreshConnection();
   const poll=setInterval(refreshConnection,4000);window.addEventListener('pagehide',()=>clearInterval(poll),{once:true});

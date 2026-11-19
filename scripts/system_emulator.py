@@ -33,6 +33,9 @@ class System:
     def __init__(self, image, ahbcp=0, held=False, magic=False, symbols_file=None, factory_rom=False):
         self.image = Path(image).resolve()
         self.symbols = symbols(symbols_file or self.image.with_suffix('.elf'))
+        metadata = self.image.with_suffix(".json")
+        if not metadata.exists() and symbols_file: metadata = Path(symbols_file).with_suffix(".json")
+        self.target = json.loads(metadata.read_text()).get("target", "f75max") if metadata.exists() else "f75max"
         self.tmp = tempfile.TemporaryDirectory(prefix='f75-')
         self.folder = Path(self.tmp.name)
         self.log = (self.folder / 'qemu.log').open('w+')
@@ -65,9 +68,11 @@ class System:
             self.write32(HOST + 0x10, ahbcp)
             self.write32(HOST + 0x204, (1 << 2) | (0 if held else 1 << 17))
             if 'f75_wheel_matrix_row' in self.symbols:
-                self.write32(HOST + 0x204, 1 << 2)  # wired fixture asserts active-low charging; wheel uses the matrix
+                self.write32(HOST + 0x204, 1 << 2)  # wired fixture drives B17 low; wheel uses the matrix
                 self.write32(HOST + 0x100 + self.symbols['f75_wheel_matrix_row'] * 4,
                              (1 << self.symbols['f75_wheel_matrix_col']) if held else 0)
+            if self.target == "s75pro":
+                self.write32(HOST + 0x204, (1 << 2) | 1)
             self.write(0x20007ffc, struct.pack('<I', 0xdeadbeef if magic else 0))
         except Exception:
             self.close()

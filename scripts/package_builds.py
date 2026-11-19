@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """Package only canonical firmware and sanitized verification receipts."""
-import hashlib,json,shutil,subprocess,io,tarfile
+import argparse,hashlib,json,shutil,subprocess,io,tarfile
 from pathlib import Path
+from release_artifacts import clean_worktree,head
 ROOT=Path(__file__).resolve().parents[1]
-latest=json.loads((ROOT/'analysis/repro/latest.json').read_text())
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--target',choices=['f75max','s75pro'],default='f75max')
+args=parser.parse_args()
+clean_worktree()
+artifact=args.target+'-wired-test'
+latest=json.loads((ROOT/'analysis/repro'/args.target/'latest.json').read_text())
 receipt=json.loads((ROOT/latest['receipt']).read_text())
-assert receipt['status']=='passed'
-out=ROOT/'dist';out.mkdir(exist_ok=True)
+assert receipt['status']=='passed' and receipt['target']==args.target
+assert receipt['source_commit']==head(),'Verification is for another source commit'
+out=ROOT/'dist/firmware'/args.target
+if out.exists():shutil.rmtree(out)
+out.mkdir(parents=True)
 def source_metadata(entry):
  entry.uid=entry.gid=0;entry.uname=entry.gname='';entry.mtime=0
  return entry
@@ -14,7 +23,7 @@ for profile,record in receipt['profiles'].items():
  assert record['status']=='passed' and record['identical_clean_builds']==2
  source=(ROOT/record['system_receipt']).parent;target=out/profile;target.mkdir(exist_ok=True)
  for extension in ['bin','elf','map','json']:
-  src=source/('f75max-wired-test.'+extension);dst=target/src.name
+  src=source/(artifact+'.'+extension);dst=target/src.name
   if extension in ['bin','elf']:shutil.copy2(src,dst)
   elif extension=='json':
    metadata=json.loads(src.read_text());metadata.pop('flash_authorized_by_user',None)
@@ -34,6 +43,8 @@ with tarfile.open(out/'corresponding-source.tar.gz','w:gz') as bundle:
   source=ROOT/'builddeps'/(dependency['name']+'.tar.gz')
   assert hashlib.sha256(source.read_bytes()).hexdigest()==dependency['archive_sha256']
   bundle.add(source,arcname='aula-f75-max-source/builddeps/'+source.name,recursive=False,filter=source_metadata)
-(out/'SOURCE.json').write_text(json.dumps({'repository':'https://github.com/elibosley/aula-f75-max','commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'license':'GPL-2.0-or-later with separately licensed assets','scope':'Reproducible source-only builds; no physical hardware or captured factory ROM qualification'},indent=2)+'\n')
+(out/'SOURCE.json').write_text(json.dumps({'repository':'https://github.com/elibosley/aula-f75-max','commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'license':'GPL-2.0-or-later with separately licensed assets','scope':'Reproducible source-only builds; no physical hardware or captured factory ROM qualification','target':args.target,'hardware_qualification':'pending' if args.target=='s75pro' else 'development board only'},indent=2)+'\n')
 (out/'SHA256SUMS').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+str(p.relative_to(out))+'\n' for p in sorted(out.rglob('*')) if p.is_file() and p.name!='SHA256SUMS'))
-print('Packaged canonical firmware and verification receipts in dist/.')
+archive=ROOT/'dist'/('F75-Studio-firmware-'+args.target+'.zip')
+shutil.make_archive(str(archive.with_suffix('')),'zip',out)
+print('Packaged canonical firmware, corresponding source and receipts: '+str(archive))

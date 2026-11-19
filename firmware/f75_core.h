@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "f75_lighting_catalog.h"
+#ifndef F75_MODEL_ID
+#define F75_MODEL_ID 0
+#endif
 
 enum { F75_HOSTS = 5, F75_RECORD_BYTES = 160, F75_TILE_ROWS = 8 };
 typedef enum { F75_MAC, F75_WINDOWS, F75_ANDROID } f75_os;

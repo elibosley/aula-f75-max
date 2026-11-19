@@ -11,8 +11,11 @@ OS_DETECTION_ENABLE = yes
 LDFLAGS += -Wl,--section-start=.f75_settings_reserve=0x3f000 -Wl,--undefined=f75_settings_reserve
 LDFLAGS += -Wl,--section-start=.f75_custom_reserve=0x38000 -Wl,--undefined=f75_custom_reserve
 SRC += f75_custom.c f75_bundle.c f75_transfer.c f75_bluetooth.c f75_clock.c
-SRC += f75_core.c f75_lighting.c f75_navigation.c f75_display.c f75_timer.c f75_pet.c
+SRC += f75_core.c f75_lighting.c f75_navigation.c f75_display.c f75_timer.c f75_pet.c f75_usb_link.c
 QUANTUM_LIB_SRC += spi_master.c
 # GCC 15 diagnoses fallthrough in this pinned upstream SPI driver.
 OPT_DEFS += -Wno-error=implicit-fallthrough
+
+# New power routines use the free bank above the two customization records.
+LDFLAGS += -Wl,--section-start=.f75_power_text=0x3a000
 

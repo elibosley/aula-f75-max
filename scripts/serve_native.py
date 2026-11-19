@@ -11,12 +11,14 @@ import re
 import struct
 import threading
 import time
+import sys
 import zlib
 from display_types import View
+from keyboard_models import model as keyboard_model
 
-ROOT = Path(__file__).resolve().parents[1]
-RUNTIME = ROOT / '.runtime'
-RUNTIME.mkdir(mode=0o700, exist_ok=True)
+ROOT = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[1]))
+RUNTIME = Path.home() / '.f75-studio/preview' if getattr(sys,'frozen',False) else ROOT / '.runtime'
+RUNTIME.mkdir(mode=0o700, parents=True, exist_ok=True)
 LIB = C.CDLL(str(ROOT / 'analysis/libf75.dylib'))
 
 class Config(C.Structure):
@@ -35,7 +37,7 @@ class Navigation(C.Structure):
     _fields_=[(n,C.c_uint8) for n in ['page','cursor','volume','editing','wheel_divisor','edit_streak']]+[('wheel_pending',C.c_int8),('last_direction',C.c_int8),('last_turn',C.c_uint32)]
 class Motion(C.Structure):
     _fields_=[(n,C.c_int32) for n in ['selection','velocity','slide','slide_velocity']]+[(n,C.c_uint32) for n in ['last_step','last_input']]+[('context',C.c_uint16),('selected',C.c_uint8),('flags',C.c_uint8)]
-HOSTS=['usb','bt1','bt2','bt3','rf'];POWERS=['Balanced','Endurance','Desk'];EFFECTS=['Still','Tidal','Rain','Trails','Constellation'];WHEELS=['Volume','Scroll','Brightness'];FACES=['Orbit','Minimal','Constellation','Chibi']
+HOSTS=['usb','bt1','bt2','bt3','rf'];POWERS=['Balanced','Endurance','Desk'];EFFECTS=[effect['name'] for effect in json.loads((ROOT/'ui/lighting-effects.json').read_text())];WHEELS=['Volume','Scroll','Brightness'];FACES=['Orbit','Minimal','Constellation','Chibi']
 PAGES=['Home','Menu','Devices','Keys','Lighting','Power','Focus','Screen']
 PState=C.POINTER(State);PConfig=C.POINTER(Config);U32=C.c_uint32;U8=C.c_uint8
 def bind(name,args,restype=None):
@@ -49,6 +51,7 @@ budget=bind('f75_power_budget',[PState,U32,U8,C.c_bool],Budget);map_usage=bind('
 encode=bind('f75_record_encode',[PConfig,U32,C.POINTER(U8)])
 select=bind('f75_record_select',[C.POINTER(U8),C.POINTER(U8),PConfig,C.POINTER(U32)],C.c_bool)
 lighting_frame=bind('f75_lighting_frame',[PConfig,U8,U32,C.POINTER(U8)])
+render_panel_tile=bind('f75_render_panel_tile',[C.POINTER(View),C.c_uint16,C.c_uint16,C.c_uint16,U8,C.POINTER(C.c_uint16),C.c_size_t],C.c_bool)
 render_tile_unlocked=bind('f75_render_tile',[C.POINTER(View),U8,U8,C.POINTER(C.c_uint16),C.c_size_t],C.c_bool)
 RENDER_LOCK=threading.Lock()
 def render_tile(*args):
@@ -76,13 +79,14 @@ pet_tap=bind('f75_pet_tap',[C.POINTER(Pet),U32])
 pet_get_frame=bind('f75_pet_get_frame',[C.POINTER(Pet),U32,C.c_bool],PetFrame)
 assert C.sizeof(Config)==116 and C.sizeof(State)==144 and C.sizeof(Timer)==16
 
-def png(rgb):
+def png(rgb,width=128,height=128):
     def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
-    scan=b''.join(b'\0'+rgb[y*384:(y+1)*384] for y in range(128))
-    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',128,128,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(scan))+chunk(b'IEND',b'')
+    scan=b''.join(b'\0'+rgb[y*width*3:(y+1)*width*3] for y in range(height))
+    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(scan))+chunk(b'IEND',b'')
 
 class Session:
     def __init__(self,sid):
+        self.model_id='f75max'
         self.sid=sid;self.state=State();init(C.byref(self.state),None,0);self.navigation=Navigation();nav_init(C.byref(self.navigation))
         self.started=time.monotonic();self.offset=0;self.seq=0;self.generation=0;self.battery=78;self.usb=False;self.system_motion=False;self.aux={};self.error='';self.lock=threading.RLock();self.saved=Config();self.saved_aux={};self.last_view=None
         self.motion=Motion();self.direction=1;self.display_fps=0;self.timer=Timer();timer_init(C.byref(self.timer),0);self.pet=Pet();pet_init(C.byref(self.pet),0,secrets.randbits(32))
@@ -138,7 +142,8 @@ class Session:
         self.tick_all()
         s=C.byref(self.state);now=self.now()
         ui_action=0
-        if name=='activity':activity(s,now)
+        if name=='setModel':self.model_id=keyboard_model(args[0])['id']
+        elif name=='activity':activity(s,now)
         elif name=='visualSettings':self.update_visual_settings(args[0]);activity(s,now)
         elif name=='setOS' and args[0]=='auto':self.state.config.os_auto_mask|=1<<self.state.config.active_host
         elif name=='setOS' and args[0] in ['mac','windows','android']:set_os(s,['mac','windows','android'].index(args[0]))
@@ -268,11 +273,14 @@ class Session:
         if isinstance(screen_color,str) and re.fullmatch(r'#[0-9a-fA-F]{6}',screen_color):
             r,g,b=bytes.fromhex(screen_color[1:]);v.accent=((r>>3)<<11)|((g>>2)<<5)|(b>>3);v.custom_accent=True
         v.os_source=0 if self.state.config.os_auto_mask&(1<<self.state.config.active_host) else 2
-        pixels=(C.c_uint16*1024)();rgb=bytearray()
-        for y in range(0,128,8):
-            if not render_tile(C.byref(v),y,8,pixels,1024):raise ValueError('C tile render failed')
-            for p in pixels:rgb.extend((((p>>11)&31)*255//31,((p>>5)&63)*255//63,(p&31)*255//31))
-        return base64.b64encode(png(bytes(rgb))).decode()
+        display=keyboard_model(self.model_id)['display'];width,height=display['width'],display['height']
+        pixels=(C.c_uint16*(width*8))();rgb=bytearray()
+        with RENDER_LOCK:
+            for y in range(0,height,8):
+                rows=min(8,height-y)
+                if not render_panel_tile(C.byref(v),width,height,y,rows,pixels,len(pixels)):raise ValueError('C panel render failed')
+                for p in pixels[:width*rows]:rgb.extend((((p>>11)&31)*255//31,((p>>5)&63)*255//63,(p&31)*255//31))
+        return base64.b64encode(png(bytes(rgb),width,height)).decode()
     def power_budget(self):
         state=State.from_buffer_copy(self.state)
         if self.system_motion:state.config.reduced_motion=1

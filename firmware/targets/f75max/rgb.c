@@ -2,6 +2,7 @@
 #include QMK_KEYBOARD_H
 #include <string.h>
 #include "rgb.h"
+#include "board_adapter.h"
 #include "f75_lighting.h"
 #include "matrix_shared.h"
 #include "power.h"
@@ -17,8 +18,12 @@ extern bool f75_fn_held(void);
  * The RTOS free counter uses CT16B4, not a lighting timer. */
 #define REG(a) (*(volatile uint32_t *)(uintptr_t)(a))
 #define KEY 0x5a000000u
-static const pin_t rows[18] = {A11,A8,D9,D12,D17,C11,B5,D8,D11,D16,C10,C13,B4,A9,D10,D13,D18,C12};
-static const uint32_t masks[4] = {0x0b00u,0x30u,0x3c00u,0x73f00u};
+static const pin_t rows[F75_LED_ROW_COUNT] = {A11,A8,D9,D12,D17,C11,B5,D8,D11,D16,C10,C13,B4,A9,D10,D13,D18,C12
+#ifdef F75_LED_SIDE_ROWS
+    ,F75_LED_SIDE_ROWS
+#endif
+};
+static const uint32_t masks[4] = {F75_LED_MASK_A,0x30u,0x3c00u,0x73f00u};
 static const uint32_t ports[4] = {0x40044000,0x40046000,0x40048000,0x4004a000};
 static const uint32_t columns[15] = {
     0x40002030,0x40002034,0x40002040,0x40004024,0x40004028,
@@ -29,7 +34,7 @@ static void match_write(unsigned column,uint8_t value) {
     uint32_t address=columns[column];
     REG(address)=(address>=0x40002000u&&address<0x40004000u)?value:KEY|value;
 }
-static uint8_t duties[2][18][15];
+static uint8_t duties[2][F75_LED_ROW_COUNT][15];
 static volatile uint8_t active_buffer, row, active_effect, pending_effect;
 static volatile bool pending;
 static volatile bool ready, paused, suspended, row_lit;
@@ -100,7 +105,7 @@ static void idle_scan(bool idle){
 OSAL_IRQ_HANDLER(Vector8C) {
     OSAL_IRQ_PROLOGUE();
     SN_CT16B3->TMRCTRL=0;SN_CT16B3->TC=0;SN_CT16B3->PC=0;SN_CT16B3->IC=1;
-    if(ready&&!suspended) {uint8_t next=row+1u;row=next==18u?0:next;begin_row();++irq_count;if(ready&&!suspended)SN_CT16B3->TMRCTRL=1;}
+    if(ready&&!suspended) {uint8_t next=row+1u;row=next==F75_LED_ROW_COUNT?0:next;begin_row();++irq_count;if(ready&&!suspended)SN_CT16B3->TMRCTRL=1;}
     OSAL_IRQ_EPILOGUE();
 }
 void f75_rgb_pause(void) {
@@ -133,7 +138,7 @@ void f75_rgb_suspend(bool value) {
 }
 void f75_rgb_init(void) {
     rows_off();
-    for(unsigned i=0;i<18;++i)gpio_set_pin_output(rows[i]);
+    for(unsigned i=0;i<F75_LED_ROW_COUNT;++i)gpio_set_pin_output(rows[i]);
     SN_SYS1->AHBCLKEN|=(1u<<5)|(1u<<6)|(1u<<7)|(1u<<8);
     /* PFPA matches supplier exactly. These are the 15 keyboard drive pins;
      * SPI, selector, radio, and encoder pin assignments are preserved. */
@@ -175,6 +180,16 @@ void f75_rgb_tick(const f75_state *state,uint32_t now) {
         f75_lighting_frame(&state->config,(uint8_t)brightness,now,&duties[next][0][0]);
         f75_custom_lighting(&f75_custom_config,f75_custom_layer(),(uint8_t)brightness,&duties[next][0][0]);
         f75_custom_indicators(&f75_custom_config,f75_caps_lock_on(),f75_fn_held(),(uint8_t)brightness,&duties[next][0][0]);
+#ifdef F75_LED_SIDE_ROWS
+        /* One extra 15-column strip per color, recovered at A0/A1/A2.
+         * Follow the corresponding key-column average at the same bounded
+         * duty. Exact physical strip direction/color awaits board testing. */
+        for(unsigned color=0;color<3;++color)for(unsigned column=0;column<15;++column){
+            unsigned sum=0;
+            for(unsigned keyrow=0;keyrow<6;++keyrow)sum+=duties[next][color*6+keyrow][column];
+            duties[next][18+color][column]=(uint8_t)(sum/6u);
+        }
+#endif
     }else memset(duties[next],0,sizeof(duties[next]));
     frame_initialized=true;
     pending_effect=state->config.effect;

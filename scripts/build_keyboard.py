@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an UNTESTED wired F75 Max candidate. Never opens a USB device."""
+"""Build an unflashed F75 Max or S75 Pro candidate. Never opens a USB device."""
 import argparse
 import fcntl
 import hashlib
@@ -16,15 +16,14 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 FAMILY_FLASH = 256 * 1024
 STOCK_SHA = "a7d458754f3cc3aed7c8956f854148e081bc63f524da230a8ea8d3b3b3a4b5e9"
-TARGET = "aula/f75max_test"
-NAME = "aula_f75max_test_default"
 
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def prepare():
+def prepare(model="f75max"):
+    qmk_target = "aula/" + model + "_test"
     source = ROOT / "firmware/targets/f75max"
     qmk = ROOT / "builddeps/qmk"
     if not (qmk / "quantum").is_dir():
@@ -52,13 +51,16 @@ def prepare():
             target.write_bytes(bytes.fromhex(patch['after_hex']))
         if digest(target) != patch['after_sha256']:
             raise SystemExit('System timer source does not match pinned CT16B4 support')
-    board = json.loads((ROOT / "firmware/targets/f75max/board-map.json").read_text())
-    assert board["firmware_sha256"] == STOCK_SHA
-    out = qmk / "keyboards" / TARGET
+    board = json.loads((ROOT / "firmware/targets" / model / "board-map.json").read_text())
+    expected = STOCK_SHA if model == "f75max" else "bcc5f633d21f6219b9eebfec2c00b76a4f6bc3246babbe2e157478b26398d598"
+    assert board["firmware_sha256"] == expected
+    out = qmk / "keyboards" / qmk_target
     out.mkdir(parents=True, exist_ok=True)
     for p in source.glob("*"):
         if p.suffix in {".c", ".h", ".mk", ".S"}:
             shutil.copy2(p, out / p.name)
+    if model != "f75max":
+        shutil.copy2(ROOT / "firmware/targets" / model / "board_adapter.h", out / "board_adapter.h")
     for p in (ROOT / "firmware").glob("*"):
         if p.name.startswith("f75_") and p.suffix in {".c", ".h"}:
             shutil.copy2(p, out / p.name)
@@ -85,7 +87,7 @@ def prepare():
                            matrix=[c["scan_index"], c["sense_bit"]]))
     assert len(seen) == 80
     info = {
-        "keyboard_name": "F75 Max WIRED TEST",
+        "keyboard_name": ("F75 Max" if model == "f75max" else "S75 Pro") + " WIRED TEST",
         "manufacturer": "Experimental community firmware",
         "maintainer": "community",
         "processor": "SN32F299F",
@@ -96,7 +98,7 @@ def prepare():
         "diode_direction": "COL2ROW",
         "features": {"bootmagic": False, "mousekey": True, "extrakey": True,
                      "nkro": False, "encoder": True, "console": False, "command": False},
-        "encoder": {"rotary": [{"pin_a": "A2", "pin_b": "A3", "resolution": 4}]},
+        "encoder": {"rotary": [{"pin_a": board.get("encoder", {}).get("pin_a", "A2"), "pin_b": "A3", "resolution": 4}]},
         "layouts": {"LAYOUT": {"layout": layout}},
     }
     (out / "keyboard.json").write_text(json.dumps(info, indent=2) + "\n")
@@ -106,6 +108,13 @@ def prepare():
         '// Generated from the hash-checked supplier matrix.\n#include QMK_KEYBOARD_H\n'
         'const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {{\n' +
         ''.join('    {' + ', '.join(row) + '},\n' for row in keys) + '}};\n')
+    unused = [0] * 15
+    for cell in coordinates:
+        if not cell.get('vendor_key'): unused[cell['scan_index']] |= 1 << cell['sense_bit']
+    (out / 'matrix_layout.h').write_text('#pragma once\n#define F75_UNUSED_MATRIX_MASKS ' + ','.join(map(str,unused)) + '\n')
+    if model == 's75pro':
+        rules = out / 'rules.mk'
+        rules.write_text(rules.read_text() + '\nSRC += f75_panel.c\nOPT_DEFS += -DF75_FN_KEY=65 -DF75_MODEL_ID=1\n')
     commands = board["display"]["init_commands"]
     (out / "panel_init.h").write_text(
         '// Generated from the recovered stock initialization sequence.\n#pragma once\n'
@@ -118,7 +127,9 @@ def prepare():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--target", choices=["f75max", "s75pro"], default="f75max")
     parser.add_argument("--prepare-only", action="store_true")
+    parser.add_argument("--radio-sleep-qualification", action="store_true", help="Enable experimental stock radio idle command for physical wake qualification")
     parser.add_argument("--usb-only", action="store_true", help="Omit display initialization and its first-frame timer")
     parser.add_argument("--clean", action="store_true", help="Delete only this target's compiled objects before building")
     parser.add_argument("--output-dir", type=Path, default=ROOT / 'analysis/UNFLASHED')
@@ -130,11 +141,16 @@ def main():
         fcntl.flock(build_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         raise SystemExit('Another keyboard build is active; shared QMK objects were not changed')
-    qmk, out = prepare()
+    target = "aula/" + args.target + "_test"
+    name = "aula_" + args.target + "_test_default"
+    artifact = args.target + "-wired-test"
+    qmk, out = prepare(args.target)
     if args.usb_only:
         rules = out / 'rules.mk'
         rules.write_text(rules.read_text() + '\nOPT_DEFS += -DF75_USB_ONLY=1\n')
     rules = out / 'rules.mk'
+    if args.radio_sleep_qualification:
+        rules.write_text(rules.read_text() + '\nOPT_DEFS += -DF75_RADIO_IDLE_SLEEP=1\n')
     rules.write_text(rules.read_text() + f'\nOPT_DEFS += -ffile-prefix-map={ROOT}=/f75 -fdebug-prefix-map={ROOT}=/f75\n')
     if args.prepare_only:
         print(out)
@@ -150,10 +166,10 @@ def main():
     # metadata from generated version.h. GCC also receives a fixed epoch.
     env.update(SKIP_VERSION='yes', SOURCE_DATE_EPOCH='0', TZ='UTC', LC_ALL='C')
     if args.clean:
-        shutil.rmtree(qmk / '.build' / ('obj_' + NAME), ignore_errors=True)
+        shutil.rmtree(qmk / '.build' / ('obj_' + name), ignore_errors=True)
         for suffix in ['.bin', '.elf', '.map', '.hex']:
-            (qmk / '.build' / (NAME + suffix)).unlink(missing_ok=True)
-    cmd = [str(python_bin / 'qmk'), "compile", "-kb", TARGET, "-km", "default"]
+            (qmk / '.build' / (name + suffix)).unlink(missing_ok=True)
+    cmd = [str(python_bin / 'qmk'), "compile", "-kb", target, "-km", "default"]
     log = ROOT / "analysis/keyboard-build.log"
     with log.open("w") as f:
         result = subprocess.run(cmd, cwd=qmk, env=env, stdout=f, stderr=subprocess.STDOUT, timeout=240)
@@ -161,8 +177,8 @@ def main():
         print("\n".join(log.read_text().splitlines()[-30:]))
         raise SystemExit(result.returncode)
     build = qmk / ".build"
-    binary = build / (NAME + ".bin")
-    elf = build / (NAME + ".elf")
+    binary = build / (name + ".bin")
+    elf = build / (name + ".elf")
     data = binary.read_bytes()
     sp, reset = struct.unpack_from("<II", data)
     assert 0x20000000 < sp <= 0x20008000 and sp % 8 == 0
@@ -172,12 +188,17 @@ def main():
     assert data[0x38000:0x3a000] == b'\xff'*8192, 'Application overlaps customization records'
     assert data[0x3e800:0x3f000] == b'\xff'*2048, 'Application overlaps Bluetooth route journal'
     assert data[-4:] == struct.pack("<I", 0xAAAA5555)
+    sections = subprocess.check_output([str(toolchain / "arm-none-eabi-objdump"), '-h', str(elf)], text=True)
+    power = next(line.split() for line in sections.splitlines() if len(line.split()) > 5 and line.split()[1] == '.f75_power_text')
+    power_section = dict(address=int(power[3], 16), bytes=int(power[2], 16), limit=0x3e800)
+    assert power_section['address'] == int(power[4], 16) == 0x3a000
+    assert 0 < power_section['bytes'] <= power_section['limit'] - power_section['address'], 'Power code overlaps the route journal'
     dest = args.output_dir.resolve()
     dest.mkdir(parents=True, exist_ok=True)
     artifacts = {}
     for suffix in [".bin", ".elf", ".map"]:
-        p = build / (NAME + suffix)
-        d = dest / ("f75max-wired-test" + suffix)
+        p = build / (name + suffix)
+        d = dest / (artifact + suffix)
         shutil.copy2(p, d)
         artifacts[d.name] = {"sha256": digest(d), "bytes": d.stat().st_size}
     size = subprocess.check_output([str(toolchain / "arm-none-eabi-size"), str(elf)], text=True)
@@ -212,7 +233,7 @@ def main():
     inputs = set()
     # Assembly and make rules do not always emit GCC dependency files.
     inputs.update(p.resolve() for p in out.rglob('*') if p.is_file())
-    for dependency in (build / ('obj_' + NAME)).rglob('*.d'):
+    for dependency in (build / ('obj_' + name)).rglob('*.d'):
         rule = dependency.read_text().replace('\\\n', ' ').split('\n')[0]
         for name in shlex.split(rule.split(':', 1)[1]):
             path = (qmk / name).resolve()
@@ -226,12 +247,16 @@ def main():
         "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "status": "linked_candidate_not_hardware_tested",
         "route_memory": {"address": 0x3e800, "bytes": 2048, "entry_bytes": 16},
-        "flash_authorized_by_user": True,
+        "flash_authorized_by_user": False,
         "hardware_writes": False,
-        "stock_source_sha256": STOCK_SHA,
-        "target": TARGET,
+        "stock_source_sha256": json.loads((ROOT / "firmware/targets" / args.target / "board-map.json").read_text())["firmware_sha256"],
+        "target": "aula/f75max_test" if args.target=="f75max" else args.target,
+        "qmk_target": target,
+        "display": {"width":135,"height":240} if args.target == "s75pro" else {"width":128,"height":128},
         "profile": "usb_only" if args.usb_only else "full_ui",
-        "usb_identity": "feed:f750 F75 Max WIRED TEST",
+        "radio_sleep_qualification": args.radio_sleep_qualification,
+        "power_code_section": power_section,
+        "usb_identity": "feed:f750 " + ("F75 Max" if args.target == "f75max" else "S75 Pro") + " WIRED TEST",
         "family_memory_assumption": "SN32 family 0x32 chip 0x05; 256 KiB flash / 32 KiB SRAM target",
         "reproducibility": {"source_date_epoch": 0, "qmk_version_mode": "skip-all", "clean": args.clean},
         "build_inputs_sha256": digest(dest / 'build-inputs.json'),
@@ -252,12 +277,13 @@ def main():
         }],
         "toolchain": json.loads((ROOT / "builddeps/toolchain.json").read_text()),
         "system_timer_patch_sha256": digest(ROOT / 'firmware/targets/f75max/patches/systick-timer4.json'),
-        "missing": ["corrected wheel-entry hardware qualification", "hardware validation",
-                    "wireless", "RGB physical color qualification", "battery measurements", "persistent settings", "RTC synchronization"],
+        "missing": ["physical S75 Pro recovery, panel, radio, RGB and wake qualification",
+                    "exact MCU package and PCB revision confirmation"] if args.target == "s75pro" else
+                   ["physical acceptance of this candidate", "battery measurements"],
     }
-    (dest / "f75max-wired-test.json").write_text(json.dumps(receipt, indent=2) + "\n")
+    (dest / (artifact + ".json")).write_text(json.dumps(receipt, indent=2) + "\n")
     print(size.strip())
-    print("UNFLASHED candidate: " + str(dest / "f75max-wired-test.bin"))
+    print("UNFLASHED candidate: " + str(dest / (artifact + ".bin")))
 
 
 if __name__ == "__main__":

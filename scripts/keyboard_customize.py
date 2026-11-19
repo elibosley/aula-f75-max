@@ -106,8 +106,11 @@ def validate(data):
 
 def decode(data):
  validate(data);core=data[:160];custom=data[160:];at=16
- if custom[4] not in (1,2,3):raise ValueError('Unsupported custom settings version')
- if custom[4]==3 and custom[2516]&~3:raise ValueError('Invalid indicator flags')
+ if custom[4] not in (1,2,3,4):raise ValueError('Unsupported custom settings version')
+ if custom[4]>=3 and custom[2516]&~3:raise ValueError('Invalid indicator flags')
+ full=struct.unpack_from('<H',custom,2524)[0] if custom[4]>=4 else 0
+ decimals=custom[2526] if custom[4]>=4 else 0
+ if (full and not 23040<=full<=25600) or decimals>2:raise ValueError('Invalid battery calibration')
  keys=[list(struct.unpack_from('<90H',custom,at+layer*180)) for layer in range(2)];at+=360
  rgb=[['#'+custom[at+(layer*90+key)*3:at+(layer*90+key)*3+3].hex() for key in range(90)] for layer in range(3)];at+=810
  flags=custom[at:at+270];at+=270
@@ -119,10 +122,12 @@ def decode(data):
  for slot in range(8):
   steps=[dict(zip(['usage','delay_ms'],struct.unpack_from('<HH',custom,at+slot*128+i*4))) for i in range(lengths[slot])]
   macros.append({'repeat':bool(repeat[slot]),'steps':steps})
- return {'schema':1,'base_hex':data.hex(),'os':list(core[12:17]),'auto_mask':core[126],'caps_swap':bool(core[114]),'face':core[120],
+ return {'schema':1,'model':'s75pro' if core[130]==1 else 'f75max','base_hex':data.hex(),'os':list(core[12:17]),'auto_mask':core[126],'caps_swap':bool(core[114]),'face':core[120],
          'power':core[115],'wheel':core[119],
+         'battery':{'supported':core[129]==1,'full_soc':full,'decimals':decimals},
          'names':[core[17+i*19:36+i*19].split(b'\0')[0].decode('ascii') for i in range(5)],
          'lighting':{'color':'#'+core[122:125].hex(),'brightness':core[116],'speed':core[117],'effect':core[118]},
+         'lighting_effect_count':core[128] if 5<=core[128]<=25 else 5,
          'light_mode':bool(core[125]),'reduced_motion':bool(core[121]),'companion':core[127] if core[4]>=6 else 3,'record_version':core[4],
          'screen_color':'#'+custom[2513:2516].hex() if custom[4]>=2 and custom[2512] else None,
          'indicators':{'custom':custom[4]>=3,'caps':bool(custom[2516]&1) if custom[4]>=3 else True,'fn':bool(custom[2516]&2) if custom[4]>=3 else True,
@@ -153,7 +158,10 @@ def encode(document):
    if not isinstance(name,str) or not name.strip() or len(name)>18 or any(ord(c)<32 or ord(c)>126 for c in name):raise ValueError('Use 1–18 plain letters, numbers or punctuation for a device name')
    data[17+i*19:36+i*19]=name.encode('ascii').ljust(19,b'\0')
  if 'lighting' in document:
-  lighting=document['lighting'];data[122:125]=color(lighting['color']);data[116]=integer(lighting['brightness'],0,100);data[117]=integer(lighting['speed'],0,100);data[118]=integer(lighting['effect'],0,4)
+  lighting=document['lighting'];data[122:125]=color(lighting['color']);data[116]=integer(lighting['brightness'],0,100);data[117]=integer(lighting['speed'],0,100)
+  supported=data[128] if 5<=data[128]<=25 else 5
+  if type(lighting['effect']) is int and lighting['effect']>=supported:raise ValueError('Install the expanded lighting firmware before using this effect')
+  data[118]=integer(lighting['effect'],0,supported-1)
  for key,offset in [('light_mode',125),('reduced_motion',121)]:
   if key in document:
    if type(document[key]) is not bool:raise ValueError(key+' must be boolean')
@@ -179,7 +187,7 @@ def encode(document):
  if len(macros)!=8:raise ValueError('Eight macro slots required')
  for layer,keys in enumerate(document['keys']):
   for key,usage in enumerate(keys):
-   if usage and (key in (71,84) or (layer==1 and key in (0,7,13,19,25,31,41,52,62))):raise ValueError('This key is reserved for Fn, switching or recovery')
+   if usage and (key in ((65 if data[130]==1 else 71),84) or (layer==1 and key in (0,7,13,19,25,31,41,52,62))):raise ValueError('This key is reserved for Fn, switching or recovery')
    if 0x8000<=usage<0x8008 and not macros[usage-0x8000]['steps']:raise ValueError('Macro '+str(usage-0x8000+1)+' has no steps')
  for i,macro in enumerate(macros):
   if len(macro['steps'])>32 or type(macro['repeat']) is not bool:raise ValueError('Macro requires at most 32 steps and a boolean repeat flag')
@@ -215,6 +223,15 @@ def encode(document):
   caps_color=color(indicators['caps_color']);fn_color=color(indicators['fn_color'])
   if indicators['custom'] or not indicators['caps'] or not indicators['fn'] or caps_color!=bytes.fromhex('a8ead4') or fn_color!=bytes.fromhex('c8aaf6'):
    custom[4]=3;custom[2516]=int(indicators['caps'])|(int(indicators['fn'])<<1);custom[2517:2520]=caps_color;custom[2520:2523]=fn_color
+ battery=document.get('battery')
+ if battery is not None:
+  full=integer(battery.get('full_soc'),0,25600);decimals=integer(battery.get('decimals'),0,2)
+  if full and full<23040:raise ValueError('Full-charge reference is outside the supported range')
+  if data[129]!=1 and (full or decimals):raise ValueError('Update firmware before changing battery calibration')
+  if data[129]==1:
+   if custom[4]<3:
+    custom[2516]=3;custom[2517:2520]=bytes.fromhex('a8ead4');custom[2520:2523]=bytes.fromhex('c8aaf6')
+   custom[4]=4;struct.pack_into('<H',custom,2524,full);custom[2526]=decimals
  struct.pack_into('<I',custom,3068,zlib.crc32(custom[:3068]));data[160:]=custom;return bytes(data)
 
 def main():

@@ -1,0 +1,32 @@
+{
+  "id": "s75pro",
+  "name": "AULA S75 Pro",
+  "usb": {
+    "vendor_id": 3141,
+    "product_id": 32778,
+    "product_names": [
+      "AULA-S75Pro"
+    ]
+  },
+  "display": {
+    "width": 135,
+    "height": 240,
+    "orientation": "portrait",
+    "source": "official-driver"
+  },
+  "key_count": 80,
+  "layout_columns": 15,
+  "layout_rows": 6,
+  "firmware_port": "compiled-candidate",
+  "firmware_available": false,
+  "screen_source": "https://www.aulagaming.com/pages/download",
+  "research_firmware": {
+    "sha256": "bcc5f633d21f6219b9eebfec2c00b76a4f6bc3246babbe2e157478b26398d598",
+    "bytes": 262144,
+    "checksum": "d100",
+    "mcu_family": "SN32F290",
+    "version": "1.10"
+  },
+  "hardware_qualification": "pending",
+  "build_target": "aula/s75pro_test"
+}

@@ -26,9 +26,9 @@ int main(void){
   v.home=false;render(&v,first);v.link_state=F75_LINK_OFFLINE;v.power_state=F75_POWER_BATTERY;render(&v,next);assert(!memcmp(first,next,sizeof(first)));
  }
  f75_custom c,d;f75_custom_defaults(&c);uint8_t bytes[F75_CUSTOM_BYTES],pwm[270];
- f75_custom_encode(&c,bytes);assert(bytes[4]==1&&f75_custom_decode(bytes,&d)&&d.indicator_mask==3&&!d.indicators_custom);
+ f75_custom_encode(&c,bytes);assert(bytes[4]==4&&f75_custom_decode(bytes,&d)&&d.indicator_mask==3&&d.indicators_custom);
  c.indicators_custom=1;c.indicator_mask=2;c.fn_color[0]=33;f75_custom_encode(&c,bytes);
- assert(bytes[4]==3&&f75_custom_decode(bytes,&d)&&!memcmp(&c,&d,sizeof(c)));
+ assert(bytes[4]==4&&f75_custom_decode(bytes,&d)&&!memcmp(&c,&d,sizeof(c)));
  c.indicator_mask=4;assert(!f75_custom_valid(&c));c.indicator_mask=3;
  for(unsigned caps=0;caps<2;++caps)for(unsigned fn=0;fn<2;++fn)for(unsigned brightness=0;brightness<=100;brightness+=50){
   memset(pwm,7,sizeof(pwm));f75_custom_indicators(&c,caps,fn,brightness,pwm);

@@ -49,4 +49,5 @@ bool f75_render_tile(const f75_view *view,uint8_t y,uint8_t rows,uint16_t *pixel
 /* Conservative eight-row dirty mask for menus and companion Home frames.
  * Appearance changes and unclassified pages require a complete repaint. */
 uint16_t f75_changed_tiles(const f75_view *previous,const f75_view *next);
+bool f75_render_portrait_menu_tile(const f75_view *view,uint16_t y,uint8_t rows,uint16_t *pixels,size_t capacity);
 #endif

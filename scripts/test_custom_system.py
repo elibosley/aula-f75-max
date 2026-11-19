@@ -44,12 +44,12 @@ def run(image):
   doc['colors'][0][keymap.index(4)]='#ff0000';doc['layer_colors'][1]='#00ff00';blob=encode(doc)
   assert upload(blob,True)==5;readback=download();assert readback==blob
   def pwm():
-   advance(100);active=m.read(m.symbols['active_buffer'],1)[0];return m.read(m.symbols['duties']+active*270,270)
+   advance(100);active=m.read(m.symbols['active_buffer'],1)[0];return m.read(m.symbols['duties']+active*(315 if m.target=='s75pro' else 270),270)
   index=keymap.index(4);led=(index%6)*15+index//6;colors=pwm()
   assert colors[led]>0 and colors[90+led]==colors[180+led]==0,'Base per-key paint missing'
-  m.write32(HOST+0x100+11*4,1<<5);advance(20);colors=pwm()
+  key(0x7e40,True);colors=pwm()
   assert colors[led]==0 and colors[90+led]>0 and colors[180+led]==0,'Fn layer color missing'
-  m.write32(HOST+0x100+11*4,0);advance(20)
+  key(0x7e40,False)
   # Rejected partial or bad transactions cannot change the active profile.
   assert request(1,3232,struct.pack('<I',0))[12]==0
   assert request(2,17,bytes(17))[12]==3
@@ -80,7 +80,7 @@ def run(image):
   colors=decode(original);colors['lighting']={'color':'#f2a4aa','brightness':53,'speed':41,'effect':0};colors['screen_color']='#c4b4ef';colors['names'][2]='Tablet'
   extended=encode(colors);assert upload(extended,True)==5;readback=decode(download())
   assert readback['lighting']==colors['lighting'] and readback['screen_color']==colors['screen_color'] and readback['names']==colors['names']
-  assert download()[164]==2
+  assert download()[164]==4
   assert upload(original)==4
  return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'real_usb_configuration_roundtrip':True,'python_and_firmware_codec_match':True,'reject_incomplete_and_invalid_macros':True,'base_key_and_fn_layer_pwm':True,'remap_usb_report':True,'macro_does_not_release_physical_modifier':True,'apply_cancels_macro':True,'custom_save_commits':True,'clock_sync_midnight_and_invalid_time':True,'lighting_screen_accent_and_device_names_roundtrip':True}
 if __name__=='__main__':

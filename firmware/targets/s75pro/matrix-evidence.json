@@ -1,0 +1,1074 @@
+{
+  "status": "passed",
+  "supplier_image_sha256": "bcc5f633d21f6219b9eebfec2c00b76a4f6bc3246babbe2e157478b26398d598",
+  "drive_pins": [
+    "P0.4",
+    "P0.5",
+    "P2.0",
+    "P2.1",
+    "P2.2",
+    "P2.3",
+    "P0.6",
+    "P0.7",
+    "P2.4",
+    "P2.5",
+    "P2.6",
+    "P2.7",
+    "P2.14",
+    "P2.8",
+    "P2.9"
+  ],
+  "sense_pins": [
+    {
+      "pin": "P1.14",
+      "sense_bit": 0
+    },
+    {
+      "pin": "P1.15",
+      "sense_bit": 1
+    },
+    {
+      "pin": "P1.19",
+      "sense_bit": 2
+    },
+    {
+      "pin": "P3.19",
+      "sense_bit": 3
+    },
+    {
+      "pin": "P0.19",
+      "sense_bit": 4
+    },
+    {
+      "pin": "P0.18",
+      "sense_bit": 5
+    }
+  ],
+  "display": {
+    "init_commands": [
+      {
+        "command": 17,
+        "data": []
+      },
+      {
+        "command": 54,
+        "data": [
+          0
+        ]
+      },
+      {
+        "command": 58,
+        "data": [
+          5
+        ]
+      },
+      {
+        "command": 33,
+        "data": []
+      },
+      {
+        "command": 178,
+        "data": [
+          5,
+          5,
+          0,
+          51,
+          51
+        ]
+      },
+      {
+        "command": 183,
+        "data": [
+          35
+        ]
+      },
+      {
+        "command": 187,
+        "data": [
+          34
+        ]
+      },
+      {
+        "command": 192,
+        "data": [
+          44
+        ]
+      },
+      {
+        "command": 194,
+        "data": [
+          1
+        ]
+      },
+      {
+        "command": 195,
+        "data": [
+          19
+        ]
+      },
+      {
+        "command": 196,
+        "data": [
+          32
+        ]
+      },
+      {
+        "command": 198,
+        "data": [
+          15
+        ]
+      },
+      {
+        "command": 208,
+        "data": [
+          164,
+          161
+        ]
+      },
+      {
+        "command": 214,
+        "data": [
+          161
+        ]
+      },
+      {
+        "command": 224,
+        "data": [
+          112,
+          6,
+          12,
+          8,
+          9,
+          39,
+          46,
+          52,
+          70,
+          55,
+          19,
+          19,
+          37,
+          42
+        ]
+      },
+      {
+        "command": 225,
+        "data": [
+          112,
+          4,
+          8,
+          9,
+          7,
+          3,
+          44,
+          66,
+          66,
+          56,
+          20,
+          20,
+          39,
+          44
+        ]
+      },
+      {
+        "command": 33,
+        "data": []
+      },
+      {
+        "command": 41,
+        "data": []
+      },
+      {
+        "command": 54,
+        "data": [
+          0
+        ]
+      }
+    ],
+    "offset_x": 52,
+    "offset_y": 40,
+    "gpio_writes": [
+      {
+        "address": 1074020388,
+        "size": 4,
+        "value": 131072,
+        "instruction": 31500
+      },
+      {
+        "address": 1074020356,
+        "size": 4,
+        "value": 131072,
+        "instruction": 31512
+      },
+      {
+        "address": 1074020392,
+        "size": 4,
+        "value": 131072,
+        "instruction": 31518
+      },
+      {
+        "address": 1074020388,
+        "size": 4,
+        "value": 131072,
+        "instruction": 31530
+      },
+      {
+        "address": 1074044932,
+        "size": 4,
+        "value": 16384,
+        "instruction": 31546
+      },
+      {
+        "address": 1074028584,
+        "size": 4,
+        "value": 256,
+        "instruction": 31556
+      },
+      {
+        "address": 1074028580,
+        "size": 4,
+        "value": 256,
+        "instruction": 31946
+      },
+      {
+        "address": 1074028584,
+        "size": 4,
+        "value": 256,
+        "instruction": 31402
+      },
+      {
+        "address": 1074028580,
+        "size": 4,
+        "value": 256,
+        "instruction": 31420
+      }
+    ],
+    "stubbed_routines": [
+      "spi_initialization",
+      "millisecond_delay",
+      "panel_command_output",
+      "panel_data_output"
+    ],
+    "physical_verified": false
+  },
+  "peripherals": {
+    "rgb": {
+      "rows": [
+        "B5",
+        "D8",
+        "D11",
+        "D16",
+        "C10",
+        "C13",
+        "A1",
+        "A11",
+        "A8",
+        "D9",
+        "D12",
+        "D17",
+        "C11",
+        "A0",
+        "B4",
+        "A9",
+        "D10",
+        "D13",
+        "D18",
+        "C12",
+        "A2"
+      ],
+      "columns": [
+        1073750064,
+        1073750068,
+        1073750080,
+        1073758244,
+        1073758248,
+        1073758252,
+        1073750072,
+        1073750076,
+        1073750084,
+        1073758240,
+        1073741856,
+        1073750088,
+        1073741868,
+        1073741864,
+        1073741860
+      ],
+      "initialization": [
+        {
+          "address": 1074126848,
+          "size": 4,
+          "value": 32,
+          "instruction": 78110
+        },
+        {
+          "address": 1074126848,
+          "size": 4,
+          "value": 96,
+          "instruction": 78118
+        },
+        {
+          "address": 1074126848,
+          "size": 4,
+          "value": 224,
+          "instruction": 78126
+        },
+        {
+          "address": 1074126848,
+          "size": 4,
+          "value": 480,
+          "instruction": 78134
+        },
+        {
+          "address": 1074126848,
+          "size": 4,
+          "value": 1504,
+          "instruction": 78142
+        },
+        {
+          "address": 1073741832,
+          "size": 4,
+          "value": 23,
+          "instruction": 78148
+        },
+        {
+          "address": 1073750024,
+          "size": 4,
+          "value": 23,
+          "instruction": 78154
+        },
+        {
+          "address": 1073758216,
+          "size": 4,
+          "value": 23,
+          "instruction": 78160
+        },
+        {
+          "address": 1073766408,
+          "size": 4,
+          "value": 23,
+          "instruction": 78164
+        },
+        {
+          "address": 1073782792,
+          "size": 4,
+          "value": 23,
+          "instruction": 78168
+        },
+        {
+          "address": 1073750048,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78044
+        },
+        {
+          "address": 1073750052,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78046
+        },
+        {
+          "address": 1073750056,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78048
+        },
+        {
+          "address": 1073750060,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78050
+        },
+        {
+          "address": 1073750064,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78052
+        },
+        {
+          "address": 1073750068,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78054
+        },
+        {
+          "address": 1073750072,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78056
+        },
+        {
+          "address": 1073750076,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78058
+        },
+        {
+          "address": 1073750080,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78064
+        },
+        {
+          "address": 1073750084,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78066
+        },
+        {
+          "address": 1073750088,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78068
+        },
+        {
+          "address": 1073758244,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78074
+        },
+        {
+          "address": 1073758248,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78076
+        },
+        {
+          "address": 1073758252,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78078
+        },
+        {
+          "address": 1073758240,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78080
+        },
+        {
+          "address": 1073741856,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78084
+        },
+        {
+          "address": 1073741868,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78086
+        },
+        {
+          "address": 1073741864,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78088
+        },
+        {
+          "address": 1073741860,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78090
+        },
+        {
+          "address": 1073782824,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78094
+        },
+        {
+          "address": 1073782828,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78096
+        },
+        {
+          "address": 1073766432,
+          "size": 4,
+          "value": 1509949695,
+          "instruction": 78178
+        },
+        {
+          "address": 1073766420,
+          "size": 4,
+          "value": 1509949443,
+          "instruction": 78188
+        },
+        {
+          "address": 1073741976,
+          "size": 4,
+          "value": 1509949455,
+          "instruction": 78194
+        },
+        {
+          "address": 1073750168,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78200
+        },
+        {
+          "address": 1073750176,
+          "size": 4,
+          "value": 1509951472,
+          "instruction": 78204
+        },
+        {
+          "address": 1073758360,
+          "size": 4,
+          "value": 1509949455,
+          "instruction": 78208
+        },
+        {
+          "address": 1073741976,
+          "size": 4,
+          "value": 1509949455,
+          "instruction": 78000
+        },
+        {
+          "address": 1073750168,
+          "size": 4,
+          "value": 1509949440,
+          "instruction": 78008
+        },
+        {
+          "address": 1073758360,
+          "size": 4,
+          "value": 1509949455,
+          "instruction": 78012
+        },
+        {
+          "address": 1073750180,
+          "size": 4,
+          "value": 2032,
+          "instruction": 78018
+        },
+        {
+          "address": 1073741976,
+          "size": 4,
+          "value": 1525678095,
+          "instruction": 78026
+        },
+        {
+          "address": 1073758360,
+          "size": 4,
+          "value": 1525678095,
+          "instruction": 78032
+        },
+        {
+          "address": 1073741824,
+          "size": 4,
+          "value": 2,
+          "instruction": 78216
+        },
+        {
+          "address": 1073741824,
+          "size": 4,
+          "value": 1,
+          "instruction": 78230
+        },
+        {
+          "address": 1073750016,
+          "size": 4,
+          "value": 2,
+          "instruction": 78232
+        },
+        {
+          "address": 1073750016,
+          "size": 4,
+          "value": 1,
+          "instruction": 78244
+        },
+        {
+          "address": 1073758208,
+          "size": 4,
+          "value": 2,
+          "instruction": 78246
+        },
+        {
+          "address": 1073758208,
+          "size": 4,
+          "value": 1,
+          "instruction": 78258
+        },
+        {
+          "address": 1073766400,
+          "size": 4,
+          "value": 2,
+          "instruction": 78260
+        },
+        {
+          "address": 1073766400,
+          "size": 4,
+          "value": 1,
+          "instruction": 78272
+        }
+      ],
+      "color_order": "Physical color and strip direction require board checks"
+    },
+    "inputs": {
+      "encoder": {
+        "routine": "0x21e0",
+        "cases": [
+          {
+            "gpio_a": 0,
+            "gpio_b": 0,
+            "raw": 0
+          },
+          {
+            "gpio_a": 0,
+            "gpio_b": 1,
+            "raw": 1
+          },
+          {
+            "gpio_a": 8,
+            "gpio_b": 0,
+            "raw": 2
+          },
+          {
+            "gpio_a": 8,
+            "gpio_b": 1,
+            "raw": 3
+          }
+        ]
+      },
+      "selector": {
+        "routine": "0x204c",
+        "cases": [
+          {
+            "gpio_a": 0,
+            "gpio_b": 0,
+            "raw": 0
+          },
+          {
+            "gpio_a": 0,
+            "gpio_b": 4,
+            "raw": 1
+          },
+          {
+            "gpio_a": 1024,
+            "gpio_b": 0,
+            "raw": 2
+          },
+          {
+            "gpio_a": 1024,
+            "gpio_b": 4,
+            "raw": 3
+          }
+        ]
+      },
+      "charging": {
+        "routine": "0x216a",
+        "cases": [
+          {
+            "gpio_a": 0,
+            "gpio_b": 0,
+            "raw": 1
+          },
+          {
+            "gpio_a": 0,
+            "gpio_b": 65536,
+            "raw": 3
+          },
+          {
+            "gpio_a": 0,
+            "gpio_b": 131072,
+            "raw": 0
+          },
+          {
+            "gpio_a": 0,
+            "gpio_b": 196608,
+            "raw": 2
+          }
+        ]
+      }
+    },
+    "gpio_initialization": [
+      {
+        "address": 1074020352,
+        "size": 4,
+        "value": 65535,
+        "instruction": 36470
+      },
+      {
+        "address": 1074020360,
+        "size": 4,
+        "value": 0,
+        "instruction": 36474
+      },
+      {
+        "address": 1074020400,
+        "size": 4,
+        "value": 160,
+        "instruction": 36478
+      },
+      {
+        "address": 1074020356,
+        "size": 4,
+        "value": 0,
+        "instruction": 36480
+      },
+      {
+        "address": 1074028544,
+        "size": 4,
+        "value": 65535,
+        "instruction": 36484
+      },
+      {
+        "address": 1074028552,
+        "size": 4,
+        "value": 2684354560,
+        "instruction": 36490
+      },
+      {
+        "address": 1074028592,
+        "size": 4,
+        "value": 130,
+        "instruction": 36494
+      },
+      {
+        "address": 1074028548,
+        "size": 4,
+        "value": 0,
+        "instruction": 36496
+      },
+      {
+        "address": 1074036736,
+        "size": 4,
+        "value": 65535,
+        "instruction": 36500
+      },
+      {
+        "address": 1074036744,
+        "size": 4,
+        "value": 0,
+        "instruction": 36502
+      },
+      {
+        "address": 1074036740,
+        "size": 4,
+        "value": 0,
+        "instruction": 36504
+      },
+      {
+        "address": 1074044928,
+        "size": 4,
+        "value": 65535,
+        "instruction": 36508
+      },
+      {
+        "address": 1074044936,
+        "size": 4,
+        "value": 0,
+        "instruction": 36510
+      },
+      {
+        "address": 1074044976,
+        "size": 4,
+        "value": 128,
+        "instruction": 36514
+      },
+      {
+        "address": 1074044932,
+        "size": 4,
+        "value": 0,
+        "instruction": 36516
+      },
+      {
+        "address": 1074020356,
+        "size": 4,
+        "value": 2823,
+        "instruction": 36524
+      },
+      {
+        "address": 1074028548,
+        "size": 4,
+        "value": 48,
+        "instruction": 36532
+      },
+      {
+        "address": 1074036740,
+        "size": 4,
+        "value": 15360,
+        "instruction": 36542
+      },
+      {
+        "address": 1074044932,
+        "size": 4,
+        "value": 474880,
+        "instruction": 36550
+      },
+      {
+        "address": 1074020392,
+        "size": 4,
+        "value": 2823,
+        "instruction": 36556
+      },
+      {
+        "address": 1074028584,
+        "size": 4,
+        "value": 48,
+        "instruction": 36562
+      },
+      {
+        "address": 1074036776,
+        "size": 4,
+        "value": 15360,
+        "instruction": 36572
+      },
+      {
+        "address": 1074044968,
+        "size": 4,
+        "value": 474880,
+        "instruction": 36578
+      },
+      {
+        "address": 1074020356,
+        "size": 4,
+        "value": 3063,
+        "instruction": 36586
+      },
+      {
+        "address": 1074028548,
+        "size": 4,
+        "value": 48,
+        "instruction": 36590
+      },
+      {
+        "address": 1074036740,
+        "size": 4,
+        "value": 32767,
+        "instruction": 36598
+      },
+      {
+        "address": 1074044932,
+        "size": 4,
+        "value": 474880,
+        "instruction": 36602
+      },
+      {
+        "address": 1074020388,
+        "size": 4,
+        "value": 240,
+        "instruction": 36608
+      },
+      {
+        "address": 1074028580,
+        "size": 4,
+        "value": 0,
+        "instruction": 36612
+      },
+      {
+        "address": 1074036772,
+        "size": 4,
+        "value": 17407,
+        "instruction": 36618
+      },
+      {
+        "address": 1074044964,
+        "size": 4,
+        "value": 0,
+        "instruction": 36622
+      },
+      {
+        "address": 1074020356,
+        "size": 4,
+        "value": 68599,
+        "instruction": 31986
+      },
+      {
+        "address": 1074020392,
+        "size": 4,
+        "value": 68359,
+        "instruction": 31992
+      },
+      {
+        "address": 1074020356,
+        "size": 4,
+        "value": 84983,
+        "instruction": 36640
+      },
+      {
+        "address": 1074020392,
+        "size": 4,
+        "value": 84743,
+        "instruction": 36646
+      },
+      {
+        "address": 1074020356,
+        "size": 4,
+        "value": 117751,
+        "instruction": 36654
+      },
+      {
+        "address": 1074020392,
+        "size": 4,
+        "value": 117511,
+        "instruction": 36660
+      }
+    ],
+    "uart_initialization": [
+      {
+        "address": 1074126848,
+        "size": 4,
+        "value": 262144,
+        "instruction": 79666
+      },
+      {
+        "address": 1074085900,
+        "size": 4,
+        "value": 131,
+        "instruction": 79672
+      },
+      {
+        "address": 1074085928,
+        "size": 4,
+        "value": 0,
+        "instruction": 79676
+      },
+      {
+        "address": 1074085892,
+        "size": 4,
+        "value": 0,
+        "instruction": 79678
+      },
+      {
+        "address": 1074085888,
+        "size": 4,
+        "value": 26,
+        "instruction": 79682
+      },
+      {
+        "address": 1074085900,
+        "size": 4,
+        "value": 3,
+        "instruction": 79690
+      },
+      {
+        "address": 1074085896,
+        "size": 4,
+        "value": 7,
+        "instruction": 79694
+      },
+      {
+        "address": 1074085892,
+        "size": 4,
+        "value": 791,
+        "instruction": 79650
+      },
+      {
+        "address": 1074085936,
+        "size": 4,
+        "value": 193,
+        "instruction": 79702
+      }
+    ],
+    "spi_initialization": [
+      {
+        "address": 1074126848,
+        "size": 4,
+        "value": 4096,
+        "instruction": 78952
+      },
+      {
+        "address": 1073856512,
+        "size": 4,
+        "value": 1792,
+        "instruction": 78970
+      },
+      {
+        "address": 1073856512,
+        "size": 4,
+        "value": 1792,
+        "instruction": 78978
+      },
+      {
+        "address": 1073856512,
+        "size": 4,
+        "value": 1792,
+        "instruction": 78986
+      },
+      {
+        "address": 1073856512,
+        "size": 4,
+        "value": 1792,
+        "instruction": 78994
+      },
+      {
+        "address": 1073856544,
+        "size": 4,
+        "value": 1,
+        "instruction": 78998
+      },
+      {
+        "address": 1073856520,
+        "size": 4,
+        "value": 0,
+        "instruction": 79006
+      },
+      {
+        "address": 1073856516,
+        "size": 4,
+        "value": 0,
+        "instruction": 79010
+      },
+      {
+        "address": 1073856512,
+        "size": 4,
+        "value": 263936,
+        "instruction": 79018
+      },
+      {
+        "address": 1074028548,
+        "size": 4,
+        "value": 256,
+        "instruction": 79028
+      },
+      {
+        "address": 1074028580,
+        "size": 4,
+        "value": 256,
+        "instruction": 79034
+      },
+      {
+        "address": 1073856512,
+        "size": 4,
+        "value": 264128,
+        "instruction": 79042
+      },
+      {
+        "address": 1073856512,
+        "size": 4,
+        "value": 264129,
+        "instruction": 79048
+      }
+    ],
+    "gauge": {
+      "register": 4,
+      "sent": [
+        198,
+        4,
+        199
+      ],
+      "stubbed_routines": [
+        "start",
+        "send_byte",
+        "ack",
+        "receive_byte",
+        "nack",
+        "stop"
+      ]
+    },
+    "timing": "Peripheral completion modeled; electrical waveforms are not modeled"
+  },
+  "emulated_routines": [
+    "matrix_drive",
+    "matrix_sense",
+    "panel_init",
+    "panel_orientation"
+  ],
+  "stubbed_routines": [
+    "configure_matrix_outputs",
+    "clear_matrix_outputs",
+    "select_matrix_drive",
+    "settle_delay"
+  ],
+  "full_system_emulated": false,
+  "hardware_tested": false
+}

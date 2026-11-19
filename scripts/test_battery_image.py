@@ -34,10 +34,12 @@ fw.callback('f75_battery_read_register',gauge)
 for t in range(1000,1004):fw.call('f75_battery_task',t)
 assert calls==[2,3,4,5]
 assert fw.call('f75_battery_percent',SCRATCH)==1 and fw.byte(SCRATCH)==50
+assert fw.call('f75_battery_raw_soc',SCRATCH)==1 and fw.cpu.mem_read(SCRATCH,2)==b'\x00\x30'
 fw.call('f75_battery_diagnostics',SCRATCH)
 assert struct.unpack('<6I',fw.cpu.mem_read(SCRATCH,24))[:4]==(1,50,4000,1)
 fw.callback('f75_battery_read_register',lambda args:0)
 fw.call('f75_battery_task',40000);assert fw.call('f75_battery_percent',SCRATCH)==0
+fw.byte(SCRATCH,0xa5);assert fw.call('f75_battery_raw_soc',SCRATCH)==0 and fw.byte(SCRATCH)==0xa5
 for values in [(0,0,0x30,0),(0x32,0,0xff,0xff)]:
  fw=Candidate();registers=dict(zip(range(2,6),values));fw.callback('f75_battery_read_register',gauge)
  for t in range(1000,1004):fw.call('f75_battery_task',t)
@@ -57,9 +59,9 @@ def fields():
  data=bytes(fw.cpu.mem_read(SYMBOLS['frame'],180))
  return data[8:16].split(b'\0')[0],data[136:157].split(b'\0')[0]
 assert fields()==(b'--%',b''),fields()
-def known(args):fw.byte(args[0],91);return 1
-fw.callback('f75_battery_percent',known);draw(5010)
-assert fields()==(b'91%',b''),fields()
+def known(args):fw.cpu.mem_write(args[0],struct.pack('<H',22364));return 1
+fw.callback('f75_battery_raw_soc',known);draw(5010)
+assert fields()==(b'91.0%',b''),fields()
 fw.callback('f75_radio_connected',lambda args:0);draw(5020)
 assert fields()[1]==b'Offline / Fn+P',fields()
 fw.byte(SYMBOLS['active_slot'],4);draw(5030)

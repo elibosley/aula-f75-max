@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "f75_custom.h"
 #include <string.h>
+#if defined(__ARM_ARCH_6M__)
+#define F75_POWER_CODE __attribute__((section(".f75_power_text"),noinline))
+#else
+#define F75_POWER_CODE
+#endif
 static void put16(uint8_t *p,uint16_t v){p[0]=v;p[1]=v>>8;}
 static uint16_t get16(const uint8_t *p){return (uint16_t)p[0]|((uint16_t)p[1]<<8);}
 static void put32(uint8_t *p,uint32_t v){for(unsigned i=0;i<4;++i)p[i]=v>>(8*i);}
@@ -14,15 +19,16 @@ static bool binding(uint16_t usage){
         (usage>=F75_BIND_MOUSE_LEFT&&usage<=F75_BIND_MOUSE_MIDDLE);
 }
 void f75_custom_defaults(f75_custom *c){
-    memset(c,0,sizeof(*c));c->indicator_mask=3;
+    memset(c,0,sizeof(*c));c->indicator_mask=3;c->indicators_custom=1;c->battery_decimals=1;
     const uint8_t caps[]={168,234,212},fn[]={200,170,246};
     memcpy(c->caps_color,caps,3);memcpy(c->fn_color,fn,3);
 }
 bool f75_custom_valid(const f75_custom *c){
-    if(!c||(c->layer_mask&~7u)||c->screen_custom>1||c->indicators_custom>1||(c->indicator_mask&~3u))return false;
+    if(!c||(c->layer_mask&~7u)||c->screen_custom>1||(c->indicator_mask&~3u)||c->battery_decimals>2||
+       (c->battery_full_soc&&(c->battery_full_soc<23040||c->battery_full_soc>25600)))return false;
     for(unsigned layer=0;layer<2;++layer)for(unsigned key=0;key<F75_CUSTOM_KEYS;++key){
         uint16_t v=c->keys[layer][key];if(!binding(v))return false;
-        if((key==71||key==84)&&v)return false; /* physical Fn and wheel/recovery */
+        if((key==F75_FN_KEY||key==84)&&v)return false; /* physical Fn and wheel/recovery */
         if(layer==1&&v&&(key==0||key==7||key==13||key==19||key==25||key==31||key==41||key==52||key==62))return false;
         if(v>=F75_BIND_MACRO&&v<F75_BIND_MACRO+F75_CUSTOM_MACROS&&!c->macro_length[v-F75_BIND_MACRO])return false;
     }
@@ -48,8 +54,8 @@ bool f75_custom_valid(const f75_custom *c){
     }
     return true;
 }
-void f75_custom_encode(const f75_custom *c,uint8_t out[F75_CUSTOM_BYTES]){
-    memset(out,0,F75_CUSTOM_BYTES);memcpy(out,"F75C",4);out[4]=c->indicators_custom?3:c->screen_custom?2:1;put16(out+6,F75_CUSTOM_BYTES);
+void F75_POWER_CODE f75_custom_encode(const f75_custom *c,uint8_t out[F75_CUSTOM_BYTES]){
+    memset(out,0,F75_CUSTOM_BYTES);memcpy(out,"F75C",4);out[4]=4;put16(out+6,F75_CUSTOM_BYTES);
     unsigned at=16;
     for(unsigned layer=0;layer<2;++layer)for(unsigned key=0;key<F75_CUSTOM_KEYS;++key){put16(out+at,c->keys[layer][key]);at+=2;}
     memcpy(out+at,c->colors,sizeof(c->colors));at+=sizeof(c->colors);
@@ -60,11 +66,12 @@ void f75_custom_encode(const f75_custom *c,uint8_t out[F75_CUSTOM_BYTES]){
         put16(out+at,c->steps[slot][step].usage);put16(out+at+2,c->steps[slot][step].delay_ms);at+=4;
     }
     if(c->screen_custom){out[2512]=1;memcpy(out+2513,c->screen_color,3);}
-    if(c->indicators_custom){out[2516]=c->indicator_mask;memcpy(out+2517,c->caps_color,3);memcpy(out+2520,c->fn_color,3);}
+    out[2516]=c->indicator_mask;memcpy(out+2517,c->caps_color,3);memcpy(out+2520,c->fn_color,3);
+    put16(out+2524,c->battery_full_soc);out[2526]=c->battery_decimals;
     put32(out+F75_CUSTOM_BYTES-4,f75_crc32(out,F75_CUSTOM_BYTES-4));
 }
-bool f75_custom_decode(const uint8_t in[F75_CUSTOM_BYTES],f75_custom *c){
-    if(memcmp(in,"F75C",4)||(in[4]<1||in[4]>3)||get16(in+6)!=F75_CUSTOM_BYTES||get32(in+F75_CUSTOM_BYTES-4)!=f75_crc32(in,F75_CUSTOM_BYTES-4))return false;
+bool F75_POWER_CODE f75_custom_decode(const uint8_t in[F75_CUSTOM_BYTES],f75_custom *c){
+    if(memcmp(in,"F75C",4)||(in[4]<1||in[4]>4)||get16(in+6)!=F75_CUSTOM_BYTES||get32(in+F75_CUSTOM_BYTES-4)!=f75_crc32(in,F75_CUSTOM_BYTES-4))return false;
     f75_custom_defaults(c);
     unsigned at=16;
     for(unsigned layer=0;layer<2;++layer)for(unsigned key=0;key<F75_CUSTOM_KEYS;++key){c->keys[layer][key]=get16(in+at);at+=2;}
@@ -75,7 +82,24 @@ bool f75_custom_decode(const uint8_t in[F75_CUSTOM_BYTES],f75_custom *c){
     for(unsigned slot=0;slot<8;++slot)for(unsigned step=0;step<32;++step){c->steps[slot][step].usage=get16(in+at);c->steps[slot][step].delay_ms=get16(in+at+2);at+=4;}
     if(in[4]>=2){c->screen_custom=in[2512];memcpy(c->screen_color,in+2513,3);}
     if(in[4]>=3){c->indicators_custom=1;c->indicator_mask=in[2516];memcpy(c->caps_color,in+2517,3);memcpy(c->fn_color,in+2520,3);}
+    if(in[4]>=4){if(in[2526]>2)return false;c->battery_full_soc=get16(in+2524);c->battery_decimals=in[2526];}
     return f75_custom_valid(c);
+}
+uint16_t F75_POWER_CODE f75_battery_estimate(const f75_custom *c,uint16_t raw){
+    if(raw>25600)return UINT16_MAX;
+    uint32_t full=c->battery_full_soc?c->battery_full_soc:24576u;
+    uint32_t value=((uint32_t)raw*10000u+full/2u)/full;
+    return value>10000u?10000u:(uint16_t)value;
+}
+void F75_POWER_CODE f75_battery_label(char out[8],uint16_t value,uint8_t decimals){
+    if(value>10000u||decimals>2){memcpy(out,"--%",4);return;}
+    unsigned unit=decimals==0?100u:decimals==1?10u:1u;
+    unsigned rounded=(value+unit/2u)/unit*unit,whole=rounded/100u,at=0;
+    if(whole>=100)out[at++]='1';
+    if(whole>=10)out[at++]=(char)('0'+whole/10u%10u);
+    out[at++]=(char)('0'+whole%10u);
+    if(decimals){out[at++]='.';out[at++]=(char)('0'+rounded/10u%10u);if(decimals==2)out[at++]=(char)('0'+rounded%10u);}
+    out[at++]='%';out[at]=0;
 }
 uint16_t f75_custom_binding(const f75_custom *c,uint8_t key,bool fn,uint16_t stock){
     if(key>=90)return stock;
@@ -95,13 +119,13 @@ void f75_custom_lighting(const f75_custom *c,uint8_t layer,uint8_t brightness,ui
 void f75_custom_indicators(const f75_custom *c,bool caps,bool fn,uint8_t brightness,uint8_t pwm[270]){
     if(!c||!pwm)return;
     unsigned peak=(brightness>100?100:brightness)*127u/100u;
-    /* Physical Caps is key 3 (RGB 45); physical Fn is key 71 (RGB 86).
+    /* Physical Caps is key 3 (RGB 45); physical Fn is supplied by the board profile.
      * Fn takes priority while held, then the host's Caps state returns.
      * This overlays the completed foreground buffer, never the row IRQ. */
     const uint8_t *color=fn&&(c->indicator_mask&2u)?c->fn_color:caps&&(c->indicator_mask&1u)?c->caps_color:NULL;
     for(unsigned ch=0;ch<3;++ch){
         if(color)pwm[ch*90u+45u]=(uint8_t)((unsigned)color[ch]*peak/255u);
-        if(fn&&(c->indicator_mask&2u))pwm[ch*90u+86u]=(uint8_t)((unsigned)c->fn_color[ch]*peak/255u);
+        if(fn&&(c->indicator_mask&2u))pwm[ch*90u+(F75_FN_KEY%6)*15u+F75_FN_KEY/6u]=(uint8_t)((unsigned)c->fn_color[ch]*peak/255u);
     }
 }
 void f75_macro_cancel(f75_macro_player *p,f75_macro_emit emit,void *context){

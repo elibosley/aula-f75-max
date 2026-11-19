@@ -1,12 +1,14 @@
 # Connection, charging, and lock indicators
 
-This source adds indicators to the Home header and configurable Caps/Fn feedback to key RGB. Building or passing model tests does not install the firmware or confirm physical LED placement and charge-input polarity.
+This source adds indicators to the Home header and configurable Caps/Fn feedback to key RGB. Building or passing model tests does not install the firmware or confirm physical charge-input behavior.
 
 The symbol beside USB, BT1–BT3, or RF shows the selected route's state: a solid mint dot means connected, a hollow crossed dot means disconnected, three dots mean a route change is pending, and two linked dots mean pairing is in progress. A radio command acknowledgment does not count as a host connection. The existing OS icon remains beside these symbols. Menus retain their full-screen headers.
 
-A lightning bolt beside the battery percentage means the debounced charging input is active. A plug means USB is configured while that charging input is inactive or not yet known. The plug does not assert that charging is complete. An unavailable battery gauge still shows `--%`; the charging input is independent of percentage.
+A lightning bolt beside the battery percentage means the debounced active-low charging input is active. A plug means USB is configured while that input is inactive or not yet known. The plug does not assert that charging is complete. An unavailable battery gauge still shows `--%`; the charging input is independent of percentage.
 
-The charging input follows the preserved supplier application (`a7d45875…`): routine `0x2184` reads active-low B17 into the flag at `0x20000059`. The stock Home painter at `0xfd8c` uses that flag to select display command `0x0e`, which draws the lightning-bolt battery bitmap from external asset offset `0xbd10`. The new driver only reads B17 and waits 50 ms for a stable level. It does not reconfigure the pin, change charger settings, or infer charging from battery percentage.
+The preserved supplier application (`a7d45875…`) reads active-low B17 in routine `0x2184` into the flag at `0x20000059`. Its Home painter at `0xfd8c` uses that flag to select display command `0x0e`, the lightning-bolt battery bitmap at external asset offset `0xbd10`. Supplier initialization at `0x7e50` writes GPIOB MODE `0` and CFG1 `0x82`, making B17 an input with its pull-up enabled. The custom driver now sets only B17 to that input mode before sampling, then waits 50 ms for a stable level. It does not change charger settings or infer charging from USB enumeration or percentage.
+
+The previous driver omitted this input setup. A live wired snapshot showed CFG1 `0xaa`, with B17's pull-up disabled, and B17 low; the user had also observed charging while unplugged. A floating input is a plausible cause of that false indication. The corrected setup matches the supplier and has linked-image regression coverage, but physical cable-in/out and charge-complete behavior still require confirmation on the corrected image.
 
 Under **Studio → Lighting → Lock and Fn lights**, choose the Caps Lock and Fn-held colors or disable either indication. Caps Lock follows the active host's LED output, not a physical key press. This supports the permanent Caps/Control/Command remapping. USB LED updates cannot alter the active Bluetooth host's indicator. A radio disconnect or route change clears the old radio lock state.
 

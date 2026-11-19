@@ -1,0 +1,1707 @@
+{
+  "scope": "Recovered from hash-checked S1-2808 V1.10 instructions and default tables; physical qualification pending.",
+  "firmware_sha256": "bcc5f633d21f6219b9eebfec2c00b76a4f6bc3246babbe2e157478b26398d598",
+  "matrix": {
+    "drive_pins": [
+      "P0.4",
+      "P0.5",
+      "P2.0",
+      "P2.1",
+      "P2.2",
+      "P2.3",
+      "P0.6",
+      "P0.7",
+      "P2.4",
+      "P2.5",
+      "P2.6",
+      "P2.7",
+      "P2.14",
+      "P2.8",
+      "P2.9"
+    ],
+    "sense_pins": [
+      {
+        "pin": "P1.14",
+        "sense_bit": 0
+      },
+      {
+        "pin": "P1.15",
+        "sense_bit": 1
+      },
+      {
+        "pin": "P1.19",
+        "sense_bit": 2
+      },
+      {
+        "pin": "P3.19",
+        "sense_bit": 3
+      },
+      {
+        "pin": "P0.19",
+        "sense_bit": 4
+      },
+      {
+        "pin": "P0.18",
+        "sense_bit": 5
+      }
+    ],
+    "coordinates": [
+      {
+        "scan_index": 0,
+        "sense_bit": 0,
+        "drive_pin": "P0.4",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 1,
+        "stock_usage": "0x29",
+        "vendor_key": {
+          "name": "Esc",
+          "key_index": "1",
+          "light_index": "1",
+          "rect_left": "97",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 0,
+        "sense_bit": 1,
+        "drive_pin": "P0.4",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 19,
+        "stock_usage": "0x35",
+        "vendor_key": {
+          "name": "~`",
+          "key_index": "19",
+          "light_index": "19",
+          "rect_left": "97",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 0,
+        "sense_bit": 2,
+        "drive_pin": "P0.4",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 37,
+        "stock_usage": "0x2b",
+        "vendor_key": {
+          "name": "Tab",
+          "key_index": "37",
+          "light_index": "37",
+          "rect_left": "97",
+          "rect_top": "121",
+          "rect_width": "48",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 0,
+        "sense_bit": 3,
+        "drive_pin": "P0.4",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 55,
+        "stock_usage": "0x39",
+        "vendor_key": {
+          "name": "CapsLock",
+          "key_index": "55",
+          "light_index": "55",
+          "rect_left": "97",
+          "rect_top": "157",
+          "rect_width": "58",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 0,
+        "sense_bit": 4,
+        "drive_pin": "P0.4",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 73,
+        "stock_usage": "0xe1",
+        "vendor_key": {
+          "name": "Shift_L",
+          "key_index": "73",
+          "light_index": "73",
+          "rect_left": "97",
+          "rect_top": "195",
+          "rect_width": "77",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 0,
+        "sense_bit": 5,
+        "drive_pin": "P0.4",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 91,
+        "stock_usage": "0xe0",
+        "vendor_key": {
+          "name": "Ctrl_L",
+          "key_index": "91",
+          "light_index": "91",
+          "rect_left": "97",
+          "rect_top": "233",
+          "rect_width": "40",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 1,
+        "sense_bit": 0,
+        "drive_pin": "P0.5",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 2,
+        "stock_usage": "0x3a",
+        "vendor_key": {
+          "name": "F1",
+          "key_index": "2",
+          "light_index": "2",
+          "rect_left": "143",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 1,
+        "sense_bit": 1,
+        "drive_pin": "P0.5",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 20,
+        "stock_usage": "0x1e",
+        "vendor_key": {
+          "name": "!1",
+          "key_index": "20",
+          "light_index": "20",
+          "rect_left": "134",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 1,
+        "sense_bit": 2,
+        "drive_pin": "P0.5",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 38,
+        "stock_usage": "0x14",
+        "vendor_key": {
+          "name": "Q",
+          "key_index": "38",
+          "light_index": "38",
+          "rect_left": "153",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 1,
+        "sense_bit": 3,
+        "drive_pin": "P0.5",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 56,
+        "stock_usage": "0x4",
+        "vendor_key": {
+          "name": "A",
+          "key_index": "56",
+          "light_index": "56",
+          "rect_left": "162",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 1,
+        "sense_bit": 4,
+        "drive_pin": "P0.5",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 0,
+        "stock_usage": "0x64",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 1,
+        "sense_bit": 5,
+        "drive_pin": "P0.5",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 92,
+        "stock_usage": "0xe3",
+        "vendor_key": {
+          "name": "Win_L",
+          "key_index": "92",
+          "light_index": "92",
+          "rect_left": "144",
+          "rect_top": "233",
+          "rect_width": "40",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 2,
+        "sense_bit": 0,
+        "drive_pin": "P2.0",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 3,
+        "stock_usage": "0x3b",
+        "vendor_key": {
+          "name": "F2",
+          "key_index": "3",
+          "light_index": "3",
+          "rect_left": "180",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 2,
+        "sense_bit": 1,
+        "drive_pin": "P2.0",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 21,
+        "stock_usage": "0x1f",
+        "vendor_key": {
+          "name": "@2",
+          "key_index": "21",
+          "light_index": "21",
+          "rect_left": "171",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 2,
+        "sense_bit": 2,
+        "drive_pin": "P2.0",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 39,
+        "stock_usage": "0x1a",
+        "vendor_key": {
+          "name": "W",
+          "key_index": "39",
+          "light_index": "39",
+          "rect_left": "190",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 2,
+        "sense_bit": 3,
+        "drive_pin": "P2.0",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 57,
+        "stock_usage": "0x16",
+        "vendor_key": {
+          "name": "S",
+          "key_index": "57",
+          "light_index": "57",
+          "rect_left": "199",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 2,
+        "sense_bit": 4,
+        "drive_pin": "P2.0",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 74,
+        "stock_usage": "0x1d",
+        "vendor_key": {
+          "name": "Z",
+          "key_index": "74",
+          "light_index": "74",
+          "rect_left": "181",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 2,
+        "sense_bit": 5,
+        "drive_pin": "P2.0",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 93,
+        "stock_usage": "0xe2",
+        "vendor_key": {
+          "name": "Alt_L",
+          "key_index": "93",
+          "light_index": "93",
+          "rect_left": "191",
+          "rect_top": "233",
+          "rect_width": "40",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 3,
+        "sense_bit": 0,
+        "drive_pin": "P2.1",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 4,
+        "stock_usage": "0x3c",
+        "vendor_key": {
+          "name": "F3",
+          "key_index": "4",
+          "light_index": "4",
+          "rect_left": "217",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 3,
+        "sense_bit": 1,
+        "drive_pin": "P2.1",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 22,
+        "stock_usage": "0x20",
+        "vendor_key": {
+          "name": "#3",
+          "key_index": "22",
+          "light_index": "22",
+          "rect_left": "208",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 3,
+        "sense_bit": 2,
+        "drive_pin": "P2.1",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 40,
+        "stock_usage": "0x8",
+        "vendor_key": {
+          "name": "E",
+          "key_index": "40",
+          "light_index": "40",
+          "rect_left": "227",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 3,
+        "sense_bit": 3,
+        "drive_pin": "P2.1",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 58,
+        "stock_usage": "0x7",
+        "vendor_key": {
+          "name": "D",
+          "key_index": "58",
+          "light_index": "58",
+          "rect_left": "237",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 3,
+        "sense_bit": 4,
+        "drive_pin": "P2.1",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 75,
+        "stock_usage": "0x1b",
+        "vendor_key": {
+          "name": "X",
+          "key_index": "75",
+          "light_index": "75",
+          "rect_left": "219",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 3,
+        "sense_bit": 5,
+        "drive_pin": "P2.1",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 0,
+        "stock_usage": "0x0",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 4,
+        "sense_bit": 0,
+        "drive_pin": "P2.2",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 5,
+        "stock_usage": "0x3d",
+        "vendor_key": {
+          "name": "F4",
+          "key_index": "5",
+          "light_index": "5",
+          "rect_left": "254",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 4,
+        "sense_bit": 1,
+        "drive_pin": "P2.2",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 23,
+        "stock_usage": "0x21",
+        "vendor_key": {
+          "name": "$4",
+          "key_index": "23",
+          "light_index": "23",
+          "rect_left": "245",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 4,
+        "sense_bit": 2,
+        "drive_pin": "P2.2",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 41,
+        "stock_usage": "0x15",
+        "vendor_key": {
+          "name": "R",
+          "key_index": "41",
+          "light_index": "41",
+          "rect_left": "264",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 4,
+        "sense_bit": 3,
+        "drive_pin": "P2.2",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 59,
+        "stock_usage": "0x9",
+        "vendor_key": {
+          "name": "F",
+          "key_index": "59",
+          "light_index": "59",
+          "rect_left": "274",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 4,
+        "sense_bit": 4,
+        "drive_pin": "P2.2",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 76,
+        "stock_usage": "0x6",
+        "vendor_key": {
+          "name": "C",
+          "key_index": "76",
+          "light_index": "76",
+          "rect_left": "256",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 4,
+        "sense_bit": 5,
+        "drive_pin": "P2.2",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 0,
+        "stock_usage": "0x0",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 5,
+        "sense_bit": 0,
+        "drive_pin": "P2.3",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 6,
+        "stock_usage": "0x3e",
+        "vendor_key": {
+          "name": "F5",
+          "key_index": "6",
+          "light_index": "6",
+          "rect_left": "302",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 5,
+        "sense_bit": 1,
+        "drive_pin": "P2.3",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 24,
+        "stock_usage": "0x22",
+        "vendor_key": {
+          "name": "%5",
+          "key_index": "24",
+          "light_index": "24",
+          "rect_left": "282",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 5,
+        "sense_bit": 2,
+        "drive_pin": "P2.3",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 42,
+        "stock_usage": "0x17",
+        "vendor_key": {
+          "name": "T",
+          "key_index": "42",
+          "light_index": "42",
+          "rect_left": "301",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 5,
+        "sense_bit": 3,
+        "drive_pin": "P2.3",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 60,
+        "stock_usage": "0xa",
+        "vendor_key": {
+          "name": "G",
+          "key_index": "60",
+          "light_index": "60",
+          "rect_left": "311",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 5,
+        "sense_bit": 4,
+        "drive_pin": "P2.3",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 77,
+        "stock_usage": "0x19",
+        "vendor_key": {
+          "name": "V",
+          "key_index": "77",
+          "light_index": "77",
+          "rect_left": "293",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 5,
+        "sense_bit": 5,
+        "drive_pin": "P2.3",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 0,
+        "stock_usage": "0x0",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 6,
+        "sense_bit": 0,
+        "drive_pin": "P0.6",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 7,
+        "stock_usage": "0x3f",
+        "vendor_key": {
+          "name": "F6",
+          "key_index": "7",
+          "light_index": "7",
+          "rect_left": "339",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 6,
+        "sense_bit": 1,
+        "drive_pin": "P0.6",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 25,
+        "stock_usage": "0x23",
+        "vendor_key": {
+          "name": "^6",
+          "key_index": "25",
+          "light_index": "25",
+          "rect_left": "319",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 6,
+        "sense_bit": 2,
+        "drive_pin": "P0.6",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 43,
+        "stock_usage": "0x1c",
+        "vendor_key": {
+          "name": "Y",
+          "key_index": "43",
+          "light_index": "43",
+          "rect_left": "338",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 6,
+        "sense_bit": 3,
+        "drive_pin": "P0.6",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 61,
+        "stock_usage": "0xb",
+        "vendor_key": {
+          "name": "H",
+          "key_index": "61",
+          "light_index": "61",
+          "rect_left": "348",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 6,
+        "sense_bit": 4,
+        "drive_pin": "P0.6",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 78,
+        "stock_usage": "0x5",
+        "vendor_key": {
+          "name": "B",
+          "key_index": "78",
+          "light_index": "78",
+          "rect_left": "330",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 6,
+        "sense_bit": 5,
+        "drive_pin": "P0.6",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 94,
+        "stock_usage": "0x2c",
+        "vendor_key": {
+          "name": "Space",
+          "key_index": "94",
+          "light_index": "94",
+          "rect_left": "237",
+          "rect_top": "233",
+          "rect_width": "224",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 7,
+        "sense_bit": 0,
+        "drive_pin": "P0.7",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 8,
+        "stock_usage": "0x40",
+        "vendor_key": {
+          "name": "F7",
+          "key_index": "8",
+          "light_index": "8",
+          "rect_left": "376",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 7,
+        "sense_bit": 1,
+        "drive_pin": "P0.7",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 26,
+        "stock_usage": "0x24",
+        "vendor_key": {
+          "name": "&7",
+          "key_index": "26",
+          "light_index": "26",
+          "rect_left": "356",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 7,
+        "sense_bit": 2,
+        "drive_pin": "P0.7",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 44,
+        "stock_usage": "0x18",
+        "vendor_key": {
+          "name": "U",
+          "key_index": "44",
+          "light_index": "44",
+          "rect_left": "376",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 7,
+        "sense_bit": 3,
+        "drive_pin": "P0.7",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 62,
+        "stock_usage": "0xd",
+        "vendor_key": {
+          "name": "J",
+          "key_index": "62",
+          "light_index": "62",
+          "rect_left": "385",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 7,
+        "sense_bit": 4,
+        "drive_pin": "P0.7",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 79,
+        "stock_usage": "0x11",
+        "vendor_key": {
+          "name": "N",
+          "key_index": "79",
+          "light_index": "79",
+          "rect_left": "367",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 7,
+        "sense_bit": 5,
+        "drive_pin": "P0.7",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 0,
+        "stock_usage": "0x0",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 8,
+        "sense_bit": 0,
+        "drive_pin": "P2.4",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 9,
+        "stock_usage": "0x41",
+        "vendor_key": {
+          "name": "F8",
+          "key_index": "9",
+          "light_index": "9",
+          "rect_left": "413",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 8,
+        "sense_bit": 1,
+        "drive_pin": "P2.4",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 27,
+        "stock_usage": "0x25",
+        "vendor_key": {
+          "name": "*8",
+          "key_index": "27",
+          "light_index": "27",
+          "rect_left": "393",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 8,
+        "sense_bit": 2,
+        "drive_pin": "P2.4",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 45,
+        "stock_usage": "0xc",
+        "vendor_key": {
+          "name": "I",
+          "key_index": "45",
+          "light_index": "45",
+          "rect_left": "413",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 8,
+        "sense_bit": 3,
+        "drive_pin": "P2.4",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 63,
+        "stock_usage": "0xe",
+        "vendor_key": {
+          "name": "K",
+          "key_index": "63",
+          "light_index": "63",
+          "rect_left": "422",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 8,
+        "sense_bit": 4,
+        "drive_pin": "P2.4",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 80,
+        "stock_usage": "0x10",
+        "vendor_key": {
+          "name": "M",
+          "key_index": "80",
+          "light_index": "80",
+          "rect_left": "404",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 8,
+        "sense_bit": 5,
+        "drive_pin": "P2.4",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 0,
+        "stock_usage": "0x0",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 9,
+        "sense_bit": 0,
+        "drive_pin": "P2.5",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 10,
+        "stock_usage": "0x42",
+        "vendor_key": {
+          "name": "F9",
+          "key_index": "10",
+          "light_index": "10",
+          "rect_left": "461",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 9,
+        "sense_bit": 1,
+        "drive_pin": "P2.5",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 28,
+        "stock_usage": "0x26",
+        "vendor_key": {
+          "name": "(9",
+          "key_index": "28",
+          "light_index": "28",
+          "rect_left": "431",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 9,
+        "sense_bit": 2,
+        "drive_pin": "P2.5",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 46,
+        "stock_usage": "0x12",
+        "vendor_key": {
+          "name": "O",
+          "key_index": "46",
+          "light_index": "46",
+          "rect_left": "450",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 9,
+        "sense_bit": 3,
+        "drive_pin": "P2.5",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 64,
+        "stock_usage": "0xf",
+        "vendor_key": {
+          "name": "L",
+          "key_index": "64",
+          "light_index": "64",
+          "rect_left": "460",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 9,
+        "sense_bit": 4,
+        "drive_pin": "P2.5",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 81,
+        "stock_usage": "0x36",
+        "vendor_key": {
+          "name": ",<",
+          "key_index": "81",
+          "light_index": "81",
+          "rect_left": "442",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 9,
+        "sense_bit": 5,
+        "drive_pin": "P2.5",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 95,
+        "stock_usage": "0xe6",
+        "vendor_key": {
+          "name": "Alt_R",
+          "key_index": "95",
+          "light_index": "95",
+          "rect_left": "471",
+          "rect_top": "233",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 10,
+        "sense_bit": 0,
+        "drive_pin": "P2.6",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 11,
+        "stock_usage": "0x43",
+        "vendor_key": {
+          "name": "F10",
+          "key_index": "11",
+          "light_index": "11",
+          "rect_left": "498",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 10,
+        "sense_bit": 1,
+        "drive_pin": "P2.6",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 29,
+        "stock_usage": "0x27",
+        "vendor_key": {
+          "name": ")0",
+          "key_index": "29",
+          "light_index": "29",
+          "rect_left": "469",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 10,
+        "sense_bit": 2,
+        "drive_pin": "P2.6",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 47,
+        "stock_usage": "0x13",
+        "vendor_key": {
+          "name": "P",
+          "key_index": "47",
+          "light_index": "47",
+          "rect_left": "487",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 10,
+        "sense_bit": 3,
+        "drive_pin": "P2.6",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 65,
+        "stock_usage": "0x33",
+        "vendor_key": {
+          "name": ":;",
+          "key_index": "65",
+          "light_index": "65",
+          "rect_left": "497",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 10,
+        "sense_bit": 4,
+        "drive_pin": "P2.6",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 82,
+        "stock_usage": "0x37",
+        "vendor_key": {
+          "name": ".>",
+          "key_index": "82",
+          "light_index": "82",
+          "rect_left": "479",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 10,
+        "sense_bit": 5,
+        "drive_pin": "P2.6",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 96,
+        "stock_usage": "0xaf",
+        "vendor_key": {
+          "name": "Fn",
+          "key_index": "96",
+          "light_index": "96",
+          "rect_left": "508",
+          "rect_top": "233",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 11,
+        "sense_bit": 0,
+        "drive_pin": "P2.7",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 12,
+        "stock_usage": "0x44",
+        "vendor_key": {
+          "name": "F11",
+          "key_index": "12",
+          "light_index": "12",
+          "rect_left": "535",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 11,
+        "sense_bit": 1,
+        "drive_pin": "P2.7",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 30,
+        "stock_usage": "0x2d",
+        "vendor_key": {
+          "name": "_-",
+          "key_index": "30",
+          "light_index": "30",
+          "rect_left": "506",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 11,
+        "sense_bit": 2,
+        "drive_pin": "P2.7",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 48,
+        "stock_usage": "0x2f",
+        "vendor_key": {
+          "name": "{[",
+          "key_index": "48",
+          "light_index": "48",
+          "rect_left": "524",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 11,
+        "sense_bit": 3,
+        "drive_pin": "P2.7",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 66,
+        "stock_usage": "0x34",
+        "vendor_key": {
+          "name": "\"'",
+          "key_index": "66",
+          "light_index": "66",
+          "rect_left": "534",
+          "rect_top": "157",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 11,
+        "sense_bit": 4,
+        "drive_pin": "P2.7",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 83,
+        "stock_usage": "0x38",
+        "vendor_key": {
+          "name": "/?",
+          "key_index": "83",
+          "light_index": "83",
+          "rect_left": "516",
+          "rect_top": "195",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 11,
+        "sense_bit": 5,
+        "drive_pin": "P2.7",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 98,
+        "stock_usage": "0xe4",
+        "vendor_key": {
+          "name": "Ctrl_R",
+          "key_index": "98",
+          "light_index": "98",
+          "rect_left": "545",
+          "rect_top": "233",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 12,
+        "sense_bit": 0,
+        "drive_pin": "P2.14",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 13,
+        "stock_usage": "0x45",
+        "vendor_key": {
+          "name": "F12",
+          "key_index": "13",
+          "light_index": "13",
+          "rect_left": "572",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 12,
+        "sense_bit": 1,
+        "drive_pin": "P2.14",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 31,
+        "stock_usage": "0x2e",
+        "vendor_key": {
+          "name": "+=",
+          "key_index": "31",
+          "light_index": "31",
+          "rect_left": "543",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 12,
+        "sense_bit": 2,
+        "drive_pin": "P2.14",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 49,
+        "stock_usage": "0x30",
+        "vendor_key": {
+          "name": "}}",
+          "key_index": "49",
+          "light_index": "49",
+          "rect_left": "562",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 12,
+        "sense_bit": 3,
+        "drive_pin": "P2.14",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 0,
+        "stock_usage": "0x32",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 12,
+        "sense_bit": 4,
+        "drive_pin": "P2.14",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 84,
+        "stock_usage": "0xe5",
+        "vendor_key": {
+          "name": "Shift_R",
+          "key_index": "84",
+          "light_index": "84",
+          "rect_left": "554",
+          "rect_top": "195",
+          "rect_width": "58",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 12,
+        "sense_bit": 5,
+        "drive_pin": "P2.14",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 99,
+        "stock_usage": "0x50",
+        "vendor_key": {
+          "name": "\u2190",
+          "key_index": "99",
+          "light_index": "99",
+          "rect_left": "588",
+          "rect_top": "238",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 13,
+        "sense_bit": 0,
+        "drive_pin": "P2.8",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 119,
+        "stock_usage": "0x4c",
+        "vendor_key": {
+          "name": "del",
+          "key_index": "119",
+          "light_index": "119",
+          "rect_left": "618",
+          "rect_top": "32",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 13,
+        "sense_bit": 1,
+        "drive_pin": "P2.8",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 103,
+        "stock_usage": "0x2a",
+        "vendor_key": {
+          "name": "Backspace",
+          "key_index": "103",
+          "light_index": "103",
+          "rect_left": "581",
+          "rect_top": "83",
+          "rect_width": "67",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 13,
+        "sense_bit": 2,
+        "drive_pin": "P2.8",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 67,
+        "stock_usage": "0x31",
+        "vendor_key": {
+          "name": "|\\",
+          "key_index": "67",
+          "light_index": "67",
+          "rect_left": "600",
+          "rect_top": "121",
+          "rect_width": "48",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 13,
+        "sense_bit": 3,
+        "drive_pin": "P2.8",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 85,
+        "stock_usage": "0x28",
+        "vendor_key": {
+          "name": "Enter",
+          "key_index": "85",
+          "light_index": "85",
+          "rect_left": "571",
+          "rect_top": "157",
+          "rect_width": "77",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 13,
+        "sense_bit": 4,
+        "drive_pin": "P2.8",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 101,
+        "stock_usage": "0x52",
+        "vendor_key": {
+          "name": "\u2191",
+          "key_index": "101",
+          "light_index": "101",
+          "rect_left": "626",
+          "rect_top": "202",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 13,
+        "sense_bit": 5,
+        "drive_pin": "P2.8",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 100,
+        "stock_usage": "0x51",
+        "vendor_key": {
+          "name": "\u2193",
+          "key_index": "100",
+          "light_index": "100",
+          "rect_left": "626",
+          "rect_top": "238",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 14,
+        "sense_bit": 0,
+        "drive_pin": "P2.9",
+        "sense_pin": "P1.14",
+        "vendor_key_index": 0,
+        "stock_usage": "0x98",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 14,
+        "sense_bit": 1,
+        "drive_pin": "P2.9",
+        "sense_pin": "P1.15",
+        "vendor_key_index": 117,
+        "stock_usage": "0x4a",
+        "vendor_key": {
+          "name": "home",
+          "key_index": "117",
+          "light_index": "117",
+          "rect_left": "672",
+          "rect_top": "83",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 14,
+        "sense_bit": 2,
+        "drive_pin": "P2.9",
+        "sense_pin": "P1.19",
+        "vendor_key_index": 120,
+        "stock_usage": "0x4d",
+        "vendor_key": {
+          "name": "end",
+          "key_index": "120",
+          "light_index": "120",
+          "rect_left": "672",
+          "rect_top": "121",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      },
+      {
+        "scan_index": 14,
+        "sense_bit": 3,
+        "drive_pin": "P2.9",
+        "sense_pin": "P3.19",
+        "vendor_key_index": 0,
+        "stock_usage": "0x0",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 14,
+        "sense_bit": 4,
+        "drive_pin": "P2.9",
+        "sense_pin": "P0.19",
+        "vendor_key_index": 0,
+        "stock_usage": "0x0",
+        "vendor_key": null
+      },
+      {
+        "scan_index": 14,
+        "sense_bit": 5,
+        "drive_pin": "P2.9",
+        "sense_pin": "P0.18",
+        "vendor_key_index": 102,
+        "stock_usage": "0x4f",
+        "vendor_key": {
+          "name": "\u2192",
+          "key_index": "102",
+          "light_index": "102",
+          "rect_left": "664",
+          "rect_top": "238",
+          "rect_width": "30",
+          "rect_height": "30"
+        }
+      }
+    ],
+    "active_level": "high",
+    "key_index_table": "0x14198",
+    "usage_table": "0x14240",
+    "stride": 8
+  },
+  "display": {
+    "width": 135,
+    "height": 240,
+    "offset_x": 52,
+    "offset_y": 40,
+    "init_commands": [
+      {
+        "command": "0x11",
+        "data": []
+      },
+      {
+        "command": "0x36",
+        "data": [
+          0
+        ]
+      },
+      {
+        "command": "0x3a",
+        "data": [
+          5
+        ]
+      },
+      {
+        "command": "0x21",
+        "data": []
+      },
+      {
+        "command": "0xb2",
+        "data": [
+          5,
+          5,
+          0,
+          51,
+          51
+        ]
+      },
+      {
+        "command": "0xb7",
+        "data": [
+          35
+        ]
+      },
+      {
+        "command": "0xbb",
+        "data": [
+          34
+        ]
+      },
+      {
+        "command": "0xc0",
+        "data": [
+          44
+        ]
+      },
+      {
+        "command": "0xc2",
+        "data": [
+          1
+        ]
+      },
+      {
+        "command": "0xc3",
+        "data": [
+          19
+        ]
+      },
+      {
+        "command": "0xc4",
+        "data": [
+          32
+        ]
+      },
+      {
+        "command": "0xc6",
+        "data": [
+          15
+        ]
+      },
+      {
+        "command": "0xd0",
+        "data": [
+          164,
+          161
+        ]
+      },
+      {
+        "command": "0xd6",
+        "data": [
+          161
+        ]
+      },
+      {
+        "command": "0xe0",
+        "data": [
+          112,
+          6,
+          12,
+          8,
+          9,
+          39,
+          46,
+          52,
+          70,
+          55,
+          19,
+          19,
+          37,
+          42
+        ]
+      },
+      {
+        "command": "0xe1",
+        "data": [
+          112,
+          4,
+          8,
+          9,
+          7,
+          3,
+          44,
+          66,
+          66,
+          56,
+          20,
+          20,
+          39,
+          44
+        ]
+      },
+      {
+        "command": "0x21",
+        "data": []
+      },
+      {
+        "command": "0x29",
+        "data": []
+      },
+      {
+        "command": "0x36",
+        "data": [
+          0
+        ]
+      }
+    ]
+  },
+  "encoder": {
+    "pin_a": "B0",
+    "pin_b": "A3",
+    "routine": "0x21e0"
+  },
+  "selector": {
+    "bluetooth": "B2",
+    "receiver": "A10",
+    "routine": "0x204c"
+  },
+  "battery": {
+    "clock": "A14",
+    "data": "A15",
+    "address": 99,
+    "charging": "B17",
+    "full": "B16",
+    "read_routine": "0x6e54",
+    "charge_routine": "0x216a"
+  },
+  "rgb": {
+    "key_rows": [
+      "A11",
+      "A8",
+      "D9",
+      "D12",
+      "D17",
+      "C11",
+      "B5",
+      "D8",
+      "D11",
+      "D16",
+      "C10",
+      "C13",
+      "B4",
+      "A9",
+      "D10",
+      "D13",
+      "D18",
+      "C12"
+    ],
+    "side_rows": [
+      "A0",
+      "A1",
+      "A2"
+    ],
+    "row_routine": "0x6138",
+    "column_routine": "0x6034",
+    "color_order": "Key row grouping follows shared F75 pins; physical colors pending"
+  },
+  "radio": {
+    "uart": "UART2",
+    "tx": "B7",
+    "rx": "B6",
+    "initialization": "0x13726",
+    "tx_dispatch": "0x4774",
+    "rx_dispatch": "0x4b44"
+  }
+}

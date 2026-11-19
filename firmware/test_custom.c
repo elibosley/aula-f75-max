@@ -12,7 +12,7 @@ int main(void){
     assert(!f75_clock_set(&clock,86400,0));f75_clock_tick(&clock,599);assert(clock.seconds==0);f75_clock_tick(&clock,1499);assert(clock.seconds==1);
     f75_config config,out;f75_defaults(&config);f75_custom custom,decoded;f75_custom_defaults(&custom);
     uint8_t themed[F75_CUSTOM_BYTES];custom.screen_custom=1;custom.screen_color[0]=255;
-    f75_custom_encode(&custom,themed);assert(themed[4]==2&&f75_custom_decode(themed,&decoded)&&decoded.screen_custom&&decoded.screen_color[0]==255);
+    f75_custom_encode(&custom,themed);assert(themed[4]==4&&f75_custom_decode(themed,&decoded)&&decoded.screen_custom&&decoded.screen_color[0]==255);
     themed[2512]=2;put32(themed+3068,f75_crc32(themed,3068));assert(!f75_custom_decode(themed,&decoded));f75_custom_defaults(&custom);
     assert(f75_custom_valid(&custom));custom.keys[0][6]=F75_BIND_MACRO;
     custom.macro_length[0]=4;

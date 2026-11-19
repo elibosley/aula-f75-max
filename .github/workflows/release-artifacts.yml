@@ -1,0 +1,58 @@
+name: Build and publish release artifacts
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        required: true
+        type: string
+      release_tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact release commit SHA to build
+        required: true
+        type: string
+      release_tag:
+        description: Existing Release Please draft tag to finish
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-artifacts-${{ inputs.release_tag }}
+  cancel-in-progress: false
+jobs:
+  firmware:
+    uses: ./.github/workflows/firmware.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+  desktop:
+    uses: ./.github/workflows/desktop.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+  publish:
+    needs: [firmware, desktop]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+      - name: Verify all assets and assemble checksums
+        run: python scripts/release_artifacts.py assemble --directory release-assets --commit "$SOURCE_SHA" --tag "$RELEASE_TAG"
+      - name: Upload complete assets and publish the draft
+        run: python scripts/release_artifacts.py publish --directory release-assets --commit "$SOURCE_SHA" --tag "$RELEASE_TAG"

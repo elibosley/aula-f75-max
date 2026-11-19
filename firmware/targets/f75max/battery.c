@@ -6,8 +6,9 @@
  * 0x63, A14 clock and A15 data. Stock reads voltage at 2/3 and SOC at 4/5.
  * No gauge configuration, calibration, reset or profile writes are used. */
 static uint8_t sample[4],phase,percent;
+static uint16_t measured_soc,voltage;
 static bool valid;
-static uint32_t next_sample,last_good,voltage,successes,failures;
+static uint32_t next_sample,last_good,successes,failures;
 static bool charge_started,charge_raw,charge_stable,charge_valid;
 static uint32_t charge_changed;
 static void delay(void){wait_us(5);}
@@ -39,10 +40,13 @@ bool f75_battery_read_register(uint8_t reg,uint8_t *value){
     stop();return ok;
 }
 void f75_battery_task(uint32_t now){
-    /* Supplier 0x2184 debounces active-low B17 into 0x20000059.
-     * Its Home painter at 0xfd8c selects battery icon 0x0e from that
-     * flag: the lightning-bolt image at asset-flash offset 0xbd10.
-     * Read the existing input only; do not alter its mux or pull settings. */
+    /* Supplier 0x7e50 sets GPIOB MODE=0 and CFG1=0x82: B17 is an
+     * input with its pull-up enabled. QMK leaves this pad without a pull-up;
+     * an undriven low level then falsely looks like charging. Configure only
+     * B17 before sampling. No charger/gauge configuration is changed.
+     * Supplier 0x2184 debounces active-low B17 into 0x20000059, used by the
+     * Home painter for the lightning-bolt battery icon. */
+    if(!charge_started)gpio_set_pin_input_high(B17);
     bool incoming=!gpio_read_pin(B17);
     if(!charge_started||incoming!=charge_raw){
         charge_started=true;charge_raw=incoming;charge_changed=now;
@@ -61,9 +65,10 @@ void f75_battery_task(uint32_t now){
     if(mv<2800u||mv>4500u||raw_soc>25600u){++failures;return;}
     /* Preserve the supplier's conversion at 0x7bc2: raw SOC * 100 / 24576. */
     unsigned value=raw_soc*100u/24576u;
-    percent=value>100u?100u:value;voltage=mv;last_good=now;valid=true;++successes;
+    percent=value>100u?100u:value;measured_soc=raw_soc;voltage=mv;last_good=now;valid=true;++successes;
 }
 bool f75_battery_percent(uint8_t *out){if(valid)*out=percent;return valid;}
+bool f75_battery_raw_soc(uint16_t *out){if(valid)*out=measured_soc;return valid;}
 bool f75_battery_charging(bool *out){if(charge_valid)*out=charge_stable;return charge_valid;}
 void f75_battery_diagnostics(uint32_t out[6]){
     out[0]=valid;out[1]=valid?percent:255u;out[2]=voltage;

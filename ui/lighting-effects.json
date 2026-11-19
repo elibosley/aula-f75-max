@@ -1,0 +1,152 @@
+[
+  {
+    "id": 0,
+    "name": "Still",
+    "group": "Originals",
+    "description": "Your chosen color, without movement."
+  },
+  {
+    "id": 1,
+    "name": "Tidal",
+    "group": "Originals",
+    "description": "Soft pastel waves roll across the board."
+  },
+  {
+    "id": 2,
+    "name": "Rain",
+    "group": "Originals",
+    "description": "Cyan drops drift over a deep blue background."
+  },
+  {
+    "id": 3,
+    "name": "Trails",
+    "group": "Originals",
+    "description": "An amber ribbon crosses a purple background."
+  },
+  {
+    "id": 4,
+    "name": "Constellation",
+    "group": "Originals",
+    "description": "Soft stars fade in and out."
+  },
+  {
+    "id": 5,
+    "name": "Rainbow Wave",
+    "group": "Rainbow",
+    "description": "A full spectrum travels from left to right."
+  },
+  {
+    "id": 6,
+    "name": "Rainbow Cycle",
+    "group": "Rainbow",
+    "description": "The whole keyboard cycles through the spectrum."
+  },
+  {
+    "id": 7,
+    "name": "Rainbow Ripple",
+    "group": "Rainbow",
+    "description": "Rainbow rings spread from the middle."
+  },
+  {
+    "id": 8,
+    "name": "Rainbow Spiral",
+    "group": "Rainbow",
+    "description": "A twisting rainbow winds around the center."
+  },
+  {
+    "id": 9,
+    "name": "Rainbow Breath",
+    "group": "Rainbow",
+    "description": "The spectrum rises and falls together."
+  },
+  {
+    "id": 10,
+    "name": "Pastel Rainbow",
+    "group": "Rainbow",
+    "description": "A softer rainbow with a white tint."
+  },
+  {
+    "id": 11,
+    "name": "Aurora",
+    "group": "Atmosphere",
+    "description": "Green and violet curtains drift across the board."
+  },
+  {
+    "id": 12,
+    "name": "Sunset",
+    "group": "Atmosphere",
+    "description": "Warm peach, coral and violet move slowly."
+  },
+  {
+    "id": 13,
+    "name": "Ocean",
+    "group": "Atmosphere",
+    "description": "Blue and teal waves flow diagonally."
+  },
+  {
+    "id": 14,
+    "name": "Fire",
+    "group": "Atmosphere",
+    "description": "Layered amber and red flames flicker smoothly."
+  },
+  {
+    "id": 15,
+    "name": "Candy",
+    "group": "Atmosphere",
+    "description": "Pink, lavender and cyan ribbons drift past."
+  },
+  {
+    "id": 16,
+    "name": "Matrix",
+    "group": "Atmosphere",
+    "description": "Green streams fall over a dark background."
+  },
+  {
+    "id": 17,
+    "name": "Twinkle",
+    "group": "Atmosphere",
+    "description": "Scattered rainbow stars fade at different times."
+  },
+  {
+    "id": 18,
+    "name": "Checkerboard",
+    "group": "Patterns",
+    "description": "Alternating tiles exchange two colors."
+  },
+  {
+    "id": 19,
+    "name": "Marquee",
+    "group": "Patterns",
+    "description": "Bands of light chase around the keys."
+  },
+  {
+    "id": 20,
+    "name": "Comet",
+    "group": "Patterns",
+    "description": "A bright head trails a long colorful tail."
+  },
+  {
+    "id": 21,
+    "name": "Pinwheel",
+    "group": "Patterns",
+    "description": "Colorful spokes turn around the center."
+  },
+  {
+    "id": 22,
+    "name": "Breath",
+    "group": "Patterns",
+    "description": "Your chosen color slowly brightens and dims."
+  },
+  {
+    "id": 23,
+    "name": "Gradient",
+    "group": "Patterns",
+    "description": "A still spectrum spans the keyboard."
+  },
+  {
+    "id": 24,
+    "name": "Scanner",
+    "group": "Patterns",
+    "description": "A bright bar sweeps back and forth."
+  }
+]

@@ -52,7 +52,7 @@ f75_ui_action f75_press(f75_state *s,f75_navigation *n,uint32_t now){
         if(n->cursor==3)s->config.light_mode=(uint8_t)!s->config.light_mode;
     }
     if(n->page==F75_LIGHTING){
-        if(n->cursor==0)s->config.effect=(uint8_t)((s->config.effect+1)%5);
+        if(n->cursor==0)s->config.effect=(uint8_t)((s->config.effect+1)%F75_LIGHT_EFFECT_COUNT);
         if(n->cursor==3)f75_cycle_color(&s->config);
         if(n->cursor==1||n->cursor==2){n->editing=1;n->last_turn=0;n->edit_streak=0;}
     }

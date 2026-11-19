@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "f75_core.h"
+#include "f75_panel.h"
 #include "f75_navigation.h"
 #include "f75_timer.h"
 #include "f75_pet.h"
 #include "panel.h"
 #include "raw_hid.h"
 #include "wheel.h"
+#include "matrix_layout.h"
 #include "rgb.h"
 #include "radio.h"
 #include "battery.h"
@@ -37,17 +39,17 @@ static f75_timer focus;
 static f75_pet pet;
 static f75_motion motion;
 static f75_view frame;
-static uint16_t tile[128 * F75_PANEL_TILE_ROWS];
+static uint16_t tile[F75_PANEL_WIDTH * F75_PANEL_TILE_ROWS];
 /* Menu motion changes only a few scanlines. Reuse the Home tile cache's
  * storage for row signatures; no framebuffer or sprite-cache growth. */
 static union {
-    uint32_t tiles[128 / F75_PANEL_TILE_ROWS];
+    uint32_t tiles[F75_PANEL_HEIGHT / F75_PANEL_TILE_ROWS];
     struct { uint32_t fixed[5],rows[88]; } menu;
 } signatures;
 static bool menu_row_cache;
-static bool tile_valid[128 / F75_PANEL_TILE_ROWS];
+static bool tile_valid[F75_PANEL_HEIGHT / F75_PANEL_TILE_ROWS];
 static f75_view previous_frame;
-static uint16_t frame_dirty;
+static uint32_t frame_dirty;
 static bool previous_frame_valid;
 static uint16_t held[MATRIX_ROWS][MATRIX_COLS];
 static uint32_t release_epoch, last_frame, button_changed, button_down_at;
@@ -157,6 +159,26 @@ static bool send_menu_rows(unsigned index){
     }
     memcpy(signatures.menu.rows+frame_y-24,current,sizeof(current));return true;
 }
+static void power_snapshot(uint8_t out[24],uint32_t now){
+    uint32_t gauge[6];uint16_t soc=65535;bool charging=false;
+    f75_battery_diagnostics(gauge);bool valid=f75_battery_raw_soc(&soc);
+    bool charge_known=f75_battery_charging(&charging);
+    f75_budget budget=f75_board_power_budget(&state,now);
+    memset(out,0,24);out[0]=2;
+    out[1]=valid|(charge_known<<1)|(charging<<2)|(f75_board_usb_active(now)<<3)|(f75_radio_connected()<<4)|(budget.stage<<5);
+    uint16_t estimate=valid?f75_battery_estimate(&f75_custom_config,soc):UINT16_MAX;
+    memcpy(out+2,&estimate,2);
+    uint16_t mv=valid?(uint16_t)gauge[2]:0;
+    memcpy(out+4,&mv,2);memcpy(out+6,&soc,2);memcpy(out+8,&now,4);
+    memcpy(out+12,&gauge[5],4);
+    uint8_t configuration[sizeof(state.config)+3];memcpy(configuration,&state.config,sizeof(state.config));
+    memcpy(configuration+sizeof(state.config),&f75_custom_config.battery_full_soc,2);
+    configuration[sizeof(state.config)+2]=f75_custom_config.battery_decimals;
+    uint32_t config_crc=f75_crc32(configuration,sizeof(configuration));
+    memcpy(out+16,&config_crc,4);uint32_t activity=f75_matrix_activity_epoch;
+    memcpy(out+20,&activity,4);
+}
+
 #ifndef F75_USB_ONLY
 static virtual_timer_t startup_timer;
 extern uint32_t __ram0_end__;
@@ -323,7 +345,10 @@ static void bluetooth_display_receive(uint8_t led, uint32_t now) {
         if(accepted&&!bluetooth_settings.response[5])transfer_note(seconds==9?"Sending settings":transfer.save?"Saving settings":"Applying changes",254,now);
     }
     else if (operation == 4) {
-        bool accepted=f75_bluetooth_receive(&bluetooth_settings,&transfer,data+3,length,now,&state.config,&f75_custom_config,&clock_state);
+        bool accepted;
+        if(data[11]==11){uint8_t snapshot[24];power_snapshot(snapshot,now);
+            accepted=f75_bluetooth_power_receive(&bluetooth_settings,&transfer,data+3,length,now,snapshot);
+        }else accepted=f75_bluetooth_receive(&bluetooth_settings,&transfer,data+3,length,now,&state.config,&f75_custom_config,&clock_state);
         if(accepted&&!bluetooth_settings.response[5]){
             uint8_t command=data[11];unsigned offset=(unsigned)data[12]|((unsigned)data[13]<<8);
             unsigned count=(unsigned)data[14]|((unsigned)data[15]<<8);
@@ -488,6 +513,17 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
         memcpy(response+4,data+4,4);f75_battery_diagnostics(values);
         memcpy(response+8,values,sizeof(values));raw_hid_send(response,sizeof(response));return;
     }
+    if(!memcmp(data,"F75b",4)){
+        uint8_t response[32]={'F','7','5','c'};
+        memcpy(response+4,data+4,4);power_snapshot(response+8,timer_read32());
+        raw_hid_send(response,sizeof(response));return;
+    }
+    if(!memcmp(data,"F75L",4)){
+        uint8_t response[32]={'F','7','5','L'};
+        if(!memcmp(data+8,"CLRTRACE",8))f75_radio_trace_reset();
+        memcpy(response+4,data+4,4);f75_radio_trace(response+8);
+        raw_hid_send(response,sizeof(response));return;
+    }
     /* Deliberate, fixed diagnostic actions. No settings, memory addresses,
      * radio, flash or boot options are accepted by this protocol. */
     if (!memcmp(data,"F75T",4) && !memcmp(data+8,"F75DIAG!",8)) {
@@ -571,7 +607,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
         /* Only positions absent from the supplier's key layout. This checks
          * whether the wheel switch uses a matrix position on this revision,
          * without reporting the state of any normal typing key. */
-        static const uint8_t unused[MATRIX_ROWS] = {0,16,0,32,32,32,0,32,32,0,0,0,8,1,1};
+        static const uint8_t unused[MATRIX_ROWS] = {F75_UNUSED_MATRIX_MASKS};
         uint8_t response[32] = {'F','7','5','L'};
         memcpy(response + 4, data + 4, 4);
         for (uint8_t row = 0; row < MATRIX_ROWS; ++row) response[8 + row] = matrix_get_row(row) & unused[row];
@@ -616,7 +652,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
 #endif
     response[25] = navigation.page;
     response[26] = (uint8_t)gpio_read_pin(B17) | ((uint8_t)gpio_read_pin(A10) << 1) | ((uint8_t)gpio_read_pin(B2) << 2);
-    response[27] = (uint8_t)gpio_read_pin(A2) | ((uint8_t)gpio_read_pin(A3) << 1);
+    response[27] = (uint8_t)gpio_read_pin(F75_ENCODER_A) | ((uint8_t)gpio_read_pin(F75_ENCODER_B) << 1);
     response[28] = 1; response[29] = state.config.caps_swap; response[30] = state.config.os[active_slot];
     response[31] = wheel_pressed();
     raw_hid_send(response, sizeof(response));
@@ -723,10 +759,15 @@ void keyboard_pre_init_user(void) {
      * A14/A15 are the recovered gauge clock/data. B1 is the active-high
      * dedicated Caps indicator (supplier routine 0xb48c). B0/B18 retain their
      * stock levels without assigning an unverified electrical purpose. */
-    static const pin_t stock_high[]={A13,A14,A15};
-    static const pin_t stock_low[]={B0,B1,B18};
-    for(unsigned i=0;i<3;++i){gpio_write_pin_high(stock_high[i]);gpio_set_pin_output(stock_high[i]);}
-    for(unsigned i=0;i<3;++i){gpio_write_pin_low(stock_low[i]);gpio_set_pin_output(stock_low[i]);}
+    static const pin_t stock_high[]={F75_STOCK_HIGH_PINS};
+    for(unsigned i=0;i<sizeof(stock_high)/sizeof(stock_high[0]);++i){gpio_write_pin_high(stock_high[i]);gpio_set_pin_output(stock_high[i]);}
+#ifdef F75_STOCK_LOW_PINS
+    static const pin_t stock_low[]={F75_STOCK_LOW_PINS};
+    for(unsigned i=0;i<sizeof(stock_low)/sizeof(stock_low[0]);++i){gpio_write_pin_low(stock_low[i]);gpio_set_pin_output(stock_low[i]);}
+#endif
+    if(!F75_GAUGE_IDLE_HIGH){gpio_write_pin_low(A14);gpio_write_pin_low(A15);}
+    gpio_set_pin_input_high(F75_ENCODER_A);
+    gpio_set_pin_input_high(F75_ENCODER_B);
     gpio_set_pin_input_high(A10);
     gpio_set_pin_input_high(B2);
 }
@@ -849,7 +890,7 @@ static void make_frame(uint32_t now) {
     static const char *companions[]={"Mochi","Pip","Ren","Lumi"};
     static const char *faces[]={"Orbit","Minimal","Stars","Companion"};
     static const char *wheels[] = {"Volume", "Scroll", "Brightness"};
-    static const char *effects[] = {"Still", "Tidal", "Rain", "Trails", "Constellation"};
+    static const char *effects[] = F75_LIGHT_EFFECT_NAMES;
     static const char *power[] = {"Balanced", "Endurance", "Desk", "Save settings"};
     memset(&frame, 0, sizeof(frame));
     uint8_t page = navigation.page;
@@ -879,14 +920,13 @@ static void make_frame(uint32_t now) {
         else if(radio_switch_pending||f75_radio_selection_status()==F75_RADIO_SELECT_PENDING)frame.link_state=F75_LINK_CONNECTING;
     }
     bool charging=false;
-    frame.power_state=USB_DRIVER.state==USB_ACTIVE?F75_POWER_EXTERNAL:F75_POWER_UNKNOWN;
+    frame.power_state=f75_board_usb_active(now)?F75_POWER_EXTERNAL:F75_POWER_UNKNOWN;
     if(f75_battery_charging(&charging)){
         if(charging)frame.power_state=F75_POWER_CHARGING;
         else if(frame.power_state==F75_POWER_UNKNOWN)frame.power_state=F75_POWER_BATTERY;
     }
-    uint8_t battery;
-    if(f75_battery_percent(&battery))snprintf(frame.status_right,sizeof(frame.status_right),"%u%%",battery);
-    else snprintf(frame.status_right,sizeof(frame.status_right),"--%%");
+    uint16_t battery;
+    f75_battery_label(frame.status_right,f75_battery_raw_soc(&battery)?f75_battery_estimate(&f75_custom_config,battery):UINT16_MAX,f75_custom_config.battery_decimals);
     snprintf(frame.host_label,sizeof(frame.host_label),"%s",state.config.names[active_slot]);
     snprintf(frame.os, sizeof(frame.os), "%s", state.config.os[active_slot]==F75_MAC?"MAC":state.config.os[active_slot]==F75_ANDROID?"AND":"WIN");
     frame.os_source=!(state.config.os_auto_mask&(1u<<active_slot))?2:(os_evidence_mask&(1u<<active_slot))?1:0;
@@ -1114,7 +1154,9 @@ void housekeeping_task_user(void) {
        state.pair_slot==active_slot&&f75_radio_connected())state.pairing=F75_PAIR_IDLE;
     /* The separate board indicator follows the active host, independently of
      * RGB brightness, palettes, Fn overlays, and screen power management. */
+#if F75_DEDICATED_CAPS_LED
     gpio_write_pin(B1, f75_caps_lock_on());
+#endif
     f75_tick(&state, now);
     bool was_alert=focus.alert;
     f75_timer_tick(&focus, now);
@@ -1122,6 +1164,16 @@ void housekeeping_task_user(void) {
     f75_pet_tick(&pet, now);
     f75_rgb_tick(&state, now);
     screen_budget=f75_board_power_budget(&state,now);
+#ifndef F75_USB_ONLY
+    bool idle_radio=screen_budget.stage==F75_SLEEP&&state.pairing==F75_PAIR_IDLE&&
+        !pending_boot&&!pending_save&&!pending_host_os&&!radio_switch_pending&&
+        !macro_player.active&&!mouse_buttons&&!fn&&!boot_held&&!benchmark_active&&
+        !transfer.phase&&!bluetooth_settings.replying&&!bluetooth_display.active&&
+        !bluetooth_read_reply&&!frame_pending;
+    for(unsigned i=0;i<256&&idle_radio;++i)if(key_owners[i])idle_radio=false;
+    for(unsigned i=0;i<MATRIX_ROWS&&idle_radio;++i)if(matrix_get_row(i))idle_radio=false;
+    f75_radio_idle(idle_radio,now);
+#endif
     if(!screen_budget.screen&&!benchmark_active){
         if(panel_ready)f75_panel_backlight(false);
         screen_dark=true;frame_pending=false;
@@ -1151,15 +1203,20 @@ void housekeeping_task_user(void) {
         if (now - last_frame < interval) return;
         previous_frame=frame;
         make_frame(now);
-        bool row_cache=!frame.home&&!frame.timer;
+        bool row_cache=!F75_PORTRAIT_PANEL&&!frame.home&&!frame.timer;
         if(row_cache!=menu_row_cache){memset(tile_valid,0,sizeof(tile_valid));menu_row_cache=row_cache;}
-        frame_dirty=previous_frame_valid?f75_changed_tiles(&previous_frame,&frame):0xffffu;
+        frame_dirty=F75_PORTRAIT_PANEL?((1u<<(F75_PANEL_HEIGHT/F75_PANEL_TILE_ROWS))-1u):
+            (previous_frame_valid?f75_changed_tiles(&previous_frame,&frame):0xffffu);
         previous_frame_valid=true;frame_y = 0; frame_pending = true; last_frame = now;
     }
-    while(frame_y<128&&tile_valid[frame_y/F75_PANEL_TILE_ROWS]&&!(frame_dirty&(1u<<(frame_y/F75_PANEL_TILE_ROWS))))frame_y+=F75_PANEL_TILE_ROWS;
-    if(frame_y==128){frame_pending=false;++complete_frames;return;}
+    while(frame_y<F75_PANEL_HEIGHT&&tile_valid[frame_y/F75_PANEL_TILE_ROWS]&&!(frame_dirty&(1u<<(frame_y/F75_PANEL_TILE_ROWS))))frame_y+=F75_PANEL_TILE_ROWS;
+    if(frame_y==F75_PANEL_HEIGHT){frame_pending=false;++complete_frames;return;}
     uint16_t render_start = (uint16_t)SN_CT16B4->TC;
-    bool rendered = f75_render_tile(&frame, frame_y, F75_PANEL_TILE_ROWS, tile, 128 * F75_PANEL_TILE_ROWS);
+#if F75_PORTRAIT_PANEL
+    bool rendered = f75_render_panel_tile(&frame, F75_PANEL_WIDTH, F75_PANEL_HEIGHT, frame_y, F75_PANEL_TILE_ROWS, tile, F75_PANEL_WIDTH * F75_PANEL_TILE_ROWS);
+#else
+    bool rendered = f75_render_tile(&frame,frame_y,F75_PANEL_TILE_ROWS,tile,F75_PANEL_WIDTH*F75_PANEL_TILE_ROWS);
+#endif
     uint16_t render_elapsed = (uint16_t)((uint16_t)SN_CT16B4->TC - render_start);
     perf_render_ticks += render_elapsed;
     if (render_elapsed > perf_max_render) perf_max_render = render_elapsed;
@@ -1168,7 +1225,7 @@ void housekeeping_task_user(void) {
     bool row_slice=menu_row_cache&&frame_y>=24&&frame_y<112;
     uint32_t *cached=NULL;
     if(!row_slice)cached=menu_row_cache?&signatures.menu.fixed[index<3?index:index-11]:&signatures.tiles[index];
-    uint32_t signature=rendered&&!row_slice?pixel_signature(tile,128*F75_PANEL_TILE_ROWS):0;
+    uint32_t signature=rendered&&!row_slice?pixel_signature(tile,F75_PANEL_WIDTH*F75_PANEL_TILE_ROWS):0;
     bool sent=false;
     if(rendered){
         if(row_slice)sent=send_menu_rows(index);
@@ -1185,7 +1242,7 @@ void housekeeping_task_user(void) {
     if(!row_slice)*cached=signature;
     tile_valid[index]=true;
     frame_y += F75_PANEL_TILE_ROWS;
-    if (frame_y == 128) { frame_pending = false; ++complete_frames;f75_panel_backlight(true); }
+    if (frame_y == F75_PANEL_HEIGHT) { frame_pending = false; ++complete_frames;f75_panel_backlight(true); }
 }
 
 void suspend_power_down_user(void) {

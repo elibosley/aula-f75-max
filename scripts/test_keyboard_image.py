@@ -20,7 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 IMAGE = Path(os.environ.get('F75_IMAGE', ROOT / 'analysis/UNFLASHED/f75max-wired-test.bin')).resolve()
 ELF = IMAGE.with_suffix('.elf')
 NM = ROOT / 'builddeps/arm-toolchain/bin/arm-none-eabi-nm'
-BOARD = json.loads((ROOT / 'firmware/targets/f75max/board-map.json').read_text())
+MODEL = json.loads(IMAGE.with_suffix('.json').read_text()).get('target', 'f75max')
+S75 = MODEL == 's75pro'
+BOARD = json.loads((ROOT / 'firmware/targets' / ('s75pro' if S75 else 'f75max') / 'board-map.json').read_text())
+WIDTH, HEIGHT, OFFSET_X, OFFSET_Y = (135,240,52,40) if S75 else (128,128,2,1)
+FN_ROW = 10 if S75 else 11
 SYMBOLS = {}
 for line in subprocess.check_output([str(NM), '-n', str(ELF)], text=True).splitlines():
     parts = line.split()
@@ -63,6 +67,15 @@ class Candidate(Firmware):
 
     def callback(self, name, callback):
         self.callbacks[SYMBOLS[name]] = callback
+
+    def usb_frame(self, now, prime=False):
+        # A configured driver does not itself supply SOF evidence. Model the
+        # host's read-only frame counter explicitly in these isolated fixtures.
+        self.now = now
+        if prime and 'f75_board_usb_active' in SYMBOLS:
+            self.word(0x4005c060, (now-1)&2047)
+            self.call('f75_board_usb_active', (now-1)&0xffffffff)
+        self.word(0x4005c060, now&2047)
 
     def on_code(self, cpu, address, size, data):
         if address in self.callbacks:
@@ -128,6 +141,7 @@ class Candidate(Firmware):
                 for _ in range(30):self.call('begin_row')
             self.call('matrix_scan_custom', SCRATCH+0x20)
         self.byte(SYMBOLS['USBD1'],4)  # configured USB state for the isolated adapter fixture
+        self.usb_frame(self.now, prime=True)
         self.events.clear()
 
 
@@ -165,31 +179,31 @@ def key_test():
         fw.events.clear(); fw.key(row, col, True); fw.key(row, col, False)
         assert fw.events == [('register_code16', mapped), ('unregister_code16', mapped)], fw.events
     # Fn+Caps sends Caps Lock; releasing Fn first must not release Command.
-    fw.events.clear();fw.key(11,5,True);fw.key(0,3,True);fw.key(11,5,False);fw.key(0,3,False)
+    fw.events.clear();fw.key(FN_ROW,5,True);fw.key(0,3,True);fw.key(FN_ROW,5,False);fw.key(0,3,False)
     assert fw.events==[('register_code16',0x39),('unregister_code16',0x39)],fw.events
     # A profile change releases old mappings; their later key-up cannot release
     # a newly registered mapping owned by a different physical key.
     fw.key(2, 5, True)
-    fw.key(11, 5, True)  # Fn
+    fw.key(FN_ROW, 5, True)  # Fn
     fw.events.clear(); fw.key(8, 4, True)  # Fn+M
     assert [event[0] for event in fw.events] == ['clear_keyboard']
     fw.events.clear(); fw.key(2, 5, False)
     assert not fw.events
-    fw.key(8, 4, False); fw.key(11, 5, False)
+    fw.key(8, 4, False); fw.key(FN_ROW, 5, False)
     fw.key(2, 5, True); fw.key(2, 5, False)
     assert fw.events == [('register_code16', 0xe2), ('unregister_code16', 0xe2)]
     # Whole-board control input cannot reach the host.
-    fw.events.clear(); fw.key(11, 5, True); fw.key(6, 5, True)
+    fw.events.clear(); fw.key(FN_ROW, 5, True); fw.key(6, 5, True)
     fw.key(1, 3, True); fw.key(1, 3, False)
     assert all(event[0] == 'clear_keyboard' for event in fw.events)
-    fw.key(6, 5, False); fw.key(11, 5, False)
+    fw.key(6, 5, False); fw.key(FN_ROW, 5, False)
     fw.events.clear(); fw.key(1, 3, True); fw.key(1, 3, False)
     assert fw.events == [('register_code16', 4), ('unregister_code16', 4)]
     # A physical selector movement clears the temporary USB hotkey override.
     fw.word(GPIO[0], 0); fw.call('housekeeping_task_user'); fw.now += 21; fw.call('housekeeping_task_user')
     fw.events.clear(); fw.key(1, 3, True); fw.key(1, 3, False)
     assert not fw.events
-    fw.key(11, 5, True); fw.key(5, 1, True); fw.key(5, 1, False); fw.key(11, 5, False)  # Fn+5
+    fw.key(FN_ROW, 5, True); fw.key(5, 1, True); fw.key(5, 1, False); fw.key(FN_ROW, 5, False)  # Fn+5
     fw.events.clear(); fw.key(1, 3, True); fw.key(1, 3, False)
     assert len(fw.events) == 2
     fw.word(GPIO[0], 1 << 10); fw.word(GPIO[1], 1 << 17)
@@ -222,12 +236,15 @@ def panel_test():
         if c['data']: expected.append(('data', bytes(c['data'])))
     assert stream == expected
     stream.clear()
-    fw.cpu.mem_write(TILE, struct.pack('<128H', *([0xf800, 0x07e0, 0x001f, 0xffff] * 32)))
-    assert fw.call('f75_panel_tile', 7, 1, TILE) == 1
-    assert stream[:5] == [('command', b'\x2a'), ('data', b'\x00\x02\x00\x81'),
-                          ('command', b'\x2b'), ('data', b'\x00\x08\x00\x08'), ('command', b'\x2c')]
-    assert b''.join(data for kind, data in stream[5:]) == b'\xf8\x00\x07\xe0\x00\x1f\xff\xff' * 32
-    for y, rows, pointer in [(127, 2, TILE), (0, 0, TILE), (0, 9, TILE), (0, 1, 0)]:
+    pixels=([0xf800,0x07e0,0x001f,0xffff]*((WIDTH+3)//4))[:WIDTH]
+    fw.cpu.mem_write(TILE,struct.pack('<'+'H'*WIDTH,*pixels))
+    # Include the last row: portrait bottom address is 279, crossing 255.
+    for y in (7,HEIGHT-1):
+        stream.clear();assert fw.call('f75_panel_tile',y,1,TILE)==1
+        assert stream[:5]==[('command',b'\x2a'),('data',struct.pack('>HH',OFFSET_X,OFFSET_X+WIDTH-1)),
+                            ('command',b'\x2b'),('data',struct.pack('>HH',OFFSET_Y+y,OFFSET_Y+y)),('command',b'\x2c')]
+        assert b''.join(data for kind,data in stream[5:])==struct.pack('>'+'H'*WIDTH,*pixels)
+    for y, rows, pointer in [(HEIGHT-1, 2, TILE), (0, 0, TILE), (0, 9, TILE), (0, 1, 0)]:
         stream.clear(); assert fw.call('f75_panel_tile', y, rows, pointer) == 0; assert not stream
     return dict(stock_reset_delays=True,stock_initialization=True, pin_mux_preserved=True, window_offsets=True, rgb565_byte_order=True, invalid_tiles_rejected=True)
 
@@ -238,7 +255,7 @@ def boot_shortcut_test():
     fw.word(GPIO[1], 1 << 2); fw.call('keyboard_pre_init_user')
     assert not fw.events, 'late initialization repeated the reset-owned recovery gesture'
     fw = Candidate(); fw.initialize_app()
-    fw.key(11, 5, True); fw.key(0, 0, True)  # Fn+Escape
+    fw.key(FN_ROW, 5, True); fw.key(0, 0, True)  # Fn+Escape
     fw.now += 1199; fw.call('housekeeping_task_user')
     assert not any(name == 'bootloader_jump' for name, value in fw.events)
     fw.now += 1; fw.call('housekeeping_task_user')
@@ -246,7 +263,7 @@ def boot_shortcut_test():
     fw.call('housekeeping_task_user')
     assert sum(name == 'bootloader_jump' for name, value in fw.events) == 1
     fw = Candidate(); fw.initialize_app()
-    fw.key(11, 5, True); fw.key(0, 0, True); fw.key(0, 0, False)
+    fw.key(FN_ROW, 5, True); fw.key(0, 0, True); fw.key(0, 0, False)
     fw.now += 1201; fw.call('housekeeping_task_user')
     assert not any(name == 'bootloader_jump' for name, value in fw.events)
     return 'Fn+Escape hold/cancel checked; the reset guard exclusively owns boot-time wheel entry'
@@ -460,15 +477,15 @@ def rgb_test():
         assert fw.word(base+0x44)&0xffff==255 and fw.word(base+0x14)&(1<<23)
     assert fw.word(0x40002050)&0xffff==255 and fw.word(0x40002018)&(1<<8)
     fw.call('keyboard_pre_init_user')
-    assert fw.word(GPIO[0])&0xe000==0xe000 and fw.word(GPIO[0]+4)&0xe000==0xe000
-    assert fw.word(GPIO[1])&0x40003==0 and fw.word(GPIO[1]+4)&0x40003==0x40003
+    assert fw.word(GPIO[0])&0xe000==(0 if S75 else 0xe000) and fw.word(GPIO[0]+4)&0xe000==(0xc000 if S75 else 0xe000)
+    assert fw.word(GPIO[1])&(0 if S75 else 0x40003)==0 and fw.word(GPIO[1]+4)&0x40003==(0 if S75 else 0x40003)
     before=fw.word(0x40008000)
     fw.word(0x40006004,77)
     fw.call('f75_rgb_pause')
     assert fw.word(0x40006000)==1 and fw.word(0x40006004)==77
     assert fw.word(0x400020a4)==0
     for base in [0x40000000,0x40004000]:assert fw.word(base+0x98)&0xffffff==0
-    masks=[0xb00,0x30,0x3c00,0x73f00]
+    masks=[0xb07 if S75 else 0xb00,0x30,0x3c00,0x73f00]
     assert all(not(fw.word(base)&mask) for base,mask in zip(GPIO,masks))
     fw.call('f75_rgb_resume');assert fw.word(0x400020a4)==0x7f0
     assert fw.word(0x40006004)==77, 'key scan restarted the lighting phase'
@@ -478,18 +495,20 @@ def rgb_test():
     assert fw.word(0x40008000)==before, 'RGB changed the RTOS free counter'
     fw.call('f75_init',SYMBOLS['state'],0,0)
     fw.byte(SYMBOLS['USBD1'],4) # this case measures full-brightness USB operation
+    fw.usb_frame(1000, prime=True)
     fw.call('f75_rgb_tick',SYMBOLS['state'],1000)
     data=bytes(fw.cpu.mem_read(SYMBOLS['duties'],540))
     assert any(data) and max(data)<=35
-    for effect in range(5):
+    for effect in range(25):
         for level in [0,28,100]:
             trial=Candidate();trial.call('f75_rgb_init')
             trial.call('f75_init',SYMBOLS['state'],0,0)
             trial.byte(SYMBOLS['USBD1'],4)
+            trial.usb_frame(1000, prime=True)
             trial.byte(SYMBOLS['state']+104,level)
             trial.byte(SYMBOLS['state']+106,effect)
             trial.call('f75_rgb_tick',SYMBOLS['state'],1000)
-            data=bytes(trial.cpu.mem_read(SYMBOLS['duties']+270,270))
+            data=bytes(trial.cpu.mem_read(SYMBOLS['duties']+(315 if S75 else 270),270))
             assert max(data)<=127
             if not level:assert not any(data)
             if effect==0:
@@ -511,14 +530,16 @@ def rgb_test():
     for effect in range(5):
         trial=Candidate();trial.call('f75_rgb_init');trial.call('f75_init',SYMBOLS['state'],0,0)
         trial.byte(SYMBOLS['USBD1'],4)
-        trial.byte(SYMBOLS['state']+104,100);trial.byte(SYMBOLS['state']+105,100)
+        trial.usb_frame(1000, prime=True)
+        trial.byte(SYMBOLS['state']+104,100);trial.byte(SYMBOLS['state']+105,50)
         trial.byte(SYMBOLS['state']+106,effect)
         previous=first=None
         for now in range(1000,7001,25):
+            trial.usb_frame(now)
             # Consume the completed buffer without modeling an optical output.
             trial.byte(SYMBOLS['pending'],0)
             trial.call('f75_rgb_tick',SYMBOLS['state'],now)
-            data=bytes(trial.cpu.mem_read(SYMBOLS['duties']+270,270))
+            data=bytes(trial.cpu.mem_read(SYMBOLS['duties']+(315 if S75 else 270),270))
             assert min(data)>0, ('animated key blackout',effect,now)
             if first is None:first=data
             if previous is not None:
@@ -529,7 +550,7 @@ def rgb_test():
         assert data==first, ('cycle discontinuity',effect)
     return dict(stock_pwm_channels_disabled_between_rows=True,stock_board_outputs_initialized=True,gpio_released_for_pwm=True,shared_irq_matrix_coordinates=90,main_loop_snapshot_has_no_peripheral_writes=True,calm_effects_maximum_pwm_delta_per25ms=maximum_delta,
                 still_is_static=True,no_animated_key_blackouts=True,
-                all_five_effects_bounded=True,zero_brightness_extinguishes=True,
+                all_five_effects_bounded=True,all_25_effects_bounded=True,zero_brightness_extinguishes=True,
                 supplier_pin_mux=True,encoder_pins_preserved=True,blank_during_matrix_scan=True,
                 hardware_row_timeout=True,key_scan_preserves_lighting_phase=True,suspend_extinguishes_rows=True,system_counter_untouched=True,
                 brightness_duty_bounded=True,physical_color_order='not_observed')

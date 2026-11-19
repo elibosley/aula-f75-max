@@ -156,6 +156,22 @@ static void finish_reply(f75_bluetooth *b, f75_transfer *t, uint8_t status, unsi
     b->response_length=(uint16_t)(15+length);b->symbol_index=0;b->replying=true;
 }
 
+bool f75_bluetooth_power_receive(f75_bluetooth *b, f75_transfer *t,
+    const uint8_t *q, unsigned size, uint32_t now, const uint8_t snapshot[24]) {
+    if(size<13||size>F75_BT_REQUEST_MAX||q[8]!=11)return false;
+    f75_bluetooth_tick(b,t,now);
+    if(b->replying)return false;
+    b->fast=false;b->commit_wait=false;
+    memset(b->response,0,sizeof(b->response));memcpy(b->response,q,4);
+    b->response[4]=11;put16(b->response+7,get16(q+9));
+    uint8_t status=0;
+    if(size!=13||get32(q+4)||get16(q+9)||get16(q+11))status=3;
+    else if(b->owns_transfer||t->phase==1||t->phase==2||t->phase==3)status=1;
+    if(!status)memcpy(b->response+11,snapshot,24);
+    finish_reply(b,t,status,status?0:24);b->reply_started=now;
+    return true;
+}
+
 bool f75_bluetooth_fast_receive(f75_bluetooth *b, f75_transfer *t,
     const uint8_t nonce[4], uint8_t command, uint16_t offset,
     const uint8_t *body, unsigned length, uint32_t now,

@@ -7,7 +7,7 @@
  * The radio retains its own bonds. This adapter never updates radio firmware.
  * Acknowledgments have no transaction ID. Serialize packets and discard old
  * queued key reports before a route change. Do not infer a bond from TX ACK. */
-enum { COMMAND_NONE, COMMAND_SELECT, COMMAND_PAIR };
+enum { COMMAND_NONE, COMMAND_SELECT, COMMAND_PAIR, COMMAND_SLEEP, COMMAND_WAKE };
 typedef struct {uint32_t generation;uint8_t bytes[10],length,kind;} packet;
 static packet queue[16];
 static uint8_t head,tail,offset,retries;
@@ -20,8 +20,39 @@ static uint8_t input[3],input_length,ack_offset;
 static bool route_started,report_fault;
 static uint32_t command_generation;
 static uint8_t selection_status;
+#ifndef F75_RADIO_IDLE_SLEEP
+#define F75_RADIO_IDLE_SLEEP 0
+#endif
+/* The stock BT idle path sets command 0x55 at 0x204; its dispatcher at
+ * 0x47a0 emits A6 55 FB. Gate use until the physical wake path is qualified.
+ * Phase 2 means a UART acknowledgment, not measured RF sleep or current. */
+enum { RADIO_AWAKE, RADIO_SLEEP_PENDING, RADIO_SLEEP_ACKED, RADIO_WAKING, RADIO_SLEEP_FAILED };
+static uint8_t radio_sleep_phase;
+static bool radio_sleep_attempted;
+static uint32_t radio_last_io;
+static bool wake_radio(void) __attribute__((section(".f75_power_text"),noinline));
+/* Exactly 24 bytes: the last two parsed RX controls and last TX control.
+ * No key reports or encoded host configuration payloads are retained. */
+typedef struct { uint32_t at; uint8_t a,b,c,state; } radio_control_event;
+static radio_control_event radio_control_trace[3];
+static void __attribute__((section(".f75_power_text"),noinline)) trace_control(uint32_t now,bool tx,uint8_t a,uint8_t b,uint8_t c){
+    if(radio_control_trace[2].state&0x80u)return;
+    if(!tx){
+        radio_control_trace[0]=radio_control_trace[1];
+        if(a!=0x61&&a!=0x5b&&!(a==0x5a&&b<8)){b=0;c=0;}
+    }
+    radio_control_event event={now,a,b,c,(uint8_t)(radio_sleep_phase|((uint8_t)waiting<<3)|(retries<<4))};
+    radio_control_trace[tx?2:1]=event;
+}
+void __attribute__((section(".f75_power_text"),noinline)) f75_radio_trace(uint8_t out[24]){
+    memcpy(out,radio_control_trace,24);
+}
+void __attribute__((section(".f75_power_text"),noinline)) f75_radio_trace_reset(void){
+    memset(radio_control_trace,0,sizeof(radio_control_trace));
+}
 
 static bool enqueue(uint8_t type,const uint8_t *data,uint8_t length) {
+    if(type!=0xa6&&!wake_radio())return false;
     uint8_t next=(head+1u)&15u;
     if(length>8||next==tail){++errors;return false;}
     packet *p=&queue[head];p->generation=0;p->kind=COMMAND_NONE;p->bytes[0]=type;
@@ -37,6 +68,33 @@ static bool command(uint8_t value,uint8_t kind){
     last_command=value;
     if(kind==COMMAND_SELECT)selection_status=F75_RADIO_SELECT_PENDING;
     return true;
+}
+static bool wake_radio(void){
+    if(radio_sleep_phase==RADIO_AWAKE||radio_sleep_phase==RADIO_WAKING)return true;
+    /* Cancel an idle request that has not begun transmission. Never truncate
+     * a partially transmitted packet or drop an already queued key release. */
+    if(radio_sleep_phase==RADIO_SLEEP_PENDING&&!waiting&&!offset&&head!=tail&&queue[tail].kind==COMMAND_SLEEP){
+        tail=(tail+1u)&15u;radio_sleep_phase=RADIO_AWAKE;return true;
+    }
+    /* Preserve the idle exchange before wake reports replace the last RX.
+     * Bit 7 belongs only to this diagnostic snapshot, not to the live phase. */
+    if(radio_control_trace[2].a==0xa6&&radio_control_trace[2].b==0x55)radio_control_trace[2].state|=0x80u;
+    /* Stock 0x460e sends A6 00 A6 without arming its ACK/retry snapshot,
+     * waits 3 ms, then continues the pending report. No bond selection. */
+    if(!command(0,COMMAND_WAKE))return false;
+    radio_sleep_phase=RADIO_WAKING;return true;
+}
+void __attribute__((section(".f75_power_text"),noinline)) f75_radio_idle(bool eligible,uint32_t now){
+    if(!F75_RADIO_IDLE_SLEEP)return;
+    if(!eligible){radio_sleep_attempted=false;if(radio_sleep_phase!=RADIO_SLEEP_FAILED)(void)wake_radio();return;}
+    if(radio_sleep_attempted||radio_sleep_phase!=RADIO_AWAKE)return;
+    /* A control ACK has no transaction identifier. Drain earlier traffic and
+     * require a quiet interval before this one-shot idle request. */
+    if(!seen||!connected||selected<1||selected>3||head!=tail||waiting||offset||
+       ack_pending||input_length||rx_head!=rx_tail||now-radio_last_io<100u)return;
+    radio_sleep_attempted=true;
+    if(command(0x55,COMMAND_SLEEP))radio_sleep_phase=RADIO_SLEEP_PENDING;
+    else radio_sleep_phase=RADIO_SLEEP_FAILED;
 }
 OSAL_IRQ_HANDLER(Vector60) {
     OSAL_IRQ_PROLOGUE();
@@ -63,22 +121,26 @@ void f75_radio_init(void){
     SN_UART2->DLM=0;SN_UART2->DLL=26;SN_UART2->LC=3;
     SN_UART2->FIFOCTRL=7;SN_UART2->IE=1;SN_UART2->CTRL=0xc1;
     NVIC_ClearPendingIRQ(UART2_IRQn);NVIC_SetPriority(UART2_IRQn,2);NVIC_EnableIRQ(UART2_IRQn);
-    command(0x11,COMMAND_SELECT);
+    /* The radio can retain idle state across an MCU-only firmware restart. */
+    radio_sleep_phase=RADIO_SLEEP_FAILED;
 }
 static void receive_packet(uint32_t now, void (*receive_led)(uint8_t, uint32_t)){
     uint8_t a=input[0],b=input[1];
+    trace_control(now,false,a,b,input[2]);
     if(a==0x61){
         if(b!=0x0d||input[2]!=0x0a){++errors;return;}
-        seen=true;++rx_packets;
+        radio_last_io=now;seen=true;++rx_packets;
         if(waiting){
             packet *p=&queue[tail];
             if(p->kind==COMMAND_SELECT&&p->generation==command_generation)selection_status=F75_RADIO_SELECT_ACKED;
+            if(p->kind==COMMAND_SLEEP&&radio_sleep_phase==RADIO_SLEEP_PENDING)radio_sleep_phase=RADIO_SLEEP_ACKED;
+            if(p->kind==COMMAND_WAKE)radio_sleep_phase=RADIO_AWAKE;
             waiting=false;offset=0;tail=(tail+1u)&15u;retries=0;
         }
         return;
     }
     if((a!=0x5a&&a!=0x5b&&a!=0x5c)||(uint8_t)(a+b)!=input[2]){++errors;return;}
-    seen=true;++rx_packets;last_event=((uint32_t)a<<8)|b;
+    radio_last_io=now;seen=true;++rx_packets;last_event=((uint32_t)a<<8)|b;
     if(a==0x5b&&b==0x43)return; // stock discards this acknowledgment
     ack_pending=true;
     /* Stock 0x4a3e treats the host LED-status packet as link evidence.
@@ -105,13 +167,16 @@ void f75_radio_task(uint32_t now, void (*receive_led)(uint8_t, uint32_t)){
         input[input_length++]=value;
         if(input_length==3){receive_packet(now,receive_led);input_length=0;}
     }
-    /* The supplier retries twice, at 5ms intervals. A bounded retry cannot
-     * wedge USB, rendering, or recovery when the radio is powered off. */
-    if(waiting&&now-sent_at>=10u){
+    /* Physical idle ACKs arrive after the normal report deadline. Give only
+     * the sleep command 100 ms; retain the 10 ms report/selection policy.
+     * Two retries remain bounded when the radio is powered off. */
+    if(waiting&&now-sent_at>=(queue[tail].kind==COMMAND_SLEEP?100u:10u)){
         waiting=false;offset=0;
         if(++retries>2){
             packet *p=&queue[tail];
             if(p->kind==COMMAND_SELECT&&p->generation==command_generation)selection_status=F75_RADIO_SELECT_FAILED;
+            if(p->kind==COMMAND_SLEEP&&radio_sleep_phase==RADIO_SLEEP_PENDING)radio_sleep_phase=RADIO_SLEEP_FAILED;
+            if(p->kind==COMMAND_WAKE)radio_sleep_phase=RADIO_SLEEP_FAILED;
             /* A report ACK timeout describes the UART transaction, not the
              * RF link. Keep the last link event until a disconnect, route
              * change, pairing request, or report-queue fault supersedes it.
@@ -126,22 +191,30 @@ void f75_radio_task(uint32_t now, void (*receive_led)(uint8_t, uint32_t)){
         return;
     }
     if(waiting||head==tail)return;
+    /* Stock's wake preamble is deliberately not an ACK-tracked command.
+     * Drain replies during its 3 ms settle interval before the next packet. */
+    if(tx_packets&&queue[(tail+15u)&15u].kind==COMMAND_WAKE&&now-sent_at<3u)return;
     packet *p=&queue[tail];
     /* Match the supplier's THRE check for every byte. No assumption about
      * FIFO depth. Interrupts remain enabled; a whole packet takes <1ms at
      * the recovered baud rate. A stuck peripheral yields within 2ms. */
     if(transmit(p->bytes,p->length,&offset)){
         if(p->generation&&p->generation==command_generation)route_started=true;
-        ++tx_packets;waiting=true;sent_at=now;
+        ++tx_packets;waiting=p->kind!=COMMAND_WAKE;sent_at=now;radio_last_io=now;
+        if(p->bytes[0]==0xa6)trace_control(now,true,p->bytes[0],p->bytes[1],p->bytes[2]);
+        if(p->kind==COMMAND_WAKE){radio_sleep_phase=RADIO_AWAKE;offset=0;tail=(tail+1u)&15u;retries=0;}
     }
 }
 bool f75_radio_select(uint8_t slot){
     if(slot>4)return false;
+    bool wake=radio_sleep_phase!=RADIO_AWAKE;
+    radio_sleep_phase=RADIO_AWAKE;radio_sleep_attempted=false;
     /* Finish an already transmitted packet before the new transaction.
      * Discard queued reports, send an empty keyboard/consumer report, then
      * the selector command. This preserves release-before-switch ordering. */
     if(waiting){head=(tail+1u)&15u;}else{head=tail;offset=0;}
     selected=slot;connected=false;route_started=false;report_fault=false;
+    if(wake){radio_sleep_phase=RADIO_SLEEP_FAILED;if(!wake_radio())return false;}
     uint8_t empty[8]={0};
     if(seen){enqueue(0xa1,empty,8);enqueue(0xa3,empty,2);enqueue(0xa8,empty,5);}
     bool queued=command(slot==0?0x11:slot==4?0x30:0x30+slot,COMMAND_SELECT);
@@ -149,7 +222,7 @@ bool f75_radio_select(uint8_t slot){
     return queued;
 }
 bool f75_radio_pair(void){
-    if(selected<1||selected>3||!command(0x51,COMMAND_PAIR))return false;
+    if(selected<1||selected>3||!wake_radio()||!command(0x51,COMMAND_PAIR))return false;
     /* The old link can still deliver status while this command is queued.
      * Accept new link evidence only after the pairing bytes were sent. */
     connected=false;route_started=false;return true;
@@ -183,7 +256,7 @@ bool f75_radio_connected(void){return connected;}
 bool f75_radio_busy(void){return head!=tail||waiting;}
 uint8_t f75_radio_selection_status(void){return selection_status;}
 void f75_radio_diagnostics(uint32_t out[6]){
-    out[0]=(uint32_t)seen|((uint32_t)connected<<1)|((uint32_t)waiting<<2)|((uint32_t)report_fault<<3)|((uint32_t)selected<<8)|((uint32_t)last_command<<16);
+    out[0]=(uint32_t)seen|((uint32_t)connected<<1)|((uint32_t)waiting<<2)|((uint32_t)report_fault<<3)|((uint32_t)radio_sleep_phase<<4)|((uint32_t)selected<<8)|((uint32_t)last_command<<16);
     out[1]=tx_packets;out[2]=rx_packets;out[3]=errors+rx_errors;out[4]=last_event;out[5]=(SN_UART2->LS&255u)|((SN_PFPA->UART&65535u)<<8)|
         (((SN_GPIO1->DATA>>6)&3u)<<24)|(((SN_SYS1->AHBCLKEN>>18)&1u)<<26)|
         ((SN_UART2->CTRL&1u)<<27);

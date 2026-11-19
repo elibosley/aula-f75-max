@@ -40,6 +40,31 @@ static uint8_t request(unsigned command, unsigned offset, unsigned count, const 
 
 int main(void) {
     f75_defaults(&c); f75_custom_defaults(&custom);
+    /* Read-only telemetry has an independent, fixed-size RPC. It cannot
+     * steal or extend a settings transfer, even with a matching token. */
+    uint8_t power_request[14]={1,2,3,4};power_request[8]=11;
+    uint8_t power_snapshot[24]={1,0x13,95,2};
+    f75_config saved_config=c;f75_custom saved_custom=custom;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot));
+    assert(b.response_length==39&&!memcmp(b.response,power_request,4));
+    assert(b.response[4]==11&&b.response[5]==0&&!memcmp(b.response+11,power_snapshot,24));
+    assert(!memcmp(&saved_config,&c,sizeof(c))&&!memcmp(&saved_custom,&custom,sizeof(custom)));
+    assert(!b.owns_transfer&&t.phase==0&&t.token==0);
+    assert(!f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot));
+    b.replying=false;power_request[4]=1;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot)&&b.response[5]==3);
+    b.replying=false;power_request[4]=0;power_request[9]=1;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot)&&b.response[5]==3);
+    b.replying=false;power_request[9]=0;power_request[11]=1;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot)&&b.response[5]==3);
+    b.replying=false;power_request[11]=0;
+    assert(f75_bluetooth_power_receive(&b,&t,power_request,14,now,power_snapshot)&&b.response[5]==3);
+    for(unsigned phase=1;phase<=3;phase++){
+        b.replying=false;t.phase=phase;t.touched=now;
+        assert(f75_bluetooth_power_receive(&b,&t,power_request,13,now,power_snapshot)&&b.response[5]==1);
+        assert(t.phase==phase&&!b.owns_transfer);
+    }
+    memset(&b,0,sizeof(b));memset(&t,0,sizeof(t));
     assert(request(0, 0, 0, NULL, 0) == 0 && b.response[11] == 3);
     assert(request(6, 0, 0, NULL, 0) == 0 && b.response[11] == 7);
     assert(request(6, 1, 0, NULL, 0) == 3);
@@ -155,11 +180,32 @@ int main(void) {
         assert(count==decoded);position+=count;compact_wire+=b.response_length;b.replying=false;
     }while(position<F75_BUNDLE_BYTES);
     assert(compact_wire<160&&!b.owns_transfer&&t.phase==0);
-    for(unsigned i=0;i<F75_BUNDLE_BYTES;++i)assert(initial[i]==f75_bt_dictionary3_byte(i));
+    /* Codec 3's dictionary stays immutable. New exported capability metadata
+     * is a normal sparse delta, not a reason to replace the shared dictionary. */
+    uint8_t historical[F75_BUNDLE_BYTES];memcpy(historical,initial,sizeof(historical));
+    assert(historical[128]==F75_LIGHT_EFFECT_COUNT);historical[128]=0;historical[129]=0;
+    put32(historical+156,f75_crc32(historical,156));
+    historical[160+4]=1;memset(historical+160+2512,0,3068-2512);
+    put32(historical+160+3068,f75_crc32(historical+160,3068));
+    for(unsigned i=0;i<F75_BUNDLE_BYTES;++i)assert(historical[i]==f75_bt_dictionary3_byte(i));
     codec=3;
     assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,0,&codec,1,++now,&c,&custom));
-    assert(!b.response[5]&&b.response[11]==3&&b.response_length==26);
-    assert(b.response[19]==128&&(b.response[20]|((unsigned)b.response[21]<<8))==F75_BUNDLE_BYTES);
+    /* The immutable dictionary predates calibration and decimal metadata.
+     * Their sparse delta still fits one bounded response. */
+    assert(!b.response[5]&&b.response[11]==3&&b.response_length<=64);
+    unsigned decoded3=0,at3=19;
+    assert((b.response[17]|((unsigned)b.response[18]<<8))==F75_BUNDLE_BYTES);
+    while(at3<b.response_length-4u){
+        unsigned token=b.response[at3++],length=(token&127u)+1,value=0;
+        if(token==128){length=b.response[at3]|((unsigned)b.response[at3+1]<<8);at3+=2;}
+        else if(token&128u)value=b.response[at3++];
+        assert(length&&length<=F75_BUNDLE_BYTES-decoded3);
+        for(unsigned i=0;i<length;++i){
+            unsigned byte=token==128?0:token&128u?value:b.response[at3++];
+            assert((byte^f75_bt_dictionary3_byte(decoded3))==initial[decoded3]);++decoded3;
+        }
+    }
+    assert(at3==b.response_length-4u&&decoded3==F75_BUNDLE_BYTES);
     assert(!b.owns_transfer&&t.phase==0);b.replying=false;
     codec=4;
     assert(f75_bluetooth_fast_receive(&b,&t,nonce,9,0,&codec,1,++now,&c,&custom)&&b.response[5]==3&&!b.owns_transfer);b.replying=false;

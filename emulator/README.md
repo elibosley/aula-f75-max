@@ -103,3 +103,11 @@ The native-C interface design preview on port 8787 remains a separate service.
 The exact installed diagnostic can be tested separately with
 `.venv/bin/python scripts/test_installed_diagnostic.py`. Its receipt distinguishes
 a modeled clock-state fault from a proven cause on the physical board.
+
+## S75 Pro candidate
+
+Pass the S75 image to the same system runner or interactive server. Shared SN32 peripheral addresses and matrix wiring use the existing board model; image metadata selects B0/A3 knob injection, the 135 x 240 display and offsets 52/40. This executes the S75-linked ARM image and captures its SPI output. It does not validate S75 electronics or its radio controller.
+
+```sh
+.venv/bin/python scripts/serve_emulator.py analysis/UNFLASHED/s75pro/s75pro-wired-test.bin
+```

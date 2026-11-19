@@ -9,4 +9,7 @@ for test in sorted((ROOT/'firmware').glob('test_*.c')):
  target=out/test.stem
  subprocess.run(['cc','-std=c11','-O2','-Wall','-Wextra','-Werror',str(test),*sources,'-o',str(target)],check=True,cwd=ROOT)
  subprocess.run([str(target)]+([str(out/'display.ppm')] if test.stem=='test_display' else []),check=True,cwd=ROOT)
-print('All portable C tests passed.')
+target=out/'test_board_profile_s75pro'
+subprocess.run(['cc','-std=c11','-O2','-Wall','-Wextra','-Werror','-DF75_FN_KEY=65','-DF75_MODEL_ID=1',str(ROOT/'firmware/test_board_profile.c'),*sources,'-o',str(target)],check=True,cwd=ROOT)
+subprocess.run([str(target)],check=True,cwd=ROOT)
+print('All portable C tests passed, including the S75 Pro board profile.')
