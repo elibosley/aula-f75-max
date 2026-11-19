@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/elibosley/aula-f75-max/compare/v0.2.0...v0.3.0) (2026-11-19)
+
+
+### Features
+
+* recover battery logging and share S75 diagnostics ([#7](https://github.com/elibosley/aula-f75-max/issues/7)) ([d089780](https://github.com/elibosley/aula-f75-max/commit/d089780e559114d1e2cdd146b452be35d005c189))
+
 ## [0.2.0](https://github.com/elibosley/aula-f75-max/compare/v0.1.0...v0.2.0) (2026-11-19)
 
 
