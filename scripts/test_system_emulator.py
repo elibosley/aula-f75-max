@@ -118,7 +118,11 @@ def wheel_and_profiles(machine):
         machine.write32(HOST + 0x100 + 14 * 4, 0); move_time(100)
     def turn(reverse=False):
         for state in ([3, 1, 0, 2, 3] if reverse else [3, 2, 0, 1, 3]):
-            machine.write32(HOST + 0x200, (1 << 10) | ((state & 1) << 2) | ((state & 2) << 2))
+            if machine.target == "s75pro":
+                machine.write32(HOST + 0x200, (1 << 10) | ((state & 2) << 2))
+                machine.write32(HOST + 0x204, (1 << 2) | (state & 1))
+            else:
+                machine.write32(HOST + 0x200, (1 << 10) | ((state & 1) << 2) | ((state & 2) << 2))
             move_time(5)
     press_button()
     nav = machine.symbols['navigation']
@@ -129,11 +133,12 @@ def wheel_and_profiles(machine):
     press_button(720)
     assert machine.read(nav, 1) == bytes([0])
     clear_reports()
+    fn_row=10 if machine.target=="s75pro" else 11
     # Change OS through the actual Fn+M matrix chord, then verify USB modifiers.
-    machine.write32(HOST + 0x100 + 11 * 4, 1 << 5); move_time(20)
+    machine.write32(HOST + 0x100 + fn_row * 4, 1 << 5); move_time(20)
     machine.write32(HOST + 0x100 + 8 * 4, 1 << 4); move_time(20)
     machine.write32(HOST + 0x100 + 8 * 4, 0)
-    machine.write32(HOST + 0x100 + 11 * 4, 0); move_time(20)
+    machine.write32(HOST + 0x100 + fn_row * 4, 0); move_time(20)
     clear_reports()
     assert health(machine, b'win!')['os'] == 1
     for row, col, modifier in [(2, 5, 4), (0, 3, 1)]:
@@ -161,13 +166,13 @@ def rgb_runtime(machine):
     machine.endpoint_out(3,b'F75Xpwm!'+bytes(24));machine.advance(10);machine.pump()
     pwm_reply=machine.endpoint_in(2);assert pwm_reply[:8]==b'F75Ypwm!'
     pwm=struct.unpack_from('<6I',pwm_reply,8)
-    assert 0<=pwm[0]<18 and pwm[1]>0 and pwm[2]==pwm[3]==pwm[4]==pwm[1],pwm
+    assert 0<=pwm[0]<(21 if machine.target=="s75pro" else 18) and pwm[1]>0 and pwm[2]==pwm[3]==pwm[4]==pwm[1],pwm
     first=read(b'rgb1')
     machine.write32(HOST+0x30,0);machine.advance(100);machine.pump()
     second=read(b'rgb2')
     assert first[0]==second[0]==1
     assert second[1]>first[1] and second[2]==first[2]==0 and second[3]>first[3],(first,second)
-    assert second[4]==28 and 0<=second[5]<18
+    assert second[4]==28 and 0<=second[5]<(21 if machine.target=="s75pro" else 18)
     # Every matrix sample is taken with the shared PWM pin mux disabled.
     machine.until('f75_matrix_sample')
     irq_before=machine.read32(machine.symbols['irq_count'])
@@ -183,7 +188,7 @@ def rgb_runtime(machine):
         # A14 clock retain their stock output directions.
         assert not machine.read32(0x40044004)&0x8000
     else:assert machine.read32(0x40044004)&0x8000
-    assert machine.read32(0x40046004)&0x40003==0x40003
+    assert machine.read32(0x40046004)&0x40003==(0x40002 if machine.target=="s75pro" else 0x40003)
     assert machine.read32(0x40008008)==255, 'RTOS clock rate changed'
     return dict(first=first,second=second,row_irq_advances=True,animation_buffers_advance=True,
                 pwm_disabled_during_key_sense=True,lighting_clock_advances_during_key_scan=True,key_sampling_owned_by_row_irq=True,rtos_timer4_free_running=True,
@@ -200,12 +205,15 @@ def panel_trace(machine, destination):
         else:
             assert segments, 'data before command'
             segments[-1][1].append(value)
-    board = json.loads((ROOT / 'firmware/targets/f75max/board-map.json').read_text())
+    board = json.loads((ROOT / 'firmware/targets' / ('s75pro' if machine.target == 's75pro' else 'f75max') / 'board-map.json').read_text())
     expected = [(int(c['command'], 16), bytes(c['data'])) for c in board['display']['init_commands']]
     actual = [(c, bytes(data)) for c, data in segments[:len(expected)]]
     assert actual == expected, ('panel initialization differs from recovered stock commands', actual)
     from PIL import Image
-    image = Image.new('RGB', (128, 128))
+    portrait=machine.target == 's75pro'
+    panel_width,panel_height=(135,240) if portrait else (128,128)
+    offset_x,offset_y=(52,40) if portrait else (2,1)
+    image = Image.new('RGB', (panel_width, panel_height))
     columns = rows = None
     tiles = 0
     updates=segments[len(expected):]
@@ -220,15 +228,15 @@ def panel_trace(machine, destination):
             assert len(data) == 4
             rows = struct.unpack('>HH', data)
         elif command == 0x2c:
-            assert columns == (2, 129) and rows and 1 <= rows[0] <= rows[1] <= 128
+            assert columns == (offset_x, offset_x+panel_width-1) and rows and offset_y <= rows[0] <= rows[1] < offset_y+panel_height
             width, height = columns[1] - columns[0] + 1, rows[1] - rows[0] + 1
             if last and len(data)<width*height*2: break
             assert len(data) == width * height * 2, ('extra/missing display bytes', len(data), width, height)
             for index, (rgb,) in enumerate(struct.iter_unpack('>H', data)):
-                image.putpixel((index % width, rows[0] - 1 + index // width),
+                image.putpixel((index % width, rows[0] - offset_y + index // width),
                                (((rgb >> 11) & 31) * 255 // 31, ((rgb >> 5) & 63) * 255 // 63, (rgb & 31) * 255 // 31))
             tiles += 1
-    assert tiles >= 16 and len(set(image.get_flattened_data())) > 10
+    assert tiles >= panel_height//8 and len(set(image.get_flattened_data())) > 10
     image.save(destination)
     return dict(spi_bytes=count, complete_tiles=tiles, screenshot=str(destination.relative_to(ROOT)),
                 screenshot_sha256=sha(destination), initialization_matches_stock=True, exact_pixel_lengths=True)

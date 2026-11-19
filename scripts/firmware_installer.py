@@ -68,7 +68,7 @@ class FirmwareInstaller:
             load_bundle(target['id'], self.bundle_root / target['id'])
             return dict(available=True, model=target['name'], message='Ready to install custom firmware. The keyboard will restart with default custom settings.')
         except FileNotFoundError:
-            return dict(available=False, model='AULA S75 Pro', message='S75 Pro custom firmware is awaiting board-port and recovery validation.')
+            return dict(available=False, model='AULA S75 Pro', message='S75 Pro firmware builds and runs in emulation. Installation awaits physical recovery and hardware validation.')
         except (OSError, ValueError, KeyError) as error:
             return dict(available=False, message=str(error))
 

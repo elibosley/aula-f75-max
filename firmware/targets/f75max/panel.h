@@ -1,5 +1,6 @@
 #pragma once
 #include "f75_display.h"
+#include "board_adapter.h"
 /* Return to matrix/encoder scanning after each bounded 2048-byte pixel slice. */
 #define F75_PANEL_TILE_ROWS 8
 bool f75_panel_init(void);

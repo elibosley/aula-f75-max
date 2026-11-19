@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "f75_core.h"
+#include "f75_panel.h"
 #include "f75_navigation.h"
 #include "f75_timer.h"
 #include "f75_pet.h"
 #include "panel.h"
 #include "raw_hid.h"
 #include "wheel.h"
+#include "matrix_layout.h"
 #include "rgb.h"
 #include "radio.h"
 #include "battery.h"
@@ -37,17 +39,17 @@ static f75_timer focus;
 static f75_pet pet;
 static f75_motion motion;
 static f75_view frame;
-static uint16_t tile[128 * F75_PANEL_TILE_ROWS];
+static uint16_t tile[F75_PANEL_WIDTH * F75_PANEL_TILE_ROWS];
 /* Menu motion changes only a few scanlines. Reuse the Home tile cache's
  * storage for row signatures; no framebuffer or sprite-cache growth. */
 static union {
-    uint32_t tiles[128 / F75_PANEL_TILE_ROWS];
+    uint32_t tiles[F75_PANEL_HEIGHT / F75_PANEL_TILE_ROWS];
     struct { uint32_t fixed[5],rows[88]; } menu;
 } signatures;
 static bool menu_row_cache;
-static bool tile_valid[128 / F75_PANEL_TILE_ROWS];
+static bool tile_valid[F75_PANEL_HEIGHT / F75_PANEL_TILE_ROWS];
 static f75_view previous_frame;
-static uint16_t frame_dirty;
+static uint32_t frame_dirty;
 static bool previous_frame_valid;
 static uint16_t held[MATRIX_ROWS][MATRIX_COLS];
 static uint32_t release_epoch, last_frame, button_changed, button_down_at;
@@ -605,7 +607,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
         /* Only positions absent from the supplier's key layout. This checks
          * whether the wheel switch uses a matrix position on this revision,
          * without reporting the state of any normal typing key. */
-        static const uint8_t unused[MATRIX_ROWS] = {0,16,0,32,32,32,0,32,32,0,0,0,8,1,1};
+        static const uint8_t unused[MATRIX_ROWS] = {F75_UNUSED_MATRIX_MASKS};
         uint8_t response[32] = {'F','7','5','L'};
         memcpy(response + 4, data + 4, 4);
         for (uint8_t row = 0; row < MATRIX_ROWS; ++row) response[8 + row] = matrix_get_row(row) & unused[row];
@@ -650,7 +652,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
 #endif
     response[25] = navigation.page;
     response[26] = (uint8_t)gpio_read_pin(B17) | ((uint8_t)gpio_read_pin(A10) << 1) | ((uint8_t)gpio_read_pin(B2) << 2);
-    response[27] = (uint8_t)gpio_read_pin(A2) | ((uint8_t)gpio_read_pin(A3) << 1);
+    response[27] = (uint8_t)gpio_read_pin(F75_ENCODER_A) | ((uint8_t)gpio_read_pin(F75_ENCODER_B) << 1);
     response[28] = 1; response[29] = state.config.caps_swap; response[30] = state.config.os[active_slot];
     response[31] = wheel_pressed();
     raw_hid_send(response, sizeof(response));
@@ -758,9 +760,12 @@ void keyboard_pre_init_user(void) {
      * dedicated Caps indicator (supplier routine 0xb48c). B0/B18 retain their
      * stock levels without assigning an unverified electrical purpose. */
     static const pin_t stock_high[]={A13,A14,A15};
-    static const pin_t stock_low[]={B0,B1,B18};
+    static const pin_t stock_low[]={F75_STOCK_LOW_PINS};
     for(unsigned i=0;i<3;++i){gpio_write_pin_high(stock_high[i]);gpio_set_pin_output(stock_high[i]);}
-    for(unsigned i=0;i<3;++i){gpio_write_pin_low(stock_low[i]);gpio_set_pin_output(stock_low[i]);}
+    for(unsigned i=0;i<sizeof(stock_low)/sizeof(stock_low[0]);++i){gpio_write_pin_low(stock_low[i]);gpio_set_pin_output(stock_low[i]);}
+    if(!F75_GAUGE_IDLE_HIGH){gpio_write_pin_low(A14);gpio_write_pin_low(A15);}
+    gpio_set_pin_input_high(F75_ENCODER_A);
+    gpio_set_pin_input_high(F75_ENCODER_B);
     gpio_set_pin_input_high(A10);
     gpio_set_pin_input_high(B2);
 }
@@ -1194,15 +1199,20 @@ void housekeeping_task_user(void) {
         if (now - last_frame < interval) return;
         previous_frame=frame;
         make_frame(now);
-        bool row_cache=!frame.home&&!frame.timer;
+        bool row_cache=!F75_PORTRAIT_PANEL&&!frame.home&&!frame.timer;
         if(row_cache!=menu_row_cache){memset(tile_valid,0,sizeof(tile_valid));menu_row_cache=row_cache;}
-        frame_dirty=previous_frame_valid?f75_changed_tiles(&previous_frame,&frame):0xffffu;
+        frame_dirty=F75_PORTRAIT_PANEL?((1u<<(F75_PANEL_HEIGHT/F75_PANEL_TILE_ROWS))-1u):
+            (previous_frame_valid?f75_changed_tiles(&previous_frame,&frame):0xffffu);
         previous_frame_valid=true;frame_y = 0; frame_pending = true; last_frame = now;
     }
-    while(frame_y<128&&tile_valid[frame_y/F75_PANEL_TILE_ROWS]&&!(frame_dirty&(1u<<(frame_y/F75_PANEL_TILE_ROWS))))frame_y+=F75_PANEL_TILE_ROWS;
-    if(frame_y==128){frame_pending=false;++complete_frames;return;}
+    while(frame_y<F75_PANEL_HEIGHT&&tile_valid[frame_y/F75_PANEL_TILE_ROWS]&&!(frame_dirty&(1u<<(frame_y/F75_PANEL_TILE_ROWS))))frame_y+=F75_PANEL_TILE_ROWS;
+    if(frame_y==F75_PANEL_HEIGHT){frame_pending=false;++complete_frames;return;}
     uint16_t render_start = (uint16_t)SN_CT16B4->TC;
-    bool rendered = f75_render_tile(&frame, frame_y, F75_PANEL_TILE_ROWS, tile, 128 * F75_PANEL_TILE_ROWS);
+#if F75_PORTRAIT_PANEL
+    bool rendered = f75_render_panel_tile(&frame, F75_PANEL_WIDTH, F75_PANEL_HEIGHT, frame_y, F75_PANEL_TILE_ROWS, tile, F75_PANEL_WIDTH * F75_PANEL_TILE_ROWS);
+#else
+    bool rendered = f75_render_tile(&frame,frame_y,F75_PANEL_TILE_ROWS,tile,F75_PANEL_WIDTH*F75_PANEL_TILE_ROWS);
+#endif
     uint16_t render_elapsed = (uint16_t)((uint16_t)SN_CT16B4->TC - render_start);
     perf_render_ticks += render_elapsed;
     if (render_elapsed > perf_max_render) perf_max_render = render_elapsed;
@@ -1211,7 +1221,7 @@ void housekeeping_task_user(void) {
     bool row_slice=menu_row_cache&&frame_y>=24&&frame_y<112;
     uint32_t *cached=NULL;
     if(!row_slice)cached=menu_row_cache?&signatures.menu.fixed[index<3?index:index-11]:&signatures.tiles[index];
-    uint32_t signature=rendered&&!row_slice?pixel_signature(tile,128*F75_PANEL_TILE_ROWS):0;
+    uint32_t signature=rendered&&!row_slice?pixel_signature(tile,F75_PANEL_WIDTH*F75_PANEL_TILE_ROWS):0;
     bool sent=false;
     if(rendered){
         if(row_slice)sent=send_menu_rows(index);
@@ -1228,7 +1238,7 @@ void housekeeping_task_user(void) {
     if(!row_slice)*cached=signature;
     tile_valid[index]=true;
     frame_y += F75_PANEL_TILE_ROWS;
-    if (frame_y == 128) { frame_pending = false; ++complete_frames;f75_panel_backlight(true); }
+    if (frame_y == F75_PANEL_HEIGHT) { frame_pending = false; ++complete_frames;f75_panel_backlight(true); }
 }
 
 void suspend_power_down_user(void) {

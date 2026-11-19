@@ -53,12 +53,14 @@ def run(image):
      assert power()[4]==255,'Raw key activity did not restore the active row period'
      key(keymap.index(usage),False);step(15);assert reports[-1]==bytes(8)
   # Fn and wheel are activity even without a host typing usage.
-  age();key(71,True);step(30);assert power()[0]==0 and power()[4]==255
-  key(71,False);step(30)
+  age();fn_key=keymap.index(0x7e40);key(fn_key,True);step(30);assert power()[0]==0 and power()[4]==255
+  key(fn_key,False);step(30)
   # Input wake and display completion are separate contracts. A dark panel
-  # must receive all sixteen fresh tiles before its backlight can turn on.
-  # Keep input under 50ms and bound that complete repaint to 100ms; do not
+  # must receive every fresh tile before its backlight can turn on.
+  # Keep input under 50ms. The S75 has almost twice the pixel area, so its
+  # complete repaint budget is 200ms (F75: 100ms). Do not
   # depend on extra diagnostic queries accidentally finishing the frame.
+  repaint_limit_us=200000 if m.target=="s75pro" else 100000
   wheel_wake_us=[];wheel_input_us=[]
   for character in range(4):
    m.write(m.symbols['state']+115,bytes([character]))
@@ -71,9 +73,9 @@ def run(image):
     assert m.read(m.symbols['button_stable'],1)==b'\0' and m.read(m.symbols['screen_dark'],1)==b'\0' and input_us<=50000,('Wheel input wake',character,phase,input_us)
     wheel_input_us.append(input_us)
     assert m.read(m.symbols['navigation'],1)==b'\0','Wheel click fired before release'
-    while not m.read32(0x40044000)&(1<<16) and elapsed()<100000:step(2)
+    while not m.read32(0x40044000)&(1<<16) and elapsed()<repaint_limit_us:step(2)
     wake_us=elapsed()
-    assert m.read32(0x40044000)&(1<<16) and wake_us<=100000 and m.read32(m.symbols['complete_frames'])>frames_before,('Fresh wake frame missed 100ms deadline',character,phase,wake_us)
+    assert m.read32(0x40044000)&(1<<16) and wake_us<=repaint_limit_us and m.read32(m.symbols['complete_frames'])>frames_before,('Fresh wake frame missed panel repaint deadline',character,phase,wake_us)
     wheel_wake_us.append(wake_us)
     key(84,False);step(40);assert m.read(m.symbols['navigation'],1)==b'\1','Wake swallowed the menu click'
   # Adaptive row changes cannot undo an explicit diagnostic suspension.
@@ -81,6 +83,6 @@ def run(image):
   age();assert power()[4]==511;assert m.read32(0x40006000)==0
   key(keymap.index(4),True);step(25);assert power()[4]==255 and m.read32(0x40006000)==0
   key(keymap.index(4),False);step(20);assert m.read32(HOST+8)==0
- return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'idle_row_period_511_active_255':True,'idle_pwm_banks_stopped_mux_detached':True,'dark_color_frames_stop':True,'idle_thread_WFI_reached_and_interrupt_wake_executes':True,'pmu_sleep_mode_4_at_WFI_normal_0_after_wake':True,'metadata_does_not_wake':True,'real_usb_15ms_pulses':96,'companions_covered':4,'idle_pulse_rows':[0,1,14],'idle_phases_per_key':8,'fn_and_held_wheel_wake':True,'wheel_wake_cases':8,'wheel_input_deadline_ms':50,'max_wheel_input_wake_us':max(wheel_input_us),'fresh_frame_deadline_ms':100,'max_fresh_frame_wake_us':max(wheel_wake_us),'click_after_wake_preserved':True,'diagnostic_suspend_preserved':True,'deep_sleep_or_battery_endurance':'not_claimed'}
+ return {'status':'passed','candidate_sha256':hashlib.sha256(Path(image).read_bytes()).hexdigest(),'hardware_writes':False,'panel_repaint_limit_us':repaint_limit_us,'idle_row_period_511_active_255':True,'idle_pwm_banks_stopped_mux_detached':True,'dark_color_frames_stop':True,'idle_thread_WFI_reached_and_interrupt_wake_executes':True,'pmu_sleep_mode_4_at_WFI_normal_0_after_wake':True,'metadata_does_not_wake':True,'real_usb_15ms_pulses':96,'companions_covered':4,'idle_pulse_rows':[0,1,14],'idle_phases_per_key':8,'fn_and_held_wheel_wake':True,'wheel_wake_cases':8,'wheel_input_deadline_ms':50,'max_wheel_input_wake_us':max(wheel_input_us),'fresh_frame_deadline_ms':repaint_limit_us//1000,'max_fresh_frame_wake_us':max(wheel_wake_us),'click_after_wake_preserved':True,'diagnostic_suspend_preserved':True,'deep_sleep_or_battery_endurance':'not_claimed'}
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('image',type=Path);p.add_argument('--output',type=Path,required=True);a=p.parse_args();r=run(a.image);a.output.write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

@@ -20,7 +20,8 @@ class Emulator:
         self.machine = System(image)
         self.identity = enumerate_usb(self.machine)
         self.image_hash = __import__('hashlib').sha256(Path(image).read_bytes()).hexdigest()
-        self.frame = Image.new('RGB', (128, 128))
+        self.width,self.height,self.offset_x,self.offset_y=(135,240,52,40) if self.machine.target=='s75pro' else (128,128,2,1)
+        self.frame = Image.new('RGB', (self.width, self.height))
         self.command = None
         self.data = bytearray()
         self.columns = self.rows = None
@@ -43,13 +44,13 @@ class Emulator:
                 if self.command in (0x2a, 0x2b) and len(self.data) == 4:
                     if self.command == 0x2a: self.columns = struct.unpack('>HH', self.data)
                     else: self.rows = struct.unpack('>HH', self.data)
-                if self.command == 0x2c and self.columns == (2, 129) and self.rows:
-                    expected = 128 * (self.rows[1] - self.rows[0] + 1) * 2
+                if self.command == 0x2c and self.columns == (self.offset_x, self.offset_x+self.width-1) and self.rows:
+                    expected = self.width * (self.rows[1] - self.rows[0] + 1) * 2
                     if len(self.data) == expected:
-                        self.updated_rows.update(range(self.rows[0]-1,self.rows[1]))
+                        self.updated_rows.update(range(self.rows[0]-self.offset_y,self.rows[1]-self.offset_y+1))
                         for index, (rgb,) in enumerate(struct.iter_unpack('>H', self.data)):
-                            x, y = index % 128, self.rows[0] - 1 + index // 128
-                            if 0 <= y < 128:
+                            x, y = index % self.width, self.rows[0] - self.offset_y + index // self.width
+                            if 0 <= y < self.height:
                                 self.frame.putpixel((x,y), (((rgb>>11)&31)*255//31, ((rgb>>5)&63)*255//63, (rgb&31)*255//31))
 
     def advance(self, duration):
@@ -72,7 +73,11 @@ class Emulator:
             assert value in (-1, 1)
             sequence = [3, 2, 0, 1, 3] if value > 0 else [3, 1, 0, 2, 3]
             for state in sequence:
-                machine.write32(HOST + 0x200, (1 << 10) | ((state & 1) << 2) | ((state & 2) << 2))
+                if machine.target=="s75pro":
+                    machine.write32(HOST + 0x200, (1 << 10) | ((state & 2) << 2))
+                    machine.write32(HOST + 0x204, (1 << 2) | (state & 1))
+                else:
+                    machine.write32(HOST + 0x200, (1 << 10) | ((state & 1) << 2) | ((state & 2) << 2))
                 self.advance(5)
         elif name in ('press', 'back'):
             if 'f75_wheel_matrix_row' in machine.symbols:
@@ -101,7 +106,7 @@ class Emulator:
         buffer = io.BytesIO()
         self.frame.save(buffer, format='PNG')
         machine = self.machine
-        return dict(image_sha256=self.image_hash, png=base64.b64encode(buffer.getvalue()).decode(),
+        return dict(model=self.machine.target, width=self.width,height=self.height, image_sha256=self.image_hash, png=base64.b64encode(buffer.getvalue()).decode(),
                     uptime_ms=machine.read32(HOST + 12) // 1000,
                     frames=machine.read32(machine.symbols['complete_frames']),
                     scans=machine.read32(machine.symbols['f75_matrix_scans']),

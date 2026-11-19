@@ -17,7 +17,7 @@
   "key_count": 80,
   "layout_columns": 15,
   "layout_rows": 6,
-  "firmware_port": "research",
+  "firmware_port": "compiled-candidate",
   "firmware_available": false,
   "screen_source": "https://www.aulagaming.com/pages/download",
   "research_firmware": {
@@ -27,5 +27,6 @@
     "mcu_family": "SN32F290",
     "version": "1.10"
   },
-  "hardware_qualification": "pending"
+  "hardware_qualification": "pending",
+  "build_target": "aula/s75pro_test"
 }

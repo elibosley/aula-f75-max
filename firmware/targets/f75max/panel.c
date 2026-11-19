@@ -140,11 +140,14 @@ bool f75_panel_init(void) {
 }
 
 bool f75_panel_tile(uint8_t y, uint8_t rows, const uint16_t *pixels) {
-    if (!rows || rows > F75_TILE_ROWS || y > 128 - rows || !pixels || !begin()) return false;
-    const uint8_t columns[] = {0, 2, 0, 129};
-    const uint8_t lines[] = {0, (uint8_t)(y + 1), 0, (uint8_t)(y + rows)};
+    if (!rows || rows > F75_TILE_ROWS || rows > F75_PANEL_HEIGHT ||
+        y > F75_PANEL_HEIGHT - rows || !pixels || !begin()) return false;
+    uint16_t left=F75_PANEL_OFFSET_X, right=left+F75_PANEL_WIDTH-1;
+    uint16_t top=F75_PANEL_OFFSET_Y+y, bottom=top+rows-1;
+    const uint8_t columns[] = {left>>8, left&255, right>>8, right&255};
+    const uint8_t lines[] = {top>>8, top&255, bottom>>8, bottom&255};
     if (!command(0x2a) || !f75_panel_transfer(columns, sizeof(columns)) ||
         !command(0x2b) || !f75_panel_transfer(lines, sizeof(lines)) ||
         !command(0x2c)) return finish(false);
-    return finish(f75_panel_pixels(pixels, 128u * rows));
+    return finish(f75_panel_pixels(pixels, F75_PANEL_WIDTH * rows));
 }

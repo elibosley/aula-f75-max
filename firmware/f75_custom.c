@@ -28,7 +28,7 @@ bool f75_custom_valid(const f75_custom *c){
        (c->battery_full_soc&&(c->battery_full_soc<23040||c->battery_full_soc>25600)))return false;
     for(unsigned layer=0;layer<2;++layer)for(unsigned key=0;key<F75_CUSTOM_KEYS;++key){
         uint16_t v=c->keys[layer][key];if(!binding(v))return false;
-        if((key==71||key==84)&&v)return false; /* physical Fn and wheel/recovery */
+        if((key==F75_FN_KEY||key==84)&&v)return false; /* physical Fn and wheel/recovery */
         if(layer==1&&v&&(key==0||key==7||key==13||key==19||key==25||key==31||key==41||key==52||key==62))return false;
         if(v>=F75_BIND_MACRO&&v<F75_BIND_MACRO+F75_CUSTOM_MACROS&&!c->macro_length[v-F75_BIND_MACRO])return false;
     }
@@ -119,13 +119,13 @@ void f75_custom_lighting(const f75_custom *c,uint8_t layer,uint8_t brightness,ui
 void f75_custom_indicators(const f75_custom *c,bool caps,bool fn,uint8_t brightness,uint8_t pwm[270]){
     if(!c||!pwm)return;
     unsigned peak=(brightness>100?100:brightness)*127u/100u;
-    /* Physical Caps is key 3 (RGB 45); physical Fn is key 71 (RGB 86).
+    /* Physical Caps is key 3 (RGB 45); physical Fn is supplied by the board profile.
      * Fn takes priority while held, then the host's Caps state returns.
      * This overlays the completed foreground buffer, never the row IRQ. */
     const uint8_t *color=fn&&(c->indicator_mask&2u)?c->fn_color:caps&&(c->indicator_mask&1u)?c->caps_color:NULL;
     for(unsigned ch=0;ch<3;++ch){
         if(color)pwm[ch*90u+45u]=(uint8_t)((unsigned)color[ch]*peak/255u);
-        if(fn&&(c->indicator_mask&2u))pwm[ch*90u+86u]=(uint8_t)((unsigned)c->fn_color[ch]*peak/255u);
+        if(fn&&(c->indicator_mask&2u))pwm[ch*90u+(F75_FN_KEY%6)*15u+F75_FN_KEY/6u]=(uint8_t)((unsigned)c->fn_color[ch]*peak/255u);
     }
 }
 void f75_macro_cancel(f75_macro_player *p,f75_macro_emit emit,void *context){

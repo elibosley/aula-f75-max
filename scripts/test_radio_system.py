@@ -47,7 +47,7 @@ def run(image):
     assert m.read(m.symbols['button_stable'],1)==expected,'Wheel edge did not debounce'
   def key(usage,down):key_at(*position(usage),down)
   def chord(usage):
-   key_at(11,5,True);key(usage,True);key(usage,False);key_at(11,5,False)
+   key_at(*position(0x7e40),True);key(usage,True);key(usage,False);key_at(*position(0x7e40),False)
   def selector(mode):
    m.write32(HOST+0x200,(1<<10 if mode!=2 else 0)|(1<<2)|(1<<3))
    m.write32(HOST+0x204,1<<2 if mode!=1 else 0);step(25);step(25)
@@ -115,9 +115,9 @@ def run(image):
   selector(1);assert slot()==2;settle()
   # Fn+wheel click returns to the previous BT slot and consumes the whole
   # button gesture, including a hold, without opening a menu or pairing.
-  offset=len(trace());key_at(11,5,True);key_at(14,0,True);step(750);key_at(14,0,False);key_at(11,5,False);settle()
+  offset=len(trace());key_at(*position(0x7e40),True);key_at(14,0,True);step(750);key_at(14,0,False);key_at(*position(0x7e40),False);settle()
   assert slot()==1 and m.read(m.symbols['navigation'],1)==b'\0'
-  key_at(11,5,True);key_at(14,0,True);key_at(14,0,False);key_at(11,5,False);settle();assert slot()==2
+  key_at(*position(0x7e40),True);key_at(14,0,True);key_at(14,0,False);key_at(*position(0x7e40),False);settle();assert slot()==2
   assert b'\xa6\x51\xf7' not in trace()[offset:],'Previous-device shortcut started pairing'
   selector(0);assert slot()==0;settle();selector(1);assert slot()==2;settle()
   # Pairing requires an explicit request followed by a separate held-wheel action.

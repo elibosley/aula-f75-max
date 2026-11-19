@@ -9,6 +9,9 @@ from keyboard_connections import discover,select
 TOKEN=secrets.token_urlsafe(32);LOCK=threading.Lock()
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[1]))
 LAYOUT=[dict(x['vendor_key'],matrix=x['scan_index']*6+x['sense_bit'],usage=int(x['stock_usage'],16)) for x in json.loads((ROOT/'firmware/targets/f75max/board-map.json').read_text(encoding='utf-8'))['matrix']['coordinates'] if x.get('vendor_key')]
+MODEL_LAYOUTS={'f75max':LAYOUT}
+MODEL_LAYOUTS['s75pro']=[dict(x['vendor_key'],matrix=x['scan_index']*6+x['sense_bit'],usage=int(x['stock_usage'],16)) for x in json.loads((ROOT/'firmware/targets/s75pro/board-map.json').read_text(encoding='utf-8'))['matrix']['coordinates'] if x.get('vendor_key')]
+
 
 def resolve_connection(body,probe):
  mode=body.get('transport','usb');identity=None
@@ -42,7 +45,7 @@ def handle(handler):
  desktop=getattr(handler.server,'desktop',False)
  probe=getattr(handler.server,'bluetooth_status_probe',None) if desktop else None
  if handler.command=='GET':
-  respond({'csrf':TOKEN,'layout':LAYOUT,'protocol':1,'desktop':desktop,'bluetooth_status':probe is not None,'bluetooth_settings':probe is not None,'power_telemetry':True,'lighting_effects':json.loads((ROOT/'ui/lighting-effects.json').read_text())});return True
+  respond({'csrf':TOKEN,'layout':LAYOUT,'model_layouts':MODEL_LAYOUTS,'protocol':1,'desktop':desktop,'bluetooth_status':probe is not None,'bluetooth_settings':probe is not None,'power_telemetry':True,'lighting_effects':json.loads((ROOT/'ui/lighting-effects.json').read_text())});return True
  if handler.headers.get('Origin')!='http://'+host or not secrets.compare_digest(handler.headers.get('X-F75-CSRF',''),TOKEN):
   respond({'error':'Reload this page before applying settings'},403);return True
  if not LOCK.acquire(False):respond({'error':'Keyboard is busy; wait for the current request'},423);return True

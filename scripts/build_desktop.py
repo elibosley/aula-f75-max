@@ -31,6 +31,7 @@ def main():
                '--workpath', str(work), '--specpath', str(work), '--distpath', str(dist),
                '--add-data', f'{ROOT / "ui"}:ui', '--add-data', f'{BOARD_MAP}:firmware/targets/f75max',
                '--add-data', f'{ROOT / "firmware/targets/s75pro/model.json"}:firmware/targets/s75pro',
+               '--add-data', f'{ROOT / "firmware/targets/s75pro/board-map.json"}:firmware/targets/s75pro',
                '--add-data', f'{ROOT / "LICENSE"}:licenses',
                '--add-data', f'{ROOT / "THIRD_PARTY_NOTICES.md"}:licenses']
     if sys.platform == 'darwin':

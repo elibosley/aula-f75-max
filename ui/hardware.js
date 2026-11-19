@@ -5,6 +5,7 @@ const colorPresets=[['Mint','#91e2ce'],['Rose','#f2a4aa'],['Lilac','#c4b4ef'],['
 let settings=null,observedHost=null,csrf='',layout=[],chosen=null,layer=0,slot=0,busy=false,dirty=false;
 let desktop=false,displayReady=false,bluetoothAccess=null;
 let lightingEffects=[];
+let modelLayouts={},visualKeys=F75_LAYOUT,activeModel=null;
 let batteryReading=null;
 const editableFields=['os','auto_mask','caps_swap','face','power','wheel','battery','names','lighting','light_mode','reduced_motion','companion','screen_color','indicators','keys','colors','layer_colors','macros'];
 let autoSaving=false;
@@ -24,7 +25,7 @@ async function refreshConnection(){
   const label=resolvedTransport==='bluetooth'?'Bluetooth · BT'+snapshot.choice.slot:resolvedTransport==='usb'?'USB':null;
   $('#settings-transport option[value="auto"]').textContent=mode==='auto'&&label?'Automatic · '+label:'Automatic';
   $('#connection-state').textContent=connectionReady?'Connected':snapshot.choice.reason||'Disconnected';
-  $('#connection-intro').textContent=label?'F75 Max · '+label:'Connect your keyboard to load its settings.';
+  $('#connection-intro').textContent=label?(settings?.model==='s75pro'?'S75 Pro':'F75 Max')+' · '+label:'Connect your keyboard to load its settings.';
   document.body.dataset.connected=String(connectionReady);
   if(dirty&&!sameSettingsRoute()){$('#state-label').textContent='Waiting for keyboard';$('#message').textContent='Your edits are kept here. Reconnect the original keyboard and slot, or Reload to start over.';}
   $('#bluetooth-access').hidden=resolvedTransport!=='bluetooth'||bluetoothAccess==='granted';
@@ -71,9 +72,9 @@ for(const link of document.querySelectorAll('[data-section]')){
 window.F75Studio={navigate:section=>showSection(section,true),reload:()=>send('read'),clock:()=>send('clock')};
 window.addEventListener('pywebviewready',()=>window.pywebview.api.set_pending(dirty));
 
-const reserved=new Set([0,7,13,19,25,31,41,52,62,71,84]);
+const reserved=new Set([0,7,13,19,25,31,41,52,62,84]);
 const names={224:'Left Ctrl',225:'Left Shift',226:'Left Alt / Option',227:'Left Command / Windows',228:'Right Ctrl',229:'Right Shift',230:'Right Alt / Option',231:'Right Command / Windows',256:'Primary (Cmd / Ctrl)'};
-const logicalKeys=()=>[...new Map(F75_LAYOUT.filter(k=>k.label!=='Fn').map(k=>[k.usage,names[k.usage]||k.label])).entries()].concat([[228,'Right Ctrl'],[231,'Right Command / Windows']]);
+const logicalKeys=()=>[...new Map(visualKeys.filter(k=>k.label!=='Fn').map(k=>[k.usage,names[k.usage]||k.label])).entries()].concat([[228,'Right Ctrl'],[231,'Right Command / Windows']]);
 function option(select,value,label){const o=document.createElement('option');o.value=value;o.textContent=label;select.append(o);}
 function validationMessage(){
  if($('#editor input:invalid'))return 'Finish the highlighted field to save.';
@@ -226,7 +227,7 @@ async function sendDisplay(action) {
 }
 function paint(){
  if(!settings)return;
- for(const key of F75_LAYOUT){const b=$(`[data-key="${key.id}"]`),real=layout.find(x=>String(x.key_index)===key.id);if(!real)continue;
+ for(const key of visualKeys){const b=$(`[data-key="${key.id}"]`),real=layout.find(x=>String(x.key_index)===key.id);if(!real)continue;
   b.setAttribute('aria-pressed',String(chosen?.matrix===real.matrix));
   const color=settings.colors[layer][real.matrix]||settings.layer_colors[layer]||settings.colors[0][real.matrix]||'#a8ead4';b.style.setProperty('--key-color',color);
  }
@@ -237,7 +238,7 @@ function selection(){
  for(const [usage,label] of logicalKeys())option(select,usage,label);
  for(let i=0;i<8;i++)option(select,0x8000+i,'Macro '+(i+1));
  for(const [value,label] of [[0x40e9,'Volume up'],[0x40ea,'Volume down'],[0x40e2,'Mute'],[0x40cd,'Play / pause'],[0x2001,'Scroll up'],[0x2002,'Scroll down'],[0x2011,'Left mouse click'],[0x2012,'Right mouse click'],[0x2013,'Middle mouse click']])option(select,value,label);
- const locked=!chosen||layer===2||chosen.matrix===71||(layer===1&&reserved.has(chosen.matrix));
+ const locked=!chosen||layer===2||chosen.name==='Fn'||(layer===1&&(reserved.has(chosen.matrix)||chosen.name==='Fn'));
  select.disabled=locked;select.value=chosen&&layer<2?settings.keys[layer][chosen.matrix]:0;
  $('#binding-note').textContent=layer===2?'The Control layer uses the keyboard’s navigation controls. Its colors can be customized.':locked&&chosen?'This key is reserved for Fn, device switching or recovery. Its color can still change.':'Original follows the host layout: Caps sends Command on Mac and Ctrl on Windows or Android. Custom actions send their named keys.';
  $('#paint-key').disabled=!chosen;$('#inherit-key').disabled=!chosen;
@@ -276,7 +277,30 @@ function macro(){
   $('#steps').append(row);
  });
 }
-function render(){renderBattery();selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
+function buildKeyButtons(){
+ $('#keyboard').replaceChildren();
+  for(const key of visualKeys){const b=document.createElement('button');b.className='key';b.dataset.key=key.id;b.textContent=key.label;b.setAttribute('aria-label','Select '+key.label);b.setAttribute('aria-pressed','false');
+   Object.assign(b.style,{left:key.x/660*100+'%',top:key.y/280*100+'%',width:key.w/660*100+'%',height:key.h/280*100+'%'});
+   b.onclick=()=>{chosen=layout.find(x=>String(x.key_index)===key.id);selection();};$('#keyboard').append(b);
+  }
+ }
+function modelLayout(){
+ const identifier=settings.model||'f75max';
+ if(activeModel===identifier)return;
+ activeModel=identifier;chosen=null;
+ layout=modelLayouts[identifier]||layout;
+ visualKeys=F75_LAYOUT;
+ if(identifier==='s75pro'){
+  const left=Math.min(...layout.map(k=>Number(k.rect_left))),top=Math.min(...layout.map(k=>Number(k.rect_top)));
+  const width=Math.max(...layout.map(k=>Number(k.rect_left)+Number(k.rect_width)))-left;
+  const height=Math.max(...layout.map(k=>Number(k.rect_top)+Number(k.rect_height)))-top;
+  visualKeys=layout.map(k=>({id:String(k.key_index),label:k.name,usage:k.usage,
+    x:15+(Number(k.rect_left)-left)*630/width,y:18+(Number(k.rect_top)-top)*240/height,
+    w:Number(k.rect_width)*630/width,h:Number(k.rect_height)*240/height}));
+ }
+ buildKeyButtons();
+}
+function render(){modelLayout();renderBattery();selection();profiles();macro();$('#wheel-mode').value=settings.wheel??0;$('#power-mode').value=settings.power??0;$('#face').value=settings.face;$('#companion').value=settings.companion??3;$('#companion').disabled=(settings.record_version??0)<6;$('#companion-support').textContent=(settings.record_version??0)<6?'Install the companion firmware to change characters.':'';lighting();}
 function lighting(){
  const supported=settings.lighting_effect_count??5;
  for(const item of $('#light-effect').options)item.disabled=Number(item.value)>=supported;
@@ -396,7 +420,7 @@ $('#copy-preset').onclick=()=>{settings.macros[slot]={repeat:false,steps:[{usage
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
 (async()=>{
  try{
-  const response=await fetch('/api/hardware');if(!response.ok)throw Error('Hardware editor unavailable');const data=await response.json();csrf=data.csrf;layout=data.layout;
+  const response=await fetch('/api/hardware');if(!response.ok)throw Error('Hardware editor unavailable');const data=await response.json();csrf=data.csrf;layout=data.layout;modelLayouts=data.model_layouts||{};
   lightingEffects=data.lighting_effects||[];
   if(lightingEffects.length){
    $('#light-effect').replaceChildren();
@@ -417,10 +441,7 @@ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();
    $('#settings-transport option[value="bluetooth"]').disabled=data.bluetooth_settings!==true;
   }
   showSection(document.querySelector(`[data-section][href="${location.hash}"]`)?.dataset.section||'keys');
-  for(const key of F75_LAYOUT){const b=document.createElement('button');b.className='key';b.dataset.key=key.id;b.textContent=key.label;b.setAttribute('aria-label','Select '+key.label);b.setAttribute('aria-pressed','false');
-   Object.assign(b.style,{left:key.x/660*100+'%',top:key.y/280*100+'%',width:key.w/660*100+'%',height:key.h/280*100+'%'});
-   b.onclick=()=>{chosen=layout.find(x=>String(x.key_index)===key.id);selection();};$('#keyboard').append(b);
-  }
+  buildKeyButtons();
   $('#settings-connection').hidden=false;
   await refreshConnection();
   const poll=setInterval(refreshConnection,4000);window.addEventListener('pagehide',()=>clearInterval(poll),{once:true});

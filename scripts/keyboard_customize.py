@@ -122,7 +122,7 @@ def decode(data):
  for slot in range(8):
   steps=[dict(zip(['usage','delay_ms'],struct.unpack_from('<HH',custom,at+slot*128+i*4))) for i in range(lengths[slot])]
   macros.append({'repeat':bool(repeat[slot]),'steps':steps})
- return {'schema':1,'base_hex':data.hex(),'os':list(core[12:17]),'auto_mask':core[126],'caps_swap':bool(core[114]),'face':core[120],
+ return {'schema':1,'model':'s75pro' if core[130]==1 else 'f75max','base_hex':data.hex(),'os':list(core[12:17]),'auto_mask':core[126],'caps_swap':bool(core[114]),'face':core[120],
          'power':core[115],'wheel':core[119],
          'battery':{'supported':core[129]==1,'full_soc':full,'decimals':decimals},
          'names':[core[17+i*19:36+i*19].split(b'\0')[0].decode('ascii') for i in range(5)],
@@ -187,7 +187,7 @@ def encode(document):
  if len(macros)!=8:raise ValueError('Eight macro slots required')
  for layer,keys in enumerate(document['keys']):
   for key,usage in enumerate(keys):
-   if usage and (key in (71,84) or (layer==1 and key in (0,7,13,19,25,31,41,52,62))):raise ValueError('This key is reserved for Fn, switching or recovery')
+   if usage and (key in ((65 if data[130]==1 else 71),84) or (layer==1 and key in (0,7,13,19,25,31,41,52,62))):raise ValueError('This key is reserved for Fn, switching or recovery')
    if 0x8000<=usage<0x8008 and not macros[usage-0x8000]['steps']:raise ValueError('Macro '+str(usage-0x8000+1)+' has no steps')
  for i,macro in enumerate(macros):
   if len(macro['steps'])>32 or type(macro['repeat']) is not bool:raise ValueError('Macro requires at most 32 steps and a boolean repeat flag')
