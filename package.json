@@ -1,10 +1,12 @@
 {
   "name": "f75-max-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "test": "node --test ui/engine.test.cjs scripts/test_companion_motion.cjs tests/test_autosave.cjs",
     "preview": "python3 -m http.server 8765 --bind 127.0.0.1 --directory ui"
   },
-  "devDependencies": { "playwright": "^1.58.0" }
+  "devDependencies": {
+    "playwright": "^1.58.0"
+  }
 }
