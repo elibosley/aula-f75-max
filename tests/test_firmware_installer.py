@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -59,7 +60,7 @@ class FirmwareInstallerTest(unittest.TestCase):
     def test_release_absence_never_enters_bootloader(self):
         with tempfile.TemporaryDirectory() as temporary:
             installer = FirmwareInstaller(bundle_root=Path(temporary)/'releases', data_root=Path(temporary)/'records')
-            with patch('hid.enumerate', return_value=[S75]), patch('firmware_installer.Rom') as rom:
+            with patch('firmware_installer.hid_backend', return_value=SimpleNamespace(enumerate=lambda *args: [S75])), patch('firmware_installer.Rom') as rom:
                 installer.install()
             rom.assert_not_called()
             self.assertFalse(installer.snapshot()['recovery_required'])
@@ -69,7 +70,7 @@ class FirmwareInstallerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             installer = FirmwareInstaller(data_root=temporary)
             rom = InstallerRom()
-            with patch('hid.enumerate', return_value=[S75]), \
+            with patch('firmware_installer.hid_backend', return_value=SimpleNamespace(enumerate=lambda *args: [S75])), \
                     patch('firmware_installer.load_bundle', return_value=(IMAGE, [0x1234])), \
                     patch('firmware_installer.Rom', return_value=rom), patch('firmware_installer.time.sleep'):
                 installer.install()
@@ -81,7 +82,7 @@ class FirmwareInstallerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             installer = FirmwareInstaller(data_root=temporary)
             rom = InstallerRom()
-            with patch('hid.enumerate', return_value=[S75]), \
+            with patch('firmware_installer.hid_backend', return_value=SimpleNamespace(enumerate=lambda *args: [S75])), \
                     patch('firmware_installer.load_bundle', return_value=(IMAGE, [0x0e8e])), \
                     patch('firmware_installer.Rom', return_value=rom), patch('firmware_installer.time.sleep'), \
                     contextlib.redirect_stdout(io.StringIO()):
