@@ -7,7 +7,7 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "package-name": "F75 Studio",
+      "package-name": "f75-max-studio",
       "bump-minor-pre-major": true,
       "changelog-path": "CHANGELOG.md"
     }
